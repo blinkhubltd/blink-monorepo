@@ -1,0 +1,30 @@
+{
+  "name": "@repo/backend",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./convex/_generated/api.js",
+    "./server": "./convex/_generated/server.js",
+    "./dataModel": "./convex/_generated/dataModel.d.ts",
+    "./validators": "./convex/validators.ts"
+  },
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@repo/lib": "workspace:*",
+    "convex": "^1.27.1",
+    "geolib": "^3.3.4",
+    "svix": "^1.76.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@repo/typescript": "workspace:*",
+    "@types/node": "^22.15.3",
+    "typescript": "5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

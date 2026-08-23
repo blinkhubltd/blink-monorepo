@@ -1,0 +1,23 @@
+{
+  "extends": "@repo/typescript/convex.json",
+  "compilerOptions": {
+    // The shared preset enables `noUncheckedIndexedAccess`. This tree was
+    // vendored from a submodule that had no tsconfig.json at all and has
+    // therefore never been typechecked under it — turning it on surfaces 130
+    // errors across 17 files (importJobsAction 33, insights 17, products 15,
+    // dispatch 9, payments 8, cart 8, ...).
+    //
+    // Each one is a decision about what the code should do when a value is
+    // absent, not a mechanical fix, and there are no tests to catch a wrong
+    // answer. Fixing them during a byte-identical vendoring phase would defeat
+    // the point of the vendoring. Re-enable per-module as Phase B3 moves each
+    // file, and delete this override when the count reaches zero.
+    //
+    // `declaration` is off because nothing consumes this package's .d.ts —
+    // apps import ./convex/_generated/api.js and ./dataModel.
+    "noUncheckedIndexedAccess": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["convex"]
+}

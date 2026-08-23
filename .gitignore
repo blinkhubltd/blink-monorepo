@@ -1,0 +1,20 @@
+node_modules/
+.turbo/
+dist/
+build/
+.next/
+.expo/
+out/
+
+# env — never commit
+.env
+.env.*
+!.env.example
+
+# convex local state
+.convex/
+
+# os / editor
+.DS_Store
+Thumbs.db
+*.log

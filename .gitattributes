@@ -1,0 +1,19 @@
+# Normalize all text to LF in the repository, regardless of contributor platform.
+# The vendored Convex tree came from a repo with core.autocrlf=true; without this
+# every file would show as modified on a Windows checkout.
+* text=auto eol=lf
+
+# Binaries — never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.mp4 binary
+*.keystore binary

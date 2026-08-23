@@ -1,0 +1,11 @@
+const fs=require('fs');
+const R=JSON.parse(fs.readFileSync('roles.raw.json','utf8'));
+const all=[...new Set(R.flatMap(r=>r.permissions||[]))];
+const res=[...new Set(all.map(p=>p.split(':')[0]))].sort();
+console.log('distinct resources granted:', res.length);
+console.log(res.join(', '));
+const sa=R.find(r=>r.name==='SUPER ADMIN').permissions;
+console.log('\nSUPER ADMIN: '+sa.length+' of '+(res.length*3)+' possible (resources x CREATE/READ/UPDATE)');
+const missing=[];
+for(const r of res) for(const a of ['CREATE','READ','UPDATE']) if(!sa.includes(r+':'+a)) missing.push(r+':'+a);
+console.log('SUPER ADMIN missing:', missing.length?missing.join(', '):'(nothing — full coverage)');
