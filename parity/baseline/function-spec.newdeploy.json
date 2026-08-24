@@ -462,7 +462,7 @@
               "tableName": "users",
               "type": "id"
             },
-            "optional": false
+            "optional": true
           },
           "rejection_reason": {
             "fieldType": {
@@ -569,7 +569,7 @@
               "tableName": "users",
               "type": "id"
             },
-            "optional": false
+            "optional": true
           },
           "requestId": {
             "fieldType": {
@@ -585,6 +585,45 @@
       "returns": null,
       "visibility": {
         "kind": "public"
+      }
+    },
+    {
+      "args": {
+        "type": "object",
+        "value": {
+          "processedBy": {
+            "fieldType": {
+              "tableName": "users",
+              "type": "id"
+            },
+            "optional": false
+          },
+          "requestId": {
+            "fieldType": {
+              "tableName": "agent_payment_requests",
+              "type": "id"
+            },
+            "optional": false
+          }
+        }
+      },
+      "functionType": "Action",
+      "identifier": "agentPaymentRequests.js:executePayout",
+      "returns": null,
+      "visibility": {
+        "kind": "internal"
+      }
+    },
+    {
+      "args": {
+        "type": "object",
+        "value": {}
+      },
+      "functionType": "Query",
+      "identifier": "agentPaymentRequests.js:assertPayoutPermission",
+      "returns": null,
+      "visibility": {
+        "kind": "internal"
       }
     },
     {

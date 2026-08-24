@@ -1,13 +1,15 @@
 import { v, ConvexError } from "convex/values";
 import {
-  mutation,
-  query,
   action,
+  internalAction,
   internalMutation,
   internalQuery,
+  mutation,
+  query,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
+import { assertAgentOwner, assertPermission } from "./auth.helpers";
 
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
@@ -151,12 +153,18 @@ export const createPaymentRequest = mutation({
     amount: v.number(),
   },
   handler: async (ctx, args) => {
+    // An agent may only open a payout request against their OWN agent record.
+    //
+    // Previously this took `agentId` as a client argument with no identity check
+    // at all, so any caller could open a request against any agent — the first
+    // link in the payout chain. Ownership is all that is needed here: no
+    // permission data is involved, which is why this guard could ship ahead of
+    // the RBAC work.
+    const { agent } = await assertAgentOwner(ctx, args.agentId);
+
     if (args.amount <= 0) {
       throw new ConvexError("Amount must be greater than zero.");
     }
-
-    const agent = await ctx.db.get(args.agentId);
-    if (!agent) throw new ConvexError("Agent not found.");
 
     if (!agent.paystack_recipient_code) {
       throw new ConvexError(
@@ -233,10 +241,29 @@ export const updatePaymentRequestStatus = mutation({
   args: {
     id: v.id("agent_payment_requests"),
     status: v.union(v.literal("approved"), v.literal("rejected")),
-    processedBy: v.id("users"),
+    /**
+     * @deprecated Ignored — the approver is derived from the caller's identity.
+     *
+     * This was a required `v.id("users")`, which made the approval trail
+     * forgeable: the client named its own approver. Kept as an optional arg only
+     * so existing admin builds keep working during the migration; the value is
+     * discarded, and a mismatch is logged as a tamper signal. Delete the arg once
+     * the admin app stops sending it.
+     */
+    processedBy: v.optional(v.id("users")),
     rejection_reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const { user } = await assertPermission(ctx, "agents:UPDATE");
+
+    if (args.processedBy && args.processedBy !== user._id) {
+      console.error(
+        `[payout] client-supplied processedBy (${args.processedBy}) does not ` +
+          `match the authenticated caller (${user._id}); using the caller`,
+      );
+    }
+    const processedBy: Id<"users"> = user._id;
+
     const req = await ctx.db.get(args.id);
     if (!req) throw new ConvexError("Payment request not found.");
     if (req.status !== "pending") {
@@ -251,7 +278,7 @@ export const updatePaymentRequestStatus = mutation({
     await ctx.db.patch(args.id, {
       status: args.status,
       processed_at: Date.now(),
-      processed_by: args.processedBy,
+      processed_by: processedBy,
       ...(args.rejection_reason
         ? { rejection_reason: args.rejection_reason }
         : {}),
@@ -321,6 +348,11 @@ export const createAgentPaystackRecipient = action({
     mpesaNumber: v.string(),
   },
   handler: async (ctx, args) => {
+    // Registers an M-Pesa payout destination for an agent. Was fully
+    // unauthenticated. Actions have no `ctx.db`, so the check runs in an
+    // internal query where the caller's identity still propagates.
+    await ctx.runQuery(internal.agentPaymentRequests.assertPayoutPermission, {});
+
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) throw new Error("PAYSTACK_SECRET_KEY is not configured");
 
@@ -373,12 +405,60 @@ export const createAgentPaystackRecipient = action({
   },
 });
 
+/**
+ * Public entry point for executing an approved payout.
+ *
+ * Deliberately thin: it authorises, then delegates to `executePayout`, an
+ * `internalAction`. The Paystack transfer itself is therefore **unreachable from
+ * any client** — previously this was a public action that issued
+ * `POST /transfer` from `source: "balance"`, gated only by the request's own
+ * status, which the equally-unguarded approve step had just set.
+ */
 export const processPaymentRequest = action({
+  args: {
+    requestId: v.id("agent_payment_requests"),
+    /** @deprecated Ignored — derived from the caller. See updatePaymentRequestStatus. */
+    processedBy: v.optional(v.id("users")),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ transferCode: string; reference: string }> => {
+    // Actions have no `ctx.db`, so the permission check runs in an internal
+    // query. Identity propagates through `runQuery`, and the acting user id
+    // comes back from the server rather than from the client.
+    const processedBy: Id<"users"> = await ctx.runQuery(
+      internal.agentPaymentRequests.assertPayoutPermission,
+      {},
+    );
+
+    if (args.processedBy && args.processedBy !== processedBy) {
+      console.error(
+        `[payout] client-supplied processedBy (${args.processedBy}) does not ` +
+          `match the authenticated caller (${processedBy}); using the caller`,
+      );
+    }
+
+    return await ctx.runAction(internal.agentPaymentRequests.executePayout, {
+      requestId: args.requestId,
+      processedBy,
+    });
+  },
+});
+
+/**
+ * Performs the actual Paystack transfer. Internal by construction — no auth
+ * check inside, because it cannot be called by a client.
+ */
+export const executePayout = internalAction({
   args: {
     requestId: v.id("agent_payment_requests"),
     processedBy: v.id("users"),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ transferCode: string; reference: string }> => {
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) throw new Error("PAYSTACK_SECRET_KEY is not configured");
 
@@ -439,6 +519,27 @@ export const processPaymentRequest = action({
 });
 
 // ── Internal helpers for actions ───────────────────────────────
+
+/**
+ * Authorisation gate usable from an `action`.
+ *
+ * `assertPermission` needs `ctx.db` to resolve the caller's role, which actions
+ * do not have. Wrapping it in an `internalQuery` lets an action authorise itself
+ * — the caller's identity propagates through `ctx.runQuery` — and returns the
+ * acting user id so audit fields are stamped server-side rather than trusted
+ * from the client.
+ *
+ * `agents:UPDATE` is the gate for every payout operation. Verified against the
+ * live roles table: SUPER ADMIN holds it, so this does not lock out the four
+ * users who actually administer payouts.
+ */
+export const assertPayoutPermission = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<Id<"users">> => {
+    const { user } = await assertPermission(ctx, "agents:UPDATE");
+    return user._id;
+  },
+});
 
 export const getAgentForAction = internalQuery({
   args: { agentId: v.id("agents") },
