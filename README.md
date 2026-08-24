@@ -28,14 +28,45 @@ live apps use. Nothing points at it yet.
 
 | | live (`adventurous-hound-19`) | new (`doting-bandicoot-348`) |
 |---|---|---|
-| functions | 474 | **478** |
-| modules | 50 | 50 |
+| functions | 474 | **477** |
 | HttpActions | 3 | **7** |
-| internal functions | 19 | **22** |
+| internal functions | 19 | **24** |
 | rows, every table | production data | **0 — empty** |
 
-The +4 HttpActions are the new Paystack webhook plus three legacy path aliases.
-The +3 internal are the cron-only functions that were needlessly public.
++4 HttpActions: the new Paystack webhook plus three legacy path aliases.
++5 internal: three cron-only functions, plus `executePayout` and
+`assertPayoutPermission` from the payout hardening.
+−3 public mutations: `testNotifications.ts` deleted (sample-notification seeding,
+zero callers, publicly callable in production).
+
+### Convex folder layout
+
+```
+convex/
+  schema.ts  validators.ts  auth.config.ts  auth.helpers.ts  http.ts  crons.ts
+  data/        43 domain modules — 416 functions
+  user/        users, roles, clerk           — 53 functions
+  actions/     importJobsAction              —  1 function  ("use node" only)
+  webhooks/    clerk-adjacent httpActions: agentScan, location, paystack
+  lib/         pure, ctx-free, unit-tested
+  helpers/     legacy — being dissolved into lib/
+  hooks/       legacy — to be dissolved
+```
+
+Two constraints learned the hard way and worth recording:
+
+- **`convex/actions/` is a reserved folder.** Every file in it must declare
+  `"use node"`, or the deploy is rejected outright. So `actions/` holds only
+  genuine Node-runtime actions — for Blink that is `importJobsAction` alone,
+  which needs `xlsx`. `geocode` and `directions` are ordinary actions and live in
+  `data/`. This happens to match what sydia's `actions/` actually means.
+- **Module paths may not contain hyphens.** File names are still camelCase; the
+  rename to snake_case is a separate commit so the move stays reviewable.
+
+Folder moves change `api.*` paths (`api.orders.get` becomes
+`api.data.orders.get`) and Convex has no path aliasing. That is free here because
+nothing points at this deployment — but when the apps switch over, every moved
+path needs either a coordinated release or a forwarding shim. See §11 of the plan.
 
 Isolation verified after deploying: the live deployment still reports 474
 functions with zero added and zero removed.

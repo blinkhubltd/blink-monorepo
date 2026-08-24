@@ -136,7 +136,7 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
   switch (event.type) {
     case "user.created":
     case "user.updated": {
-      await ctx.runMutation(internal.users.upsertUser, {
+      await ctx.runMutation(internal.user.users.upsertUser, {
         clerkId,
         email: primaryEmail(event.data),
         name: displayName(event.data),
@@ -145,7 +145,7 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
       break;
     }
     case "user.deleted": {
-      await ctx.runMutation(internal.users.deleteUser, { clerkId });
+      await ctx.runMutation(internal.user.users.deleteUser, { clerkId });
       break;
     }
   }
