@@ -20816,7 +20816,7 @@
             "fieldType": {
               "type": "string"
             },
-            "optional": true
+            "optional": false
           },
           "orders": {
             "fieldType": {
@@ -21285,7 +21285,7 @@
             "fieldType": {
               "type": "string"
             },
-            "optional": true
+            "optional": false
           },
           "orders": {
             "fieldType": {

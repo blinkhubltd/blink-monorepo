@@ -38,22 +38,16 @@ import { paymentMethodFromChannel } from "../lib/paystack";
  *
  * Returns the already-created orders when `key` has been seen, otherwise null.
  *
- * `key` is optional so existing clients keep working. When it is absent the
- * caller is unprotected, which is logged rather than rejected — refusing would
- * break the live checkout that does not send one yet.
+ * The key is a required argument on both callers, so there is no unprotected
+ * path. It stays a plain string rather than a generated server-side value
+ * because only the client knows which submissions are retries of the same
+ * checkout and which are a genuine second order.
  */
 async function findOrdersByIdempotencyKey(
   ctx: { db: { query: (t: "orders") => any } },
-  key: string | undefined,
+  key: string,
   label: string,
 ): Promise<{ orderId: Id<"orders">; vendor: Id<"vendors"> }[] | null> {
-  if (!key) {
-    console.warn(
-      `[${label}] no idempotency_key supplied — a resubmitted request will ` +
-        "create duplicate orders. The client should send one.",
-    );
-    return null;
-  }
   const existing = await ctx.db
     .query("orders")
     .withIndex("by_idempotency_key", (q: any) => q.eq("idempotency_key", key))
@@ -266,8 +260,11 @@ export const finalizePaidOrders = mutation({
 export const finalizePayOnDeliveryOrders = mutation({
   args: {
     user_id: v.id("users"),
-    /** See OrdersValidator.idempotency_key. Optional for compatibility. */
-    idempotency_key: v.optional(v.string()),
+    /**
+     * Required. See OrdersValidator.idempotency_key — and the note on the
+     * clearance variant for why this is not optional.
+     */
+    idempotency_key: v.string(),
     orders: v.array(
       v.object({
         order: OrdersValidator,
@@ -599,8 +596,17 @@ export const finalizePaidClearanceOrders = mutation({
 export const finalizePayOnDeliveryClearanceOrders = mutation({
   args: {
     user_id: v.id("users"),
-    /** See OrdersValidator.idempotency_key. Optional for compatibility. */
-    idempotency_key: v.optional(v.string()),
+    /**
+     * Required. See OrdersValidator.idempotency_key.
+     *
+     * A stable per-checkout string the client generates once and reuses on
+     * retry. Without it a resubmitted request creates duplicate orders that the
+     * customer is then charged for on delivery, so it is required rather than
+     * optional — a caller that omits it is rejected at the argument boundary
+     * with a message naming the field, which is a better failure than a silent
+     * duplicate.
+     */
+    idempotency_key: v.string(),
     orders: v.array(ClearanceOrderGroup),
   },
   handler: async (ctx, args) => {
