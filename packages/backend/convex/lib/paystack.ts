@@ -3,9 +3,15 @@
  *
  * ── What this consolidates ────────────────────────────────────────────────
  *
- * `PAYSTACK_BASE_URL` was declared three times: `payments.ts:9`,
- * `agentPaymentRequests.ts:12`, and again as a bare literal at
- * `payments.ts:1869`. One copy now.
+ * `PAYSTACK_BASE_URL` was declared three times in the vendored tree — twice as a
+ * local `const` (in what are now `data/payments.ts` and
+ * `data/agentPaymentRequests.ts`) and once as a bare literal inside a `fetch`.
+ * All three now import from here.
+ *
+ * That duplication was not merely untidy: a scripted rewrite during the folder
+ * restructure corrupted all three copies at once, and the only thing that caught
+ * it was a test asserting this constant's value. One definition means one place
+ * to get wrong.
  *
  * ── Amounts ───────────────────────────────────────────────────────────────
  *

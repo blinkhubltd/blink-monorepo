@@ -5,8 +5,7 @@ import { OrdersValidator, OrderItemWithoutOrderId } from "../validators";
 import { api } from "../_generated/api";
 import { Id } from "../helpers";
 import type { Doc } from "../_generated/dataModel";
-
-const PAYSTACK_BASE_URL = "https://api.paystack.co";
+import { PAYSTACK_BASE_URL } from "../lib/paystack";
 
 type JsonRecord = Record<string, unknown>;
 function isRecord(value: unknown): value is JsonRecord {
@@ -482,7 +481,7 @@ export const createPaymentWithStockReservation = mutation({
       try {
         // Call the stock reservation function directly
         const reservation: Id<"stockReservation"> | Doc<"stockReservation"> =
-          await ctx.runMutation(api.data.stockReservation.reserveStock, {
+          await ctx.runMutation(api.data.stock_reservation.reserveStock, {
             productId: item.productId,
             quantity: item.quantity,
             orderReference: args.reference,
@@ -499,7 +498,7 @@ export const createPaymentWithStockReservation = mutation({
 
         // Release any successful reservations
         try {
-          await ctx.runMutation(api.data.stockReservation.releaseStock, {
+          await ctx.runMutation(api.data.stock_reservation.releaseStock, {
             orderReference: args.reference,
           });
         } catch (releaseError) {
@@ -946,7 +945,7 @@ export const preparePaystackSplitForCheckout = action({
     const getOrCreatePlatformSubaccount = async (
       key: "primary" | "secondary",
     ): Promise<string> => {
-      const existing = await ctx.runQuery(api.data.paystackSubaccounts.getByKey, {
+      const existing = await ctx.runQuery(api.data.paystack_subaccounts.getByKey, {
         key,
       });
       if (existing?.subaccount_code) {
@@ -1064,7 +1063,7 @@ export const preparePaystackSplitForCheckout = action({
         subaccount_code: maskCode(subaccountCode),
       });
 
-      await ctx.runMutation(api.data.paystackSubaccounts.upsert, {
+      await ctx.runMutation(api.data.paystack_subaccounts.upsert, {
         key: key as "primary" | "secondary",
         business_name,
         bank_code,
@@ -1866,7 +1865,7 @@ export const initiatePaystackTransactionAction = action({
 
     console.log("Paystack charge payload:", JSON.stringify(body, null, 2));
 
-    const res = await fetch("https://api.paystack.co/charge", {
+    const res = await fetch(`${PAYSTACK_BASE_URL}/charge`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1960,7 +1959,7 @@ export const finalizePaidOrders = mutation({
 
     // 2. Confirm stock reservations (make them permanent after successful payment)
     try {
-      await ctx.runMutation(api.data.stockReservation.confirmPaymentReservation, {
+      await ctx.runMutation(api.data.stock_reservation.confirmPaymentReservation, {
         orderReference: args.reference,
       });
       console.log("Stock reservations confirmed for payment:", args.reference);
@@ -2065,7 +2064,7 @@ export const finalizePaidOrders = mutation({
       // Check if this order has an approved prescription and assign to picker
       if (approvedPrescription) {
         try {
-          await ctx.runMutation(api.data.pickerAssignment.assignOrderToPicker, {
+          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: grpWithNormalizedOrder.order.vendor_id,
             type: "order",
@@ -2080,7 +2079,7 @@ export const finalizePaidOrders = mutation({
       } else {
         // No approved prescription, use round-robin assignment
         try {
-          await ctx.runMutation(api.data.pickerAssignment.assignOrderToPicker, {
+          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: grpWithNormalizedOrder.order.vendor_id,
             type: "order",
@@ -2198,7 +2197,7 @@ export const finalizePayOnDeliveryOrders = mutation({
 
       if (approvedPrescription) {
         try {
-          await ctx.runMutation(api.data.pickerAssignment.assignOrderToPicker, {
+          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: base.vendor_id,
             type: "order",
@@ -2213,7 +2212,7 @@ export const finalizePayOnDeliveryOrders = mutation({
       } else {
         // No approved prescription, use round-robin assignment
         try {
-          await ctx.runMutation(api.data.pickerAssignment.assignOrderToPicker, {
+          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: base.vendor_id,
             type: "order",
@@ -2376,7 +2375,7 @@ export const finalizePaidClearanceOrders = mutation({
       }
 
       try {
-        await ctx.runMutation(api.data.pickerAssignment.assignOrderToPicker, {
+        await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
           orderId,
           vendorId: grp.order.vendor_id,
           type: "order",
@@ -2416,7 +2415,7 @@ export const finalizePaidClearanceOrders = mutation({
       // Multi-vendor checkout → instant batch with all order IDs
       const orderIds = created.map((c) => c.orderId);
       try {
-        await ctx.runMutation(api.data.clearanceBatching.createAndDispatchBatch, {
+        await ctx.runMutation(api.data.clearance_batching.createAndDispatchBatch, {
           orderIds,
           vendorId: created[0].vendor,
         });
@@ -2426,7 +2425,7 @@ export const finalizePaidClearanceOrders = mutation({
     } else if (created.length === 1) {
       // Single-vendor → add to pending batch or create new one
       try {
-        await ctx.runMutation(api.data.clearanceBatching.addOrderToBatch, {
+        await ctx.runMutation(api.data.clearance_batching.addOrderToBatch, {
           orderId: created[0].orderId,
           vendorId: created[0].vendor,
         });
@@ -2512,7 +2511,7 @@ export const finalizePayOnDeliveryClearanceOrders = mutation({
       }
 
       try {
-        await ctx.runMutation(api.data.pickerAssignment.assignOrderToPicker, {
+        await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
           orderId,
           vendorId: grp.order.vendor_id,
           type: "order",
@@ -2547,7 +2546,7 @@ export const finalizePayOnDeliveryClearanceOrders = mutation({
     if (created.length > 1) {
       const orderIds = created.map((c) => c.orderId);
       try {
-        await ctx.runMutation(api.data.clearanceBatching.createAndDispatchBatch, {
+        await ctx.runMutation(api.data.clearance_batching.createAndDispatchBatch, {
           orderIds,
           vendorId: created[0].vendor,
         });
@@ -2556,7 +2555,7 @@ export const finalizePayOnDeliveryClearanceOrders = mutation({
       }
     } else if (created.length === 1) {
       try {
-        await ctx.runMutation(api.data.clearanceBatching.addOrderToBatch, {
+        await ctx.runMutation(api.data.clearance_batching.addOrderToBatch, {
           orderId: created[0].orderId,
           vendorId: created[0].vendor,
         });

@@ -104,7 +104,7 @@ export const migratePushTokens = action({
       throw new Error("User has no push token to migrate");
     }
 
-    const existing = await ctx.runQuery(api.data.pushTokens.listUserPushTokens, {
+    const existing = await ctx.runQuery(api.data.push_tokens.listUserPushTokens, {
       userId: args.userId,
     });
 
@@ -115,7 +115,7 @@ export const migratePushTokens = action({
       return { success: true, message: "No migration needed" };
     }
 
-    await ctx.runMutation(api.data.pushTokens.registerPushToken, {
+    await ctx.runMutation(api.data.push_tokens.registerPushToken, {
       userId: args.userId,
       token: pushToken,
       platform: "web",

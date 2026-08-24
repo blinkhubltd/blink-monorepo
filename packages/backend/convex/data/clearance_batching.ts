@@ -50,7 +50,7 @@ export const addOrderToBatch = mutation({
       if (updatedOrderIds.length >= maxOrders) {
         await ctx.scheduler.runAfter(
           0,
-          internal.data.clearanceBatching.dispatchBatch,
+          internal.data.clearance_batching.dispatchBatch,
           { batchId: existingBatch._id },
         );
       }
@@ -69,7 +69,7 @@ export const addOrderToBatch = mutation({
     // Schedule timeout to dispatch even if batch isn't full
     await ctx.scheduler.runAfter(
       waitMinutes * 60 * 1000,
-      internal.data.clearanceBatching.processBatchTimeout,
+      internal.data.clearance_batching.processBatchTimeout,
       { batchId },
     );
 
@@ -93,7 +93,7 @@ export const createAndDispatchBatch = mutation({
       created_at: Date.now(),
     });
 
-    await ctx.scheduler.runAfter(0, internal.data.clearanceBatching.dispatchBatch, {
+    await ctx.scheduler.runAfter(0, internal.data.clearance_batching.dispatchBatch, {
       batchId,
     });
 
@@ -114,7 +114,7 @@ export const processBatchTimeout = internalMutation({
     // Only dispatch if still pending (wasn't already dispatched due to max capacity)
     if (batch.status !== "Pending") return;
 
-    await ctx.runMutation(internal.data.clearanceBatching.dispatchBatch, {
+    await ctx.runMutation(internal.data.clearance_batching.dispatchBatch, {
       batchId: args.batchId,
     });
   },

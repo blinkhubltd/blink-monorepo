@@ -150,7 +150,7 @@ export const scheduleNotificationCleanup = internalAction({
     // Process in batches to avoid timeout
     while (hasMore && totalDeleted < 1000) {
       const result = await ctx.runMutation(
-        internal.data.userNotifications.cleanupExpiredNotifications,
+        internal.data.user_notifications.cleanupExpiredNotifications,
         { batchSize: 100 }
       );
 
@@ -586,7 +586,7 @@ export const createOrderNotification = mutation({
   },
   handler: async (ctx, args): Promise<any> => {
     return await ctx.runMutation(
-      api.data.userNotifications.createOrderStatusNotification,
+      api.data.user_notifications.createOrderStatusNotification,
       {
         userId: args.userId,
         orderId: args.orderId,

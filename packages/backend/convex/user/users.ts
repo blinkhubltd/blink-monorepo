@@ -9,7 +9,7 @@ import {
   isSystemRole,
   SYSTEM_ROLES,
 } from "../lib/roles";
-import { getAccountCompletion } from "../lib/accountCompletion";
+import { getAccountCompletion } from "../lib/account_completion";
 
 const computeUserSearchText = (user: {
   name?: string;

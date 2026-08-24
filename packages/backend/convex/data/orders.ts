@@ -540,7 +540,7 @@ export const updateOrderStatus = mutation({
     ) {
       try {
         // Call the stock fulfillment function
-        await ctx.runMutation(api.data.stockReservation.fulfillStock, {
+        await ctx.runMutation(api.data.stock_reservation.fulfillStock, {
           orderReference: order.payment_reference,
         });
         console.log(
@@ -561,7 +561,7 @@ export const updateOrderStatus = mutation({
     ) {
       try {
         // Call the stock release function
-        await ctx.runMutation(api.data.stockReservation.releaseStock, {
+        await ctx.runMutation(api.data.stock_reservation.releaseStock, {
           orderReference: order.payment_reference,
         });
         console.log(
@@ -1456,7 +1456,7 @@ export const createClearanceOrder = mutation({
       // Decrement stock via internal mutation
       await ctx.scheduler.runAfter(
         0,
-        internal.data.clearanceProducts.decrementStock,
+        internal.data.clearance_products.decrementStock,
         {
           id: item.clearance_product_id,
           quantity: item.quantity,

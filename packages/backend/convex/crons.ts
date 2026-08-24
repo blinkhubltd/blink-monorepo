@@ -41,7 +41,7 @@ const crons = cronJobs();
 crons.daily(
   "notification-cleanup",
   { hourUTC: 2, minuteUTC: 0 },
-  internal.data.userNotifications.scheduleNotificationCleanup,
+  internal.data.user_notifications.scheduleNotificationCleanup,
 );
 
 // Release stock held by carts that never checked out, so inventory is not
@@ -49,14 +49,14 @@ crons.daily(
 crons.hourly(
   "stock-reservation-cleanup",
   { minuteUTC: 7 },
-  internal.data.stockReservation.cleanupExpiredReservations,
+  internal.data.stock_reservation.cleanupExpiredReservations,
 );
 
 // Expire clearance listings past their window.
 crons.hourly(
   "clearance-expiry",
   { minuteUTC: 30 },
-  internal.data.clearanceProducts.expireListings,
+  internal.data.clearance_products.expireListings,
 );
 
 // Credit fixed-amount weekly earnings to agents in "fixed" zones.

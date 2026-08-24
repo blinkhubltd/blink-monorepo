@@ -9,12 +9,12 @@ import * as XLSX from "xlsx";
 export const processProductImportJob = action({
   args: { jobId: v.id("import_jobs") },
   handler: async (ctx, args) => {
-    const job = await ctx.runQuery(internal.data.importJobs.getJobForAction, {
+    const job = await ctx.runQuery(internal.data.import_jobs.getJobForAction, {
       id: args.jobId,
     });
     if (!job) throw new Error("Import job not found");
 
-    await ctx.runMutation(internal.data.importJobs.updateJobProgress, {
+    await ctx.runMutation(internal.data.import_jobs.updateJobProgress, {
       id: args.jobId,
       processed: 0,
       success: 0,
@@ -35,7 +35,7 @@ export const processProductImportJob = action({
       });
 
       if (rows.length === 0) {
-        await ctx.runMutation(internal.data.importJobs.updateJobProgress, {
+        await ctx.runMutation(internal.data.import_jobs.updateJobProgress, {
           id: args.jobId,
           processed: 0,
           success: 0,
@@ -56,7 +56,7 @@ export const processProductImportJob = action({
         return out;
       });
 
-      await ctx.runMutation(internal.data.importJobs.updateJobProgress, {
+      await ctx.runMutation(internal.data.import_jobs.updateJobProgress, {
         id: args.jobId,
         processed: 0,
         success: 0,
@@ -67,7 +67,7 @@ export const processProductImportJob = action({
 
       // Build lookup maps from DB
       const allCategories = await ctx.runQuery(
-        internal.data.importJobs.getAllCategoriesForAction,
+        internal.data.import_jobs.getAllCategoriesForAction,
         {},
       );
 
@@ -246,7 +246,7 @@ export const processProductImportJob = action({
           );
         }
 
-        await ctx.runMutation(internal.data.importJobs.updateJobProgress, {
+        await ctx.runMutation(internal.data.import_jobs.updateJobProgress, {
           id: args.jobId,
           processed: totalProcessed,
           success: totalSuccess,
@@ -256,7 +256,7 @@ export const processProductImportJob = action({
         });
       }
 
-      await ctx.runMutation(internal.data.importJobs.updateJobProgress, {
+      await ctx.runMutation(internal.data.import_jobs.updateJobProgress, {
         id: args.jobId,
         processed: normalised.length,
         success: totalSuccess,
@@ -266,7 +266,7 @@ export const processProductImportJob = action({
         total: normalised.length,
       });
     } catch (err: any) {
-      await ctx.runMutation(internal.data.importJobs.updateJobProgress, {
+      await ctx.runMutation(internal.data.import_jobs.updateJobProgress, {
         id: args.jobId,
         processed: 0,
         success: 0,

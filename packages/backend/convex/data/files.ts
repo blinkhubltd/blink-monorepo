@@ -1,6 +1,6 @@
 import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
-import { isAccountComplete } from "../lib/accountCompletion";
+import { isAccountComplete } from "../lib/account_completion";
 
 export const generateUploadUrl = mutation({
   args: {},
