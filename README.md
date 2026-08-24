@@ -20,9 +20,69 @@ tooling/audit/            the Phase B0 production audit runbook
 parity/baseline/          committed baselines every later phase diffs against
 ```
 
-## Status: Phase B0 complete
+## Status: deployed to an isolated deployment
 
-Scaffold + vendored backend + green build. **Nothing is deployed.**
+`packages/backend` is deployed to **`doting-bandicoot-348`** (project
+`blinkhubltd/blink`, dev), which is deliberately separate from the deployment the
+live apps use. Nothing points at it yet.
+
+| | live (`adventurous-hound-19`) | new (`doting-bandicoot-348`) |
+|---|---|---|
+| functions | 474 | **478** |
+| modules | 50 | 50 |
+| HttpActions | 3 | **7** |
+| internal functions | 19 | **22** |
+| rows, every table | production data | **0 — empty** |
+
+The +4 HttpActions are the new Paystack webhook plus three legacy path aliases.
+The +3 internal are the cron-only functions that were needlessly public.
+
+Isolation verified after deploying: the live deployment still reports 474
+functions with zero added and zero removed.
+
+### Endpoints
+
+HTTP actions are served from `.convex.site`, not `.convex.cloud`:
+
+```
+https://doting-bandicoot-348.convex.site/api/v1/webhooks/clerk
+https://doting-bandicoot-348.convex.site/api/v1/webhooks/paystack
+https://doting-bandicoot-348.convex.site/api/v1/riders/location
+https://doting-bandicoot-348.convex.site/api/v1/agents/scan
+```
+
+Each also answers on its original unversioned path (`/clerk`, `/rider/location`,
+`/agent/scan`) so an existing dashboard configuration keeps working.
+
+Verified live against the deployment: an unsigned or wrongly-signed request to
+either webhook returns **401**, the legacy alias behaves identically, and an
+unrouted path returns 404. A 401 rather than 503 also confirms both signing
+secrets are set.
+
+**Register the Paystack URL** in the Paystack dashboard (Settings → API Keys &
+Webhooks) — it is a new endpoint and nothing points at it yet.
+
+### Environment variables
+
+Set on the deployment: `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_WEBHOOK_SECRET`,
+`PAYSTACK_SECRET_KEY`.
+
+`CLERK_JWT_ISSUER_DOMAIN` is the only variable that blocks a deploy —
+`auth.config.ts` throws at module load without it, deliberately, since a
+deployment that cannot validate tokens should not boot. Every other `process.env`
+read is lazy or has a fallback. The two webhook secrets fail closed at *request*
+time with a 503 rather than at module load, because Clerk and Paystack only issue
+a signing secret once you register an endpoint, and you cannot register one
+without a deployed URL.
+
+`AUTH_SHADOW_MODE` is unset, so `assertPermission` would enforce. That is
+currently moot — `auth.helpers.ts` exists but no function calls it yet, so this
+deploy changes no access control. Set it to `"true"` before wiring the first
+guard.
+
+The deploy key in use is scoped to code deploys only: it has neither
+`deployment:env:view` nor `deployment:env:write`, so environment variables must be
+managed from the dashboard.
 
 The Convex backend was vendored from `blink-admin/convex` at `origin/main`
 = `3c56937`, which is a strict superset of all three app pins — verified:

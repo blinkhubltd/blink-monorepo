@@ -8,11 +8,6 @@
  * @module
  */
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
 import type * as addresses from "../addresses.js";
 import type * as agentPaymentRequests from "../agentPaymentRequests.js";
 import type * as agentScan from "../agentScan.js";
@@ -23,8 +18,6 @@ import type * as categories from "../categories.js";
 import type * as clearanceBatching from "../clearanceBatching.js";
 import type * as clearanceCart from "../clearanceCart.js";
 import type * as clearanceProducts from "../clearanceProducts.js";
-import type * as user_clerk from "../user/clerk.js";
-import type * as webhooks_paystack from "../webhooks/paystack.js";
 import type * as coverage from "../coverage.js";
 import type * as crons from "../crons.js";
 import type * as directions from "../directions.js";
@@ -46,8 +39,11 @@ import type * as industry from "../industry.js";
 import type * as insights from "../insights.js";
 import type * as legalAcceptances from "../legalAcceptances.js";
 import type * as lib_accountCompletion from "../lib/accountCompletion.js";
+import type * as lib_geo from "../lib/geo.js";
+import type * as lib_paystack from "../lib/paystack.js";
 import type * as lib_permissions from "../lib/permissions.js";
 import type * as lib_roles from "../lib/roles.js";
+import type * as lib_status_mapping from "../lib/status_mapping.js";
 import type * as location from "../location.js";
 import type * as marketing from "../marketing.js";
 import type * as notifications from "../notifications.js";
@@ -75,20 +71,20 @@ import type * as testNotifications from "../testNotifications.js";
 import type * as tracking from "../tracking.js";
 import type * as transactions from "../transactions.js";
 import type * as types from "../types.js";
+import type * as user_clerk from "../user/clerk.js";
 import type * as userNotifications from "../userNotifications.js";
 import type * as users from "../users.js";
 import type * as validators from "../validators.js";
 import type * as vendors from "../vendors.js";
+import type * as webhooks_paystack from "../webhooks/paystack.js";
 import type * as wishlist from "../wishlist.js";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
+
 declare const fullApi: ApiFromModules<{
   addresses: typeof addresses;
   agentPaymentRequests: typeof agentPaymentRequests;
@@ -100,8 +96,6 @@ declare const fullApi: ApiFromModules<{
   clearanceBatching: typeof clearanceBatching;
   clearanceCart: typeof clearanceCart;
   clearanceProducts: typeof clearanceProducts;
-  "user/clerk": typeof user_clerk;
-  "webhooks/paystack": typeof webhooks_paystack;
   coverage: typeof coverage;
   crons: typeof crons;
   directions: typeof directions;
@@ -123,8 +117,11 @@ declare const fullApi: ApiFromModules<{
   insights: typeof insights;
   legalAcceptances: typeof legalAcceptances;
   "lib/accountCompletion": typeof lib_accountCompletion;
+  "lib/geo": typeof lib_geo;
+  "lib/paystack": typeof lib_paystack;
   "lib/permissions": typeof lib_permissions;
   "lib/roles": typeof lib_roles;
+  "lib/status_mapping": typeof lib_status_mapping;
   location: typeof location;
   marketing: typeof marketing;
   notifications: typeof notifications;
@@ -152,17 +149,39 @@ declare const fullApi: ApiFromModules<{
   tracking: typeof tracking;
   transactions: typeof transactions;
   types: typeof types;
+  "user/clerk": typeof user_clerk;
   userNotifications: typeof userNotifications;
   users: typeof users;
   validators: typeof validators;
   vendors: typeof vendors;
+  "webhooks/paystack": typeof webhooks_paystack;
   wishlist: typeof wishlist;
 }>;
+
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
+
+export declare const components: {};
