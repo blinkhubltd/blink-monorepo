@@ -26,6 +26,48 @@ import { paymentMethodFromChannel } from "../lib/paystack";
  * try to preserve behaviour that nothing can observe.
  */
 
+/**
+ * Idempotency guard for the pay-on-delivery finalisers.
+ *
+ * The prepaid variants scan `by_payment_reference`; a Paystack reference is
+ * unique per checkout, so a resubmitted request finds the existing orders and
+ * returns them. Pay-on-delivery orders have no payment and set
+ * `payment_reference` to undefined, so they had no equivalent — a double-tapped
+ * checkout inserted a second set of orders, and the customer was charged twice
+ * on delivery.
+ *
+ * Returns the already-created orders when `key` has been seen, otherwise null.
+ *
+ * `key` is optional so existing clients keep working. When it is absent the
+ * caller is unprotected, which is logged rather than rejected — refusing would
+ * break the live checkout that does not send one yet.
+ */
+async function findOrdersByIdempotencyKey(
+  ctx: { db: { query: (t: "orders") => any } },
+  key: string | undefined,
+  label: string,
+): Promise<{ orderId: Id<"orders">; vendor: Id<"vendors"> }[] | null> {
+  if (!key) {
+    console.warn(
+      `[${label}] no idempotency_key supplied — a resubmitted request will ` +
+        "create duplicate orders. The client should send one.",
+    );
+    return null;
+  }
+  const existing = await ctx.db
+    .query("orders")
+    .withIndex("by_idempotency_key", (q: any) => q.eq("idempotency_key", key))
+    .collect();
+  if (existing.length === 0) return null;
+  console.log(
+    `[${label}] idempotency_key ${key} already finalised; returning existing orders`,
+  );
+  return existing.map((o: Doc<"orders">) => ({
+    orderId: o._id,
+    vendor: o.vendor_id,
+  }));
+}
+
 // Create orders and order_items AFTER a verified successful payment.
 // Input includes grouped vendor order payloads so multiple vendor orders can be created from a single cart payment.
 export const finalizePaidOrders = mutation({
@@ -224,6 +266,8 @@ export const finalizePaidOrders = mutation({
 export const finalizePayOnDeliveryOrders = mutation({
   args: {
     user_id: v.id("users"),
+    /** See OrdersValidator.idempotency_key. Optional for compatibility. */
+    idempotency_key: v.optional(v.string()),
     orders: v.array(
       v.object({
         order: OrdersValidator,
@@ -238,6 +282,13 @@ export const finalizePayOnDeliveryOrders = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const alreadyDone = await findOrdersByIdempotencyKey(
+      ctx,
+      args.idempotency_key,
+      "finalizePayOnDeliveryOrders",
+    );
+    if (alreadyDone) return { created: alreadyDone };
+
     const created: Array<{ orderId: Id<"orders">; vendor: Id<"vendors"> }> = [];
 
     for (const grp of args.orders) {
@@ -279,6 +330,7 @@ export const finalizePayOnDeliveryOrders = mutation({
         delivery_code_verified: false,
         updated_at: Date.now(),
         payment_method: args.payment_method,
+        idempotency_key: args.idempotency_key,
       };
 
       const orderId = await ctx.db.insert("orders", base);
@@ -325,6 +377,20 @@ export const finalizePayOnDeliveryOrders = mutation({
       } catch (e) {
         console.error("Failed to schedule confirmation notification", e);
       }
+    }
+
+    // Clear the cart, as every other finalisation path does.
+    //
+    // This was missing here and only here: the prepaid standard path clears
+    // `cart`, and both clearance paths clear `clearance_cart`. So a customer who
+    // completed a cash-on-delivery order was left with their cart still full,
+    // and the next visit looked like the order had not gone through.
+    const cart = await ctx.db
+      .query("cart")
+      .withIndex("by_user", (q) => q.eq("user_id", args.user_id))
+      .first();
+    if (cart) {
+      await ctx.db.patch(cart._id, { products: [], updated_at: Date.now() });
     }
 
     return { created };
@@ -533,9 +599,18 @@ export const finalizePaidClearanceOrders = mutation({
 export const finalizePayOnDeliveryClearanceOrders = mutation({
   args: {
     user_id: v.id("users"),
+    /** See OrdersValidator.idempotency_key. Optional for compatibility. */
+    idempotency_key: v.optional(v.string()),
     orders: v.array(ClearanceOrderGroup),
   },
   handler: async (ctx, args) => {
+    const alreadyDone = await findOrdersByIdempotencyKey(
+      ctx,
+      args.idempotency_key,
+      "finalizePayOnDeliveryClearanceOrders",
+    );
+    if (alreadyDone) return { created: alreadyDone };
+
     const customer = await ctx.db.get(args.user_id);
     const customerName = customer
       ? customer.name ||
@@ -554,6 +629,7 @@ export const finalizePayOnDeliveryClearanceOrders = mutation({
         payment_status: "Unpaid" as const,
         order_status: "Confirmed" as const,
         payment_reference: undefined,
+        idempotency_key: args.idempotency_key,
         delivery_code_verified: false,
         updated_at: Date.now(),
         searchText: [

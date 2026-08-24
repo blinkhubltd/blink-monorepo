@@ -59,9 +59,18 @@ Every enum is a plain `as const` tuple, expanded at each use site with
 replaced 142 inline union sites**: 61 inside `validators.ts` and 81 across 23
 modules.
 
-Proof the rewrite changed nothing observable: `_generated/dataModel.d.ts` and
-`_generated/api.d.ts` are both byte-identical before and after. No table shape
-moved, and no function argument validator changed shape.
+Proof the rewrite changed nothing observable: `_generated/api.d.ts` is
+byte-identical before and after, so no function argument validator changed shape,
+and `tests/schema-shape.test.ts` snapshots every table's wire format field by
+field.
+
+**Correction:** three earlier commits cited `_generated/dataModel.d.ts` being
+byte-identical as proof no table shape changed. That was wrong —
+`dataModel.d.ts` is generic (`DataModelFromSchemaDefinition<typeof schema>`, 60
+lines) and never changes when a field does. The snapshot test is the check that
+actually shows it, and re-running it against `validators.ts` as it stood before
+the refactors confirms the conclusion was right: the only shape changes are the
+three deleted dead clones and the deliberately-added `orders.idempotency_key`.
 
 16 unions were deliberately left inline because they are **narrower** than the
 shared enum — `approved | rejected` on an approve endpoint, `Processing | Pickup`

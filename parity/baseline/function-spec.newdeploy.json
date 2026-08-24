@@ -5402,6 +5402,12 @@
                   },
                   "optional": false
                 },
+                "idempotency_key": {
+                  "fieldType": {
+                    "type": "string"
+                  },
+                  "optional": true
+                },
                 "is_clearance": {
                   "fieldType": {
                     "type": "boolean"
@@ -6142,6 +6148,12 @@
                   },
                   "optional": false
                 },
+                "idempotency_key": {
+                  "fieldType": {
+                    "type": "string"
+                  },
+                  "optional": true
+                },
                 "is_clearance": {
                   "fieldType": {
                     "type": "boolean"
@@ -6507,6 +6519,12 @@
                     "type": "number"
                   },
                   "optional": false
+                },
+                "idempotency_key": {
+                  "fieldType": {
+                    "type": "string"
+                  },
+                  "optional": true
                 },
                 "is_clearance": {
                   "fieldType": {
@@ -19981,6 +19999,12 @@
                           },
                           "optional": false
                         },
+                        "idempotency_key": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
                         "is_clearance": {
                           "fieldType": {
                             "type": "boolean"
@@ -20480,6 +20504,12 @@
                           },
                           "optional": false
                         },
+                        "idempotency_key": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
                         "is_clearance": {
                           "fieldType": {
                             "type": "boolean"
@@ -20782,6 +20812,12 @@
       "args": {
         "type": "object",
         "value": {
+          "idempotency_key": {
+            "fieldType": {
+              "type": "string"
+            },
+            "optional": true
+          },
           "orders": {
             "fieldType": {
               "type": "array",
@@ -20970,6 +21006,12 @@
                             "type": "number"
                           },
                           "optional": false
+                        },
+                        "idempotency_key": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
                         },
                         "is_clearance": {
                           "fieldType": {
@@ -21239,6 +21281,12 @@
       "args": {
         "type": "object",
         "value": {
+          "idempotency_key": {
+            "fieldType": {
+              "type": "string"
+            },
+            "optional": true
+          },
           "orders": {
             "fieldType": {
               "type": "array",
@@ -21463,6 +21511,12 @@
                             "type": "number"
                           },
                           "optional": false
+                        },
+                        "idempotency_key": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
                         },
                         "is_clearance": {
                           "fieldType": {

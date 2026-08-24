@@ -360,6 +360,20 @@ export const OrdersValidator = v.object({
   delivery_fee: v.float64(),
   total_amount: v.float64(),
   payment_reference: v.optional(v.string()),
+  /**
+   * Client-supplied de-duplication key.
+   *
+   * The prepaid finalisers guard against double submission by scanning
+   * `by_payment_reference`, because a Paystack reference is unique per checkout.
+   * Pay-on-delivery orders have no payment and set `payment_reference` to
+   * undefined, so they had nothing to guard on — a double-tapped checkout
+   * created duplicate orders.
+   *
+   * Optional so existing clients keep working; when supplied, the finaliser
+   * scans `by_idempotency_key` and returns the already-created orders instead of
+   * inserting again.
+   */
+  idempotency_key: v.optional(v.string()),
   delivery_code: v.optional(v.string()),
   delivery_code_verified: v.optional(v.boolean()),
   payment_collected_at: v.optional(v.number()),
