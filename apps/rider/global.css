@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Blink design system -> semantic layer.
+ *
+ * Raw values live here and nowhere else; tailwind.config.js maps them onto
+ * shadcn-style semantic names so packages/mobile-ui stays palette-agnostic.
+ *
+ * Source of truth: Blink Hub design system tokens (colors.css).
+ * The three DS surface modes map as:
+ *   default      -> :root
+ *   .blink-dark  -> .dark
+ *   .blink-brand -> the `brand-*` colors, applied per-component (the yellow
+ *                   header sweep is a component, not a page mode)
+ */
+
+@layer base {
+  :root {
+    /* page + type */
+    --color-background: #f8fafd; /* ink-50  — app page background */
+    --color-foreground: #242a36; /* ink-800 — body text */
+    --color-strong: #0a0e16; /* ink-950 — headings */
+    --color-card: #ffffff;
+    --color-card-foreground: #0a0e16;
+
+    /* brand */
+    --color-primary: #ffc50b; /* blink-400 — the identity */
+    --color-primary-foreground: #0a0e16; /* yellow is light: ink type on yellow, always */
+    --color-price: #f5b800; /* blink-500 — Ksh figures */
+
+    /* neutrals */
+    --color-secondary: #eff1f5; /* ink-100 — sunken plates */
+    --color-secondary-foreground: #0a0e16;
+    --color-muted: #eff1f5;
+    --color-muted-foreground: #5a6372; /* ink-600 */
+    --color-subtle: #818a99; /* ink-500 */
+    --color-accent: #fffae8; /* blink-50 — soft brand wash */
+    --color-accent-foreground: #0a0e16;
+
+    /* ink pills / inverse surfaces */
+    --color-inverse: #0a0e16;
+    --color-inverse-foreground: #ffffff;
+
+    /* status */
+    --color-destructive: #e23b33;
+    --color-destructive-foreground: #ffffff;
+    --color-destructive-soft: #fde7e5;
+    --color-success: #159b62;
+    --color-success-foreground: #ffffff;
+    --color-success-soft: #e1f5ec;
+    --color-warning: #f5b800;
+    --color-warning-foreground: #0a0e16;
+    --color-warning-soft: #fff2c2;
+    --color-info: #2563eb;
+    --color-info-foreground: #ffffff;
+    --color-info-soft: #e3ebfd;
+
+    /* lines */
+    --color-border: #e4e7ec; /* ink-200 — hairlines */
+    --color-input: #e4e7ec;
+    --color-ring: #0a0e16;
+    --color-overlay: rgba(10, 14, 22, 0.55);
+  }
+
+  .dark {
+    --color-background: #0a0e16; /* ink-950 */
+    --color-foreground: #e4e7ec; /* ink-200 */
+    --color-strong: #ffffff;
+    --color-card: #151a24; /* ink-900 */
+    --color-card-foreground: #ffffff;
+
+    /* brand holds across modes — it is the identity */
+    --color-primary: #ffc50b;
+    --color-primary-foreground: #0a0e16;
+    --color-price: #ffc50b;
+
+    --color-secondary: #242a36; /* ink-800 */
+    --color-secondary-foreground: #ffffff;
+    --color-muted: #242a36;
+    --color-muted-foreground: #a8b0bc; /* ink-400 */
+    --color-subtle: #818a99; /* ink-500 */
+    --color-accent: rgba(255, 197, 11, 0.14);
+    --color-accent-foreground: #ffffff;
+
+    --color-inverse: #ffffff;
+    --color-inverse-foreground: #0a0e16;
+
+    --color-destructive: #e23b33;
+    --color-destructive-foreground: #ffffff;
+    --color-destructive-soft: rgba(226, 59, 51, 0.16);
+    --color-success: #159b62;
+    --color-success-foreground: #ffffff;
+    --color-success-soft: rgba(21, 155, 98, 0.18);
+    --color-warning: #f5b800;
+    --color-warning-foreground: #0a0e16;
+    --color-warning-soft: rgba(245, 184, 0, 0.16);
+    --color-info: #2563eb;
+    --color-info-foreground: #ffffff;
+    --color-info-soft: rgba(37, 99, 235, 0.18);
+
+    --color-border: #242a36; /* ink-800 */
+    --color-input: #3a4150; /* ink-700 */
+    --color-ring: #ffc50b;
+    --color-overlay: rgba(10, 14, 22, 0.72);
+  }
+}

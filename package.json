@@ -22,7 +22,8 @@
   },
   "pnpm": {
     "overrides": {
-      "convex": "^1.27.1"
+      "convex": "^1.27.1",
+      "@react-native/metro-config": "0.86.2"
     }
   }
 }
