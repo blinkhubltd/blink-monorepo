@@ -3,9 +3,9 @@ import { internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
 import { api } from "../_generated/api";
 import { OrderItemUpdateValidator, OrdersValidator } from "../validators";
-import { getUserByClerkId } from "../helpers";
-import { syncShipmentStatusForOrder } from "../helpers/statusSync";
-import { generateDeliveryCode as createDeliveryCode } from "../hooks";
+import { getUserByClerkId } from "../auth.helpers";
+import { syncShipmentStatusForOrder } from "./shipments";
+import { generateDeliveryCode as createDeliveryCode } from "../lib/delivery_code";
 
 const computeOrderSearchText = (order: {
   reference?: string;

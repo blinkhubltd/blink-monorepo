@@ -1,7 +1,7 @@
 import { internalMutation, mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { UsersUpdateValidator } from "../validators";
-import { validateRiderActivation } from "../hooks";
+import { validateRiderActivation } from "../lib/account_completion";
 import { Id } from "../_generated/dataModel";
 import {
   getUserRoleName,

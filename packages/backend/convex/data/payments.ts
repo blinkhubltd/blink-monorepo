@@ -3,7 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { OrderItemValidator } from "../validators";
 import { OrdersValidator, OrderItemWithoutOrderId } from "../validators";
 import { api } from "../_generated/api";
-import { Id } from "../helpers";
+import { Id } from "../_generated/dataModel";
 import type { Doc } from "../_generated/dataModel";
 import { PAYSTACK_BASE_URL } from "../lib/paystack";
 

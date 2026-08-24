@@ -265,3 +265,31 @@ export async function actingUserId(
   const { user } = await getAuthUser(ctx);
   return user._id;
 }
+
+/**
+ * Look up a user by Clerk id, throwing if absent.
+ *
+ * Moved from `helpers/userHelpers.ts`, where it took `ctx: any` — as did every
+ * export in that file. It belongs here because it is the same lookup
+ * `getAuthUser` performs, against the same `by_clerkId` index, so the Phase B5
+ * rename of `clerkId` -> `clerk_id` now touches two adjacent lines in one file
+ * instead of scattered copies.
+ *
+ * Note this trusts a `clerkId` passed as an argument, so it authenticates
+ * nothing on its own. Prefer `getAuthUser`, which derives the identity from the
+ * request. This exists for the ~4 call sites that still take `clerkId` as a
+ * parameter (`data/cart.ts`, `data/orders.ts`, `data/wishlist.ts`); each is a
+ * candidate for conversion to `getAuthUser` as guards are wired.
+ */
+export async function getUserByClerkId(
+  ctx: QueryCtx | MutationCtx,
+  clerkId: string,
+) {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", clerkId))
+    .unique();
+
+  if (!user) throw new ConvexError("User not found. Please sign in again.");
+  return user;
+}

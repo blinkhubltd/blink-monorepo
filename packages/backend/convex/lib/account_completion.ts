@@ -1,4 +1,6 @@
+import { Infer } from "convex/values";
 import { QueryCtx, MutationCtx } from "../_generated/server";
+import { UsersValidator } from "../validators";
 import { isRider } from "./roles";
 
 /**
@@ -43,4 +45,30 @@ export async function isAccountComplete(
 ): Promise<boolean> {
   const { complete } = await getAccountCompletion(ctx, user);
   return complete;
+}
+
+/**
+ * Which required fields a rider is missing before they may go Active.
+ *
+ * Pure, unlike the two functions above — grouped here because it is the same
+ * concern (rider profile completeness) rather than a separate one. Moved from
+ * `hooks/index.ts`; `user/users.ts` calls it when a rider status changes.
+ *
+ * Returns `[]` for any status other than "Active": the requirements only gate
+ * activation, not existence.
+ */
+export function validateRiderActivation(
+  user: Infer<typeof UsersValidator>,
+): string[] {
+  if (!user.rider_details) return ["Missing rider details"];
+  if (user.rider_details.status !== "Active") return [];
+
+  const errors: string[] = [];
+  if (!user.phone) errors.push("Phone number is required");
+  if (!user.image) errors.push("Profile image is required");
+  if (!user.rider_details.id_image) errors.push("ID image is required");
+  if (!user.rider_details.license_image) {
+    errors.push("License image is required");
+  }
+  return errors;
 }

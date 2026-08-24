@@ -2,7 +2,7 @@ import { query, mutation, internalMutation } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
 import { ClearanceProductUpdateValidator } from "../validators";
-import { haversineMeters } from "../helpers/geo";
+import { haversineMeters } from "../lib/geo";
 
 const DAY_MS = 86400000;
 

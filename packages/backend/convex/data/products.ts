@@ -2,8 +2,8 @@ import { Id } from "../_generated/dataModel";
 import { mutation, query, internalMutation } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { ProductsUpdateValidator, ProductsValidator } from "../validators";
-import { haversineMeters } from "../helpers/geo";
-import { checkVendorSchedule } from "../helpers";
+import { haversineMeters } from "../lib/geo";
+import { checkVendorSchedule } from "../lib/schedule";
 
 const computeProductSearchText = (product: {
   name?: string;

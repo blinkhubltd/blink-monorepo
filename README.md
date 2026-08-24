@@ -44,14 +44,33 @@ zero callers, publicly callable in production).
 ```
 convex/
   schema.ts  validators.ts  auth.config.ts  auth.helpers.ts  http.ts  crons.ts
-  data/        43 domain modules — 416 functions
-  user/        users, roles, clerk           — 53 functions
-  actions/     importJobsAction              —  1 function  ("use node" only)
-  webhooks/    clerk-adjacent httpActions: agentScan, location, paystack
-  lib/         pure, ctx-free, unit-tested
-  helpers/     legacy — being dissolved into lib/
-  hooks/       legacy — to be dissolved
+  data/        43 domain modules
+  user/        users, roles, clerk
+  actions/     import_jobs_action  ("use node" only)
+  webhooks/    agent_scan, location, paystack
+  lib/         account_completion, delivery_code, geo, paystack,
+               permissions, roles, schedule, status_mapping
 ```
+
+`helpers/` and `hooks/` are gone. Where their contents went:
+
+| was | now | note |
+|---|---|---|
+| `helpers/geo.ts` | `lib/geo.ts` | duplicate; the surviving copy is in metres |
+| `helpers/scheduleHelpers.ts` | `lib/schedule.ts` | already pure, moved wholesale |
+| `hooks/generateDeliveryCode` | `lib/delivery_code.ts` | **not dead** — `data/orders.ts` uses it |
+| `hooks/validateRiderActivation` | `lib/account_completion.ts` | same concern, merged |
+| `helpers/getUserByClerkId` | `auth.helpers.ts` | same `by_clerkId` lookup as `getAuthUser` |
+| `helpers/statusSync.ts` | `data/shipments.ts` | ctx-using, so not `lib/`; now typed `MutationCtx` |
+| `helpers/dbHelpers.ts` | deleted | 105 LOC unreachable; `catch { return [] }` made "not found" and "DB error" indistinguishable |
+| `helpers/index.ts` | deleted | barrel; 8 of its 12 re-exports had no importer |
+
+`lib/` follows sydia's rule — testable without `_generated` — with one ctx-taking
+file (`account_completion.ts`), mirroring sydia's own `lib/images.ts`.
+
+**App-side follow-up:** four `blink-ecommerce` files import `Id` from
+`@/convex/helpers`. That barrel no longer exists, so they must move to
+`@repo/backend/dataModel` when the app is ported.
 
 Two constraints learned the hard way and worth recording:
 

@@ -1,6 +1,6 @@
 import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
-import { haversineMeters } from "../helpers/geo";
+import { haversineMeters } from "../lib/geo";
 import { VendorsUpdateValidator, VendorsValidator } from "../validators";
 
 export const getVendors = query({
