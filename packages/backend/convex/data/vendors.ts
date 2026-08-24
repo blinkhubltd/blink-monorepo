@@ -1,14 +1,18 @@
 import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
-import { haversineMeters } from "../helpers/geo";
-import { VendorsUpdateValidator, VendorsValidator } from "../validators";
+import { haversineMeters } from "../lib/geo";
+import {
+  VendorsUpdateValidator,
+  VendorsValidator,
+  recordStatus,
+} from "../validators";
 
 export const getVendors = query({
   args: {
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+    status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
     industry: v.optional(v.id("industry")),
   },
   handler: async (ctx, args) => {
@@ -253,7 +257,7 @@ export const getVendorById = query({
 export const updateVendorStatus = mutation({
   args: {
     vendorId: v.id("vendors"),
-    status: v.union(v.literal("Active"), v.literal("Inactive")),
+    status: v.union(...recordStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.vendorId, {

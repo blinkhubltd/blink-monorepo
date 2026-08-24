@@ -1,5 +1,29 @@
 /**
- * Helper functions for vendor schedule validation
+ * Vendor schedule validation. Pure — no `ctx`, no database access, and the
+ * evaluation time is injected via `checkTime` rather than read from the clock,
+ * which is what makes the boundary cases testable.
+ *
+ * Moved here from `helpers/scheduleHelpers.ts` unchanged apart from dropping
+ * `ScheduleErrors`, an unused message bag (the same dead pattern as
+ * `UserErrors` and `DatabaseErrors`, both deleted with `helpers/`).
+ *
+ * ── Known hazard: the timezone adjustment is host-dependent ───────────────
+ *
+ * `checkVendorSchedule` shifts the evaluation time by a hardcoded +3 hours to
+ * reach East Africa Time:
+ *
+ *     now.setHours(now.getHours() + 3);
+ *
+ * `getHours()` reports hours in the *host* timezone, so this is only correct
+ * when the host runs in UTC. Convex does, so production is right — but the same
+ * code evaluated on a developer machine in EAT lands on UTC+6 and reports the
+ * wrong open/closed state.
+ *
+ * Left as-is because changing it changes which vendors appear open, which is
+ * customer-visible. The fix is to derive the EAT wall clock from the epoch
+ * directly rather than mutating a Date through the host's locale. Until then the
+ * tests deliberately cover only the timezone-independent branches; asserting the
+ * boundary cases would encode the host's offset into the expectations.
  */
 
 type WeeklySchedule = {
@@ -189,9 +213,3 @@ export function getNextOpeningTime(
 
   return "Schedule unavailable";
 }
-
-export const ScheduleErrors = {
-  VENDOR_CLOSED: "Vendor is currently closed",
-  TOO_CLOSE_TO_CLOSING: "Too close to vendor closing time",
-  NO_SCHEDULE: "Vendor schedule not available",
-} as const;

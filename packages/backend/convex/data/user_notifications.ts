@@ -8,6 +8,10 @@ import {
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { api, internal } from "../_generated/api";
+import {
+  notificationReadStatus,
+  notificationTypes,
+} from "../validators";
 
 // 90 days in milliseconds
 const NOTIFICATION_RETENTION_PERIOD = 90 * 24 * 60 * 60 * 1000;
@@ -19,14 +23,9 @@ export const getUserNotifications = query({
   args: {
     userId: v.id("users"),
     limit: v.optional(v.number()),
-    status: v.optional(v.union(v.literal("read"), v.literal("unread"))),
+    status: v.optional(v.union(...notificationReadStatus.map((e) => v.literal(e)))),
     type: v.optional(
-      v.union(
-        v.literal("order_update"),
-        v.literal("delivery"),
-        v.literal("promotion"),
-        v.literal("system")
-      )
+      v.union(...notificationTypes.map((e) => v.literal(e)))
     ),
   },
   handler: async (ctx, args) => {
@@ -150,7 +149,7 @@ export const scheduleNotificationCleanup = internalAction({
     // Process in batches to avoid timeout
     while (hasMore && totalDeleted < 1000) {
       const result = await ctx.runMutation(
-        internal.data.userNotifications.cleanupExpiredNotifications,
+        internal.data.user_notifications.cleanupExpiredNotifications,
         { batchSize: 100 }
       );
 
@@ -173,12 +172,7 @@ export const scheduleNotificationCleanup = internalAction({
 export const createNotification = mutation({
   args: {
     userId: v.id("users"),
-    type: v.union(
-      v.literal("order_update"),
-      v.literal("delivery"),
-      v.literal("promotion"),
-      v.literal("system")
-    ),
+    type: v.union(...notificationTypes.map((e) => v.literal(e))),
     title: v.string(),
     message: v.string(),
     data: v.optional(v.any()),
@@ -586,7 +580,7 @@ export const createOrderNotification = mutation({
   },
   handler: async (ctx, args): Promise<any> => {
     return await ctx.runMutation(
-      api.data.userNotifications.createOrderStatusNotification,
+      api.data.user_notifications.createOrderStatusNotification,
       {
         userId: args.userId,
         orderId: args.orderId,
@@ -700,12 +694,7 @@ export const createSystemNotification = mutation({
 export const createBulkNotifications = mutation({
   args: {
     userIds: v.array(v.id("users")),
-    type: v.union(
-      v.literal("order_update"),
-      v.literal("delivery"),
-      v.literal("promotion"),
-      v.literal("system")
-    ),
+    type: v.union(...notificationTypes.map((e) => v.literal(e))),
     title: v.string(),
     message: v.string(),
     data: v.optional(v.any()),

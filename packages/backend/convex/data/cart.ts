@@ -1,8 +1,8 @@
 import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { AddToCartValidator } from "../validators";
-import { getUserByClerkId } from "../helpers";
-import { checkVendorSchedule } from "../helpers";
+import { getUserByClerkId } from "../auth.helpers";
+import { checkVendorSchedule } from "../lib/schedule";
 
 export const createCartItem = mutation({
   args: { user_id: v.id("users"), item: AddToCartValidator },

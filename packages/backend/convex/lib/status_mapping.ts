@@ -1,3 +1,5 @@
+import { orderStatus, shipmentStatus } from "../validators";
+
 /**
  * The single authority for order <-> shipment status translation.
  *
@@ -35,26 +37,18 @@
 
 // ── Enums ─────────────────────────────────────────────────────────────────
 
-export const shipmentStatuses = [
-  "Awaiting Pickup",
-  "Picked Up",
-  "Out for Delivery",
-  "Delivered",
-  "Failed Delivery",
-] as const;
+/**
+ * Re-exported from `../validators`, which is the single source of truth for every
+ * enum in the schema. This file previously declared its own copies of both
+ * tuples — a fourth copy of the same tables, introduced by the very commit that
+ * existed to remove copies. `validators.ts` imports nothing but `convex/values`,
+ * so depending on it does not breach the rule that `lib/` stays testable without
+ * `_generated`.
+ */
+export const shipmentStatuses = shipmentStatus;
+export const orderStatuses = orderStatus;
 
 export type ShipmentStatus = (typeof shipmentStatuses)[number];
-
-export const orderStatuses = [
-  "Pending",
-  "Confirmed",
-  "Processing",
-  "Pickup",
-  "Delivery",
-  "Delivered",
-  "Cancelled",
-  "Refunded",
-] as const;
 
 export type OrderStatus = (typeof orderStatuses)[number];
 

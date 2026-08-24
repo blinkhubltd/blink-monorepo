@@ -1,6 +1,15 @@
 import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
+import {
+  ORDER_TO_SHIPMENT_STATUS,
+  shipmentStatusToOrderStatus,
+  type OrderStatus,
+} from "../lib/status_mapping";
+import {
+  shipmentStatus,
+} from "../validators";
 
 const computeShipmentSearchText = (shipment: {
   status?: string;
@@ -25,35 +34,6 @@ const computeShipmentSearchText = (shipment: {
     .trim();
 };
 
-type ShipmentStatus =
-  | "Awaiting Pickup"
-  | "Picked Up"
-  | "Out for Delivery"
-  | "Delivered"
-  | "Failed Delivery";
-
-type OrderStatus =
-  | "Pending"
-  | "Confirmed"
-  | "Processing"
-  | "Pickup"
-  | "Delivery"
-  | "Delivered"
-  | "Cancelled"
-  | "Refunded";
-
-const mapShipmentStatusToOrderStatus = (
-  shipmentStatus: ShipmentStatus,
-): OrderStatus => {
-  const statusMap: Record<ShipmentStatus, OrderStatus> = {
-    "Awaiting Pickup": "Pending",
-    "Picked Up": "Confirmed",
-    "Out for Delivery": "Processing",
-    Delivered: "Delivered",
-    "Failed Delivery": "Cancelled",
-  };
-  return statusMap[shipmentStatus] || "Pending";
-};
 
 export const getAllShipments = query({
   args: {},
@@ -68,13 +48,7 @@ export const getShipments = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     status: v.optional(
-      v.union(
-        v.literal("Awaiting Pickup"),
-        v.literal("Picked Up"),
-        v.literal("Out for Delivery"),
-        v.literal("Delivered"),
-        v.literal("Failed Delivery"),
-      ),
+      v.union(...shipmentStatus.map((e) => v.literal(e))),
     ),
     vendor_id: v.optional(v.id("vendors")),
     rider_id: v.optional(v.id("users")),
@@ -292,13 +266,7 @@ export const backfillShipmentsSearchText = mutation({
 export const updateStatus = mutation({
   args: {
     shipmentId: v.id("shipments"),
-    status: v.union(
-      v.literal("Awaiting Pickup"),
-      v.literal("Picked Up"),
-      v.literal("Out for Delivery"),
-      v.literal("Delivered"),
-      v.literal("Failed Delivery"),
-    ),
+    status: v.union(...shipmentStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const currentShipment = await ctx.db.get(args.shipmentId);
@@ -312,7 +280,7 @@ export const updateStatus = mutation({
 
     const order = await ctx.db.get(currentShipment.order_id);
     if (order) {
-      const mappedOrderStatus = mapShipmentStatusToOrderStatus(args.status);
+      const mappedOrderStatus = shipmentStatusToOrderStatus(args.status);
       await ctx.db.patch(order._id, {
         order_status: mappedOrderStatus,
         updated_at: Date.now(),
@@ -323,7 +291,7 @@ export const updateStatus = mutation({
       success: true,
       shipmentStatus: args.status,
       orderStatus: order
-        ? mapShipmentStatusToOrderStatus(args.status)
+        ? shipmentStatusToOrderStatus(args.status)
         : undefined,
     };
   },
@@ -588,3 +556,60 @@ export const getUserShipments = query({
     );
   },
 });
+
+/**
+ * Push an order status change down onto its shipment(s).
+ *
+ * Moved from `helpers/statusSync.ts`. Two changes beyond the move:
+ *
+ *   - `ctx: any` is now `MutationCtx`, so the query builder and patch are type
+ *     checked.
+ *   - The order->shipment map is imported from `lib/status_mapping` instead of
+ *     being declared inline. That file previously held a second copy of the
+ *     mapping tables, exported as `StatusMappings` "for documentation / tests"
+ *     that did not exist and which nothing imported.
+ *
+ * Idempotent: only shipments whose status actually differs are patched, and the
+ * count of patches is returned so callers can tell a no-op from a change.
+ */
+export async function syncShipmentStatusForOrder(
+  ctx: MutationCtx,
+  orderId: Id<"orders">,
+  newOrderStatus: string,
+) {
+  const order = await ctx.db.get(orderId);
+  if (!order) return { updated: false, reason: "ORDER_NOT_FOUND" as const };
+
+  const shipments = await ctx.db
+    .query("shipments")
+    .withIndex("by_order", (q) => q.eq("order_id", orderId))
+    .collect();
+
+  if (shipments.length === 0) {
+    return { updated: false, reason: "NO_SHIPMENTS" as const };
+  }
+
+  const target = ORDER_TO_SHIPMENT_STATUS[newOrderStatus as OrderStatus];
+  if (!target) {
+    // No analog for this order status — payment-only transitions land here.
+    return { updated: false, reason: "NO_MAPPING" as const };
+  }
+
+  let patches = 0;
+  for (const shipment of shipments) {
+    if (shipment.status !== target) {
+      await ctx.db.patch(shipment._id, {
+        status: target,
+        updated_at: Date.now(),
+      });
+      patches++;
+    }
+  }
+
+  return {
+    updated: patches > 0,
+    patches,
+    shipmentCount: shipments.length,
+    targetShipmentStatus: target,
+  };
+}

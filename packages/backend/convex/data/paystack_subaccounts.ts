@@ -1,8 +1,11 @@
 import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
+import {
+  paystackSubaccountKeys,
+} from "../validators";
 
 export const getByKey = query({
-  args: { key: v.union(v.literal("primary"), v.literal("secondary")) },
+  args: { key: v.union(...paystackSubaccountKeys.map((e) => v.literal(e))) },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("paystackSubaccounts")
@@ -13,7 +16,7 @@ export const getByKey = query({
 
 export const upsert = mutation({
   args: {
-    key: v.union(v.literal("primary"), v.literal("secondary")),
+    key: v.union(...paystackSubaccountKeys.map((e) => v.literal(e))),
     business_name: v.string(),
     bank_code: v.string(),
     account_number: v.string(),

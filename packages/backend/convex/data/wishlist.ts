@@ -2,7 +2,7 @@ import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { getImageUrl } from "./files";
-import { getUserByClerkId } from "../helpers";
+import { getUserByClerkId } from "../auth.helpers";
 
 // Clerk ID wrapper for toggleWishList
 export const toggleWishListByClerkId = mutation({

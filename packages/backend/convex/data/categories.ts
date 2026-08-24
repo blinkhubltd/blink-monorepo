@@ -1,6 +1,9 @@
 import { Id, Doc } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
+import {
+  lowercaseRecordStatus,
+} from "../validators";
 
 const computeCategorySearchText = (category: {
   name?: string;
@@ -124,7 +127,7 @@ export const createCategory = mutation({
     parent_category_id: v.optional(v.id("categories")),
     description: v.string(),
     image: v.optional(v.id("_storage")),
-    status: v.union(v.literal("active"), v.literal("inactive")),
+    status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
     sort_order: v.number(),
   },
   handler: async (ctx, args) => {
@@ -162,7 +165,7 @@ export const getCategories = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     industry: v.optional(v.id("industry")),
-    status: v.optional(v.union(v.literal("active"), v.literal("inactive"))),
+    status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     const PageLimit = Math.max(1, Math.min(200, args.limit));
@@ -332,7 +335,7 @@ export const updateCategory = mutation({
     parent_category_id: v.optional(v.id("categories")),
     description: v.string(),
     image: v.optional(v.id("_storage")),
-    status: v.union(v.literal("active"), v.literal("inactive")),
+    status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
     sort_order: v.number(),
   },
   handler: async (ctx, args) => {
@@ -412,7 +415,7 @@ export const bulkCreateCategories = mutation({
         slug: v.string(),
         parent_category_id: v.optional(v.id("categories")),
         description: v.string(),
-        status: v.union(v.literal("active"), v.literal("inactive")),
+        status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
         sort_order: v.number(),
       }),
     ),

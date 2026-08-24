@@ -94,6 +94,9 @@ export default defineSchema({
   orders: defineTable(OrdersValidator)
     .index("by_reference", ["reference"])
     .index("by_payment_reference", ["payment_reference"])
+    // De-duplicates pay-on-delivery finalisation, which has no payment
+    // reference to guard on. See OrdersValidator.idempotency_key.
+    .index("by_idempotency_key", ["idempotency_key"])
     .index("by_order_date", ["order_date"])
     .index("by_user", ["user_id"])
     .index("by_status", ["order_status"])

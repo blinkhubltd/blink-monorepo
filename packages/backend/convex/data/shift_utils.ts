@@ -5,7 +5,7 @@ import {
   isRider as checkIsRider,
   isPicker as checkIsPicker,
 } from "../lib/roles";
-import { isAccountComplete } from "../lib/accountCompletion";
+import { isAccountComplete } from "../lib/account_completion";
 
 // Helper function to parse time string (e.g., "09:00") to minutes since midnight
 function timeToMinutes(timeStr: string): number {

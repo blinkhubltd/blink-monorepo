@@ -1,6 +1,9 @@
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "../_generated/server";
-import { AgentZonesValidator } from "../validators";
+import {
+  AgentZonesValidator,
+  agentZoneEarningTypes,
+} from "../validators";
 
 export const getZones = query({
   args: {
@@ -98,11 +101,7 @@ export const updateZone = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     earning_type: v.optional(
-      v.union(
-        v.literal("fixed"),
-        v.literal("per_conversion"),
-        v.literal("both"),
-      ),
+      v.union(...agentZoneEarningTypes.map((e) => v.literal(e))),
     ),
     fixed_amount: v.optional(v.number()),
     min_installs: v.optional(v.number()),

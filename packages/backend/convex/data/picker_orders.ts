@@ -3,6 +3,9 @@ import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { internal, api } from "../_generated/api";
 import { hasRoleName, isPicker, isRider, SYSTEM_ROLES } from "../lib/roles";
+import {
+  orderStatus,
+} from "../validators";
 
 const startOfDay = (date = new Date()) => {
   const d = new Date(date);
@@ -14,16 +17,7 @@ export const getPickerOrders = query({
   args: {
     pickerId: v.id("users"),
     status: v.optional(
-      v.union(
-        v.literal("Pending"),
-        v.literal("Confirmed"),
-        v.literal("Processing"),
-        v.literal("Pickup"),
-        v.literal("Delivery"),
-        v.literal("Delivered"),
-        v.literal("Cancelled"),
-        v.literal("Refunded"),
-      ),
+      v.union(...orderStatus.map((e) => v.literal(e))),
     ),
   },
   handler: async (ctx, args) => {

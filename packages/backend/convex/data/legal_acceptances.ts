@@ -1,5 +1,8 @@
 import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
+import {
+  agentTransactionTypes,
+} from "../validators";
 
 export const recordAcceptance = mutation({
   args: {
@@ -7,7 +10,7 @@ export const recordAcceptance = mutation({
     privacy_version: v.string(),
     eula_version: v.optional(v.string()),
     transaction_type: v.optional(
-      v.union(v.literal("signup"), v.literal("purchase")),
+      v.union(...agentTransactionTypes.map((e) => v.literal(e))),
     ),
   },
   handler: async (ctx, args) => {

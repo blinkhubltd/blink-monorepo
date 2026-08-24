@@ -10,8 +10,10 @@ import {
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { assertAgentOwner, assertPermission } from "../auth.helpers";
-
-const PAYSTACK_BASE_URL = "https://api.paystack.co";
+import { PAYSTACK_BASE_URL } from "../lib/paystack";
+import {
+  agentPaymentRequestStatus,
+} from "../validators";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -67,12 +69,7 @@ export const getPaymentRequests = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     status: v.optional(
-      v.union(
-        v.literal("pending"),
-        v.literal("approved"),
-        v.literal("rejected"),
-        v.literal("paid"),
-      ),
+      v.union(...agentPaymentRequestStatus.map((e) => v.literal(e))),
     ),
   },
   handler: async (ctx, args) => {
@@ -351,20 +348,20 @@ export const createAgentPaystackRecipient = action({
     // Registers an M-Pesa payout destination for an agent. Was fully
     // unauthenticated. Actions have no `ctx.db`, so the check runs in an
     // internal query where the caller's identity still propagates.
-    await ctx.runQuery(internal.data.agentPaymentRequests.assertPayoutPermission, {});
+    await ctx.runQuery(internal.data.agent_payment_requests.assertPayoutPermission, {});
 
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) throw new Error("PAYSTACK_SECRET_KEY is not configured");
 
     // Fetch agent and user details from db via a query
     const agent: Doc<"agents"> | null = await ctx.runQuery(
-      internal.data.agentPaymentRequests.getAgentForAction,
+      internal.data.agent_payment_requests.getAgentForAction,
       { agentId: args.agentId },
     );
     if (!agent) throw new Error("Agent not found");
 
     const user: Doc<"users"> | null = await ctx.runQuery(
-      internal.data.agentPaymentRequests.getUserForAction,
+      internal.data.agent_payment_requests.getUserForAction,
       { userId: agent.user_id },
     );
     if (!user) throw new Error("Agent user not found");
@@ -395,7 +392,7 @@ export const createAgentPaystackRecipient = action({
 
     const recipientCode = body.data.recipient_code as string;
 
-    await ctx.runMutation(internal.data.agentPaymentRequests.patchAgentRecipient, {
+    await ctx.runMutation(internal.data.agent_payment_requests.patchAgentRecipient, {
       agentId: args.agentId,
       mpesaNumber: args.mpesaNumber,
       recipientCode,
@@ -428,7 +425,7 @@ export const processPaymentRequest = action({
     // query. Identity propagates through `runQuery`, and the acting user id
     // comes back from the server rather than from the client.
     const processedBy: Id<"users"> = await ctx.runQuery(
-      internal.data.agentPaymentRequests.assertPayoutPermission,
+      internal.data.agent_payment_requests.assertPayoutPermission,
       {},
     );
 
@@ -439,7 +436,7 @@ export const processPaymentRequest = action({
       );
     }
 
-    return await ctx.runAction(internal.data.agentPaymentRequests.executePayout, {
+    return await ctx.runAction(internal.data.agent_payment_requests.executePayout, {
       requestId: args.requestId,
       processedBy,
     });
@@ -467,7 +464,7 @@ export const executePayout = internalAction({
           agent: Doc<"agents"> | null;
         })
       | null = await ctx.runQuery(
-      internal.data.agentPaymentRequests.getRequestForAction,
+      internal.data.agent_payment_requests.getRequestForAction,
       { requestId: args.requestId },
     );
 
@@ -507,7 +504,7 @@ export const executePayout = internalAction({
         ? body.data.transfer_code
         : "";
 
-    await ctx.runMutation(internal.data.agentPaymentRequests.markRequestPaid, {
+    await ctx.runMutation(internal.data.agent_payment_requests.markRequestPaid, {
       id: args.requestId,
       transferCode,
       reference,

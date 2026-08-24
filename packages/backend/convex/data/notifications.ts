@@ -2,6 +2,10 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { api } from "../_generated/api";
+import {
+  notificationTypes,
+  orderStatus,
+} from "../validators";
 
 /**
  * Central helpers & unified push notification sending
@@ -37,7 +41,7 @@ async function insertFeedNotification(
   args: UnifiedNotifyArgs,
 ): Promise<Id<"notifications">> {
   const notificationId: Id<"notifications"> = await ctx.runMutation(
-    api.data.userNotifications.createNotification,
+    api.data.user_notifications.createNotification,
     {
       userId: args.userId,
       type: args.type,
@@ -66,7 +70,7 @@ async function getUserEnabledTokens(
   userId: Id<"users">,
 ): Promise<PushTokenDoc[]> {
   const tokens: PushTokenDoc[] = await ctx.runQuery(
-    api.data.pushTokens.listUserPushTokens,
+    api.data.push_tokens.listUserPushTokens,
     {
       userId,
     },
@@ -114,12 +118,7 @@ async function sendExpo(messages: any[]): Promise<ExpoSendResult> {
 export const notifyUser = action({
   args: {
     userId: v.id("users"),
-    type: v.union(
-      v.literal("order_update"),
-      v.literal("delivery"),
-      v.literal("promotion"),
-      v.literal("system"),
-    ),
+    type: v.union(...notificationTypes.map((e) => v.literal(e))),
     title: v.string(),
     message: v.string(),
     data: v.optional(v.any()),
@@ -192,12 +191,7 @@ export const notifyUser = action({
 export const notifyUsers = action({
   args: {
     userIds: v.array(v.id("users")),
-    type: v.union(
-      v.literal("order_update"),
-      v.literal("delivery"),
-      v.literal("promotion"),
-      v.literal("system"),
-    ),
+    type: v.union(...notificationTypes.map((e) => v.literal(e))),
     title: v.string(),
     message: v.string(),
     data: v.optional(v.any()),
@@ -212,7 +206,7 @@ export const notifyUsers = action({
       let notificationId: Id<"notifications"> | null = null;
       try {
         notificationId = await ctx.runMutation(
-          api.data.userNotifications.createNotification,
+          api.data.user_notifications.createNotification,
           {
             userId,
             type: args.type,
@@ -311,7 +305,7 @@ export const notifyRiderAssignment = action({
 
     // Create feed notification using new specific function
     const notificationResult = await ctx.runMutation(
-      api.data.userNotifications.createRiderAssignmentNotification,
+      api.data.user_notifications.createRiderAssignmentNotification,
       {
         riderId: args.riderId,
         orderId: args.orderId,
@@ -375,7 +369,7 @@ export const notifyRiderOrderReady = action({
 
     // Create feed notification using new specific function
     const notificationResult = await ctx.runMutation(
-      api.data.userNotifications.createOrderReadyNotification,
+      api.data.user_notifications.createOrderReadyNotification,
       {
         riderId: args.riderId,
         orderId: args.orderId,
@@ -808,16 +802,7 @@ export const triggerOrderStatusNotification = action({
 export const updateOrderStatusWithNotifications = action({
   args: {
     orderId: v.id("orders"),
-    newStatus: v.union(
-      v.literal("Pending"),
-      v.literal("Confirmed"),
-      v.literal("Processing"),
-      v.literal("Pickup"),
-      v.literal("Delivery"),
-      v.literal("Delivered"),
-      v.literal("Cancelled"),
-      v.literal("Refunded"),
-    ),
+    newStatus: v.union(...orderStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const order: any = await ctx.runQuery(api.data.orders.getOrderById, {
@@ -893,7 +878,7 @@ export const sendDeliveryCode = action({
 
       // Create feed notification using new specific function
       const notificationResult = await ctx.runMutation(
-        api.data.userNotifications.createDeliveryCodeNotification,
+        api.data.user_notifications.createDeliveryCodeNotification,
         {
           userId: args.userId,
           orderId: args.orderId,
@@ -954,7 +939,7 @@ export const notifyClearanceDeals = action({
   }> => {
     // Get all distinct user IDs that have push tokens
     const allTokens: PushTokenDoc[] = await ctx.runQuery(
-      api.data.pushTokens.listAllEnabledTokens,
+      api.data.push_tokens.listAllEnabledTokens,
     );
 
     // Deduplicate user IDs

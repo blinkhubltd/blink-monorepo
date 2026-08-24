@@ -390,7 +390,7 @@ export const batchReserveStock = mutation({
     for (const item of args.cartItems) {
       try {
         const reservation = await ctx.runMutation(
-          api.data.stockReservation.reserveStock,
+          api.data.stock_reservation.reserveStock,
           {
             productId: item.productId,
             quantity: item.quantity,

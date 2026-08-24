@@ -44,14 +44,87 @@ zero callers, publicly callable in production).
 ```
 convex/
   schema.ts  validators.ts  auth.config.ts  auth.helpers.ts  http.ts  crons.ts
-  data/        43 domain modules — 416 functions
-  user/        users, roles, clerk           — 53 functions
-  actions/     importJobsAction              —  1 function  ("use node" only)
-  webhooks/    clerk-adjacent httpActions: agentScan, location, paystack
-  lib/         pure, ctx-free, unit-tested
-  helpers/     legacy — being dissolved into lib/
-  hooks/       legacy — to be dissolved
+  data/        47 domain modules
+  user/        users, roles, clerk
+  actions/     import_jobs_action  ("use node" only)
+  webhooks/    agent_scan, location, paystack
+  lib/         account_completion, delivery_code, geo, paystack,
+               permissions, roles, schedule, status_mapping
 ```
+
+### validators.ts is the single source of truth for enums
+
+Every enum is a plain `as const` tuple, expanded at each use site with
+`v.union(...name.map((e) => v.literal(e)))` — sydia's idiom. **36 named enums
+replaced 142 inline union sites**: 61 inside `validators.ts` and 81 across 23
+modules.
+
+Proof the rewrite changed nothing observable: `_generated/api.d.ts` is
+byte-identical before and after, so no function argument validator changed shape,
+and `tests/schema-shape.test.ts` snapshots every table's wire format field by
+field.
+
+**Correction:** three earlier commits cited `_generated/dataModel.d.ts` being
+byte-identical as proof no table shape changed. That was wrong —
+`dataModel.d.ts` is generic (`DataModelFromSchemaDefinition<typeof schema>`, 60
+lines) and never changes when a field does. The snapshot test is the check that
+actually shows it, and re-running it against `validators.ts` as it stood before
+the refactors confirms the conclusion was right: the only shape changes are the
+three deleted dead clones and the deliberately-added `orders.idempotency_key`.
+
+16 unions were deliberately left inline because they are **narrower** than the
+shared enum — `approved | rejected` on an approve endpoint, `Processing | Pickup`
+on a transition. A tighter argument validator is a feature; widening it would
+accept values the endpoint should reject.
+
+The enums are exported through `@repo/backend/validators`, so the apps can import
+what the database validates against instead of hand-copying string literals the
+way `blink-rider/lib/constants.ts` does today.
+
+Two known data-model defects are pinned by test rather than silently fixed, since
+both need a migration: `payments.status` is Title case while
+`transactions.status` is lowercase for the same four concepts, and
+`transactions.payment_method` accepts 2 of the 6 methods, so a
+payment-on-delivery order can never produce a transaction row.
+
+Duplicated object shapes are also extracted — 19 sites across 5 named shapes,
+**1393 -> 1223 lines**:
+
+| shape | sites |
+|---|---|
+| `weeklyOpeningHours` | 2 |
+| `weeklyShiftSchedule` | 2 |
+| `postalAddress` | 4 |
+| `geoPoint` | 7 |
+| `addressWithCoordinates` | 4 |
+
+There are **two** week shapes rather than one because
+`VendorsValidator.schedule.weeklySchedule` and `SchedulesValidator.weeklySchedule`
+had already diverged: the second carries a required `enabled` the first does not.
+Unifying them needs a data migration, so the divergence is named and kept.
+`UsersValidator.address` and `ShipmentValidator.delivery_address` are likewise
+left alone — they carry extra fields (`street`, `state`, `postal_code`), and
+widening them would change what those tables accept.
+
+`helpers/` and `hooks/` are gone. Where their contents went:
+
+| was | now | note |
+|---|---|---|
+| `helpers/geo.ts` | `lib/geo.ts` | duplicate; the surviving copy is in metres |
+| `helpers/scheduleHelpers.ts` | `lib/schedule.ts` | already pure, moved wholesale |
+| `hooks/generateDeliveryCode` | `lib/delivery_code.ts` | **not dead** — `data/orders.ts` uses it |
+| `hooks/validateRiderActivation` | `lib/account_completion.ts` | same concern, merged |
+| `helpers/getUserByClerkId` | `auth.helpers.ts` | same `by_clerkId` lookup as `getAuthUser` |
+| `helpers/statusSync.ts` | `data/shipments.ts` | ctx-using, so not `lib/`; now typed `MutationCtx` |
+| `helpers/dbHelpers.ts` | deleted | 105 LOC unreachable; `catch { return [] }` made "not found" and "DB error" indistinguishable |
+| `helpers/index.ts` | deleted | barrel; 8 of its 12 re-exports had no importer |
+
+`lib/` follows sydia's rule — testable without `_generated` — with one ctx-taking
+file (`account_completion.ts`), mirroring sydia's own `lib/images.ts`.
+
+**App-side follow-up:** four `blink-ecommerce` files import `Id` from
+`@/convex/helpers`. That barrel no longer exists, so they must move to
+`@repo/backend/dataModel` when the app is ported.
 
 Two constraints learned the hard way and worth recording:
 
@@ -228,3 +301,29 @@ pnpm turbo check-types
 ```bash
 pnpm --filter @repo/backend dev
 ```
+
+### data/payments.ts split
+
+2593 lines, 33% of it a single action handler. Now six files:
+
+| file | lines | holds |
+|---|---|---|
+| `data/payments.ts` | 833 | queries, payment-record mutations, verification, initiation |
+| `data/payment_split.ts` | 1062 | `preparePaystackSplitForCheckout` and the nine helpers only it used |
+| `data/payment_finalization.ts` | 685 | the four `finalize*Orders` mutations |
+| `data/paystack_api.ts` | 68 | `paystackRequest`, `getPaystackCurrency` — the only `fetch` site |
+| `lib/json.ts` | 24 | safe navigation of untyped API responses |
+| `lib/env.ts` | 19 | `requireEnv` / `getOptionalEnv` |
+
+A pure move: no handler body was rewritten. Verified by the deployed function
+count staying at 477, with `payments` 14 + `payment_finalization` 4 +
+`payment_split` 1 = the 19 the single file used to export, and
+`dataModel.d.ts` unchanged.
+
+Two follow-ups deliberately left: collapsing the four finalizers into one
+parameterised mutation (needs extract-then-collapse plus a golden-record replay,
+since they create orders and mark payments consumed with no tests), and breaking
+the 858-line split handler into stages. Also note `data/payment_split.ts` keeps
+its own `toMinorUnits`, which differs from the one in `lib/paystack.ts`: the local
+one returns `NaN` silently, the shared one throws. Reconciling them changes
+behaviour on a live payment path, so it needs a decision rather than a tidy-up.

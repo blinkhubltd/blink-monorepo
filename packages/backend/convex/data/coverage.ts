@@ -1,6 +1,6 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
-import { haversineMeters, isWithinRadius } from "../helpers/geo";
+import { haversineMeters, isWithinRadius } from "../lib/geo";
 
 // Query returning vendors whose service radius covers the provided point.
 // Assumes vendors.service_radius is stored in METERS.

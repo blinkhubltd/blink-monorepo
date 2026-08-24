@@ -1,12 +1,15 @@
 import { api } from "../_generated/api";
 import { mutation, query, action } from "../_generated/server";
 import { v } from "convex/values";
+import {
+  pushPlatforms,
+} from "../validators";
 
 export const registerPushToken = mutation({
   args: {
     userId: v.id("users"),
     token: v.string(),
-    platform: v.union(v.literal("ios"), v.literal("android"), v.literal("web")),
+    platform: v.union(...pushPlatforms.map((e) => v.literal(e))),
     deviceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -104,7 +107,7 @@ export const migratePushTokens = action({
       throw new Error("User has no push token to migrate");
     }
 
-    const existing = await ctx.runQuery(api.data.pushTokens.listUserPushTokens, {
+    const existing = await ctx.runQuery(api.data.push_tokens.listUserPushTokens, {
       userId: args.userId,
     });
 
@@ -115,7 +118,7 @@ export const migratePushTokens = action({
       return { success: true, message: "No migration needed" };
     }
 
-    await ctx.runMutation(api.data.pushTokens.registerPushToken, {
+    await ctx.runMutation(api.data.push_tokens.registerPushToken, {
       userId: args.userId,
       token: pushToken,
       platform: "web",

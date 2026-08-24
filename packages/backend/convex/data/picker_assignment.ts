@@ -1,6 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import {
+  pickerAssignmentTypes,
+} from "../validators";
 
 // Store picker assignment state for round-robin
 export const getNextPickerForVendor = query({
@@ -61,7 +64,7 @@ export const assignOrderToPicker = mutation({
   args: {
     orderId: v.id("orders"),
     vendorId: v.id("vendors"),
-    type: v.union(v.literal("order"), v.literal("prescription")),
+    type: v.union(...pickerAssignmentTypes.map((e) => v.literal(e))),
     prescriptionId: v.optional(v.id("prescriptions")),
   },
   handler: async (ctx, args) => {

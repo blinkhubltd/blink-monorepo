@@ -3,9 +3,15 @@
  *
  * ── What this consolidates ────────────────────────────────────────────────
  *
- * `PAYSTACK_BASE_URL` was declared three times: `payments.ts:9`,
- * `agentPaymentRequests.ts:12`, and again as a bare literal at
- * `payments.ts:1869`. One copy now.
+ * `PAYSTACK_BASE_URL` was declared three times in the vendored tree — twice as a
+ * local `const` (in what are now `data/payments.ts` and
+ * `data/agentPaymentRequests.ts`) and once as a bare literal inside a `fetch`.
+ * All three now import from here.
+ *
+ * That duplication was not merely untidy: a scripted rewrite during the folder
+ * restructure corrupted all three copies at once, and the only thing that caught
+ * it was a test asserting this constant's value. One definition means one place
+ * to get wrong.
  *
  * ── Amounts ───────────────────────────────────────────────────────────────
  *
@@ -14,6 +20,8 @@
  * rejected by the API, and floating-point drift on money is how you end up a cent
  * short on a split that must sum exactly.
  */
+
+import { getNestedString } from "./json";
 
 export const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
@@ -192,4 +200,40 @@ export function parseWebhookPayload(
   } catch {
     return null;
   }
+}
+
+// ── Channel mapping ───────────────────────────────────────────────────────
+
+/**
+ * Map a Paystack transaction's `channel` onto Blink's `payment_method`.
+ *
+ * Unifies two copies that lived inside the order finalisers. They were not
+ * identical code — one checked for "card" explicitly, the other let it fall
+ * through to the default — but they are equivalent for every input, which is why
+ * unifying them is behaviour-preserving:
+ *
+ *   contains "mobile" or "mpesa"  ->  Mobile Money
+ *   contains "bank"               ->  Bank Transfer
+ *   contains "card"               ->  Card  (explicit in one copy, default in the other)
+ *   anything else, or absent      ->  Card
+ *
+ * The default is deliberately Card rather than a throw: the channel is
+ * informational on an already-settled payment, and failing order creation
+ * because Paystack sent an unfamiliar channel string would be worse than
+ * recording a slightly wrong label.
+ *
+ * Reads two locations because Paystack has moved it between them:
+ * `data.channel` and `data.authorization.channel`.
+ */
+export function paymentMethodFromChannel(
+  paystackResponse: unknown,
+): "Card" | "Mobile Money" | "Bank Transfer" {
+  const channel =
+    getNestedString(paystackResponse, ["data", "channel"]) ||
+    getNestedString(paystackResponse, ["data", "authorization", "channel"]) ||
+    "";
+  const lower = String(channel).toLowerCase();
+  if (lower.includes("mobile") || lower.includes("mpesa")) return "Mobile Money";
+  if (lower.includes("bank")) return "Bank Transfer";
+  return "Card";
 }

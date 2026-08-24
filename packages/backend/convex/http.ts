@@ -1,5 +1,5 @@
 import { httpRouter } from "convex/server";
-import { handleAgentScan } from "./webhooks/agentScan";
+import { handleAgentScan } from "./webhooks/agent_scan";
 import { ingestRiderLocation } from "./webhooks/location";
 import { clerkWebhook } from "./user/clerk";
 import { paystackWebhook } from "./webhooks/paystack";
