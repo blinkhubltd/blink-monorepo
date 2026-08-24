@@ -280,7 +280,7 @@ export const releaseStock = mutation({
   },
 });
 
-export const cleanupExpiredReservations = mutation({
+export const cleanupExpiredReservations = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();

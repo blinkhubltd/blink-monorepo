@@ -1,7 +1,13 @@
-import { mutation, query, action } from "./_generated/server";
+import {
+  action,
+  internalAction,
+  internalMutation,
+  mutation,
+  query,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 // 90 days in milliseconds
 const NOTIFICATION_RETENTION_PERIOD = 90 * 24 * 60 * 60 * 1000;
@@ -104,7 +110,7 @@ export const getExpiredNotifications = query({
 /**
  * Clean up notifications older than 90 days
  */
-export const cleanupExpiredNotifications = mutation({
+export const cleanupExpiredNotifications = internalMutation({
   args: {
     batchSize: v.optional(v.number()),
   },
@@ -135,7 +141,7 @@ export const cleanupExpiredNotifications = mutation({
 /**
  * Scheduled action to automatically clean up expired notifications
  */
-export const scheduleNotificationCleanup = action({
+export const scheduleNotificationCleanup = internalAction({
   args: {},
   handler: async (ctx) => {
     let totalDeleted = 0;
@@ -144,7 +150,7 @@ export const scheduleNotificationCleanup = action({
     // Process in batches to avoid timeout
     while (hasMore && totalDeleted < 1000) {
       const result = await ctx.runMutation(
-        api.userNotifications.cleanupExpiredNotifications,
+        internal.userNotifications.cleanupExpiredNotifications,
         { batchSize: 100 }
       );
 
