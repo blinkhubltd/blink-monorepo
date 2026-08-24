@@ -24,6 +24,7 @@ import type * as clearanceBatching from "../clearanceBatching.js";
 import type * as clearanceCart from "../clearanceCart.js";
 import type * as clearanceProducts from "../clearanceProducts.js";
 import type * as user_clerk from "../user/clerk.js";
+import type * as webhooks_paystack from "../webhooks/paystack.js";
 import type * as coverage from "../coverage.js";
 import type * as crons from "../crons.js";
 import type * as directions from "../directions.js";
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   clearanceCart: typeof clearanceCart;
   clearanceProducts: typeof clearanceProducts;
   "user/clerk": typeof user_clerk;
+  "webhooks/paystack": typeof webhooks_paystack;
   coverage: typeof coverage;
   crons: typeof crons;
   directions: typeof directions;

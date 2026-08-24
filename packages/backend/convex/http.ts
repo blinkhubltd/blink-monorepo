@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { handleAgentScan } from "./agentScan";
 import { ingestRiderLocation } from "./location";
 import { clerkWebhook } from "./user/clerk";
+import { paystackWebhook } from "./webhooks/paystack";
 
 /**
  * HTTP routes.
@@ -40,6 +41,16 @@ http.route({
 // Legacy alias — matches what is configured in the Clerk dashboard today.
 http.route({ path: "/clerk", method: "POST", handler: clerkWebhook });
 
+// Paystack charge/transfer events. HMAC-SHA512 verified inside the handler.
+// New route: there was no Paystack webhook before, so there is no legacy alias
+// and no existing dashboard configuration to preserve. Register this URL in the
+// Paystack dashboard under Settings -> API Keys & Webhooks.
+http.route({
+  path: `${api_v1}/webhooks/paystack`,
+  method: "POST",
+  handler: paystackWebhook,
+});
+
 // ── Ingest ────────────────────────────────────────────────────────────────
 
 /**
@@ -75,22 +86,3 @@ http.route({
 http.route({ path: "/agent/scan", method: "GET", handler: handleAgentScan });
 
 export default http;
-
-/**
- * ── Not yet wired: the Paystack webhook ───────────────────────────────────
- *
- * sydia verifies Paystack callbacks with an HMAC-SHA512 signature check over the
- * raw body and a constant-time hex comparison. Blink has **no Paystack webhook
- * at all** — `CollectPaymentModal` instead polls `verifyPaystack` every 10
- * seconds for up to 12 attempts (2 minutes), then gives up.
- *
- * So a payment the customer approves after that window is never recorded, and
- * the rider is shown a failure for a charge that actually succeeded.
- *
- * Adding the webhook is the right fix and would follow sydia's pattern exactly,
- * but it changes payment-recording behaviour, so it is deliberately left out of
- * this restructure pending an explicit decision. When it lands: signature
- * verification belongs in `lib/paystack.ts` (pure, unit-tested), the handler in
- * `actions/paystack.ts`, and it must be idempotent against
- * `by_payment_reference` because Paystack retries.
- */

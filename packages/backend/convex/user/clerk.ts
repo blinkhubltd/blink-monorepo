@@ -23,13 +23,14 @@ import { httpAction } from "../_generated/server";
  *   - **Stopped logging `svix-signature`.** The previous version logged all svix
  *     headers, including the signature, on every request. Signature material in
  *     logs is a credential leak.
- *   - **Missing-secret check moved to module load.** It previously threw inside
- *     the handler, which fails closed but lets the deployment boot healthy — so a
- *     missing secret meant every webhook returned 500 and user sync silently
- *     stopped with nothing obviously broken. Throwing at module load blocks the
- *     deploy instead, matching how `auth.config.ts` already treats
- *     `CLERK_JWT_ISSUER_DOMAIN`. (The Phase B0 audit confirmed the secret *is*
- *     set on the live deployment, so this is prevention, not a live fix.)
+ *   - **Missing-secret handling made visible and self-healing.** It previously
+ *     threw a bare `Error` inside the handler, producing an opaque 500 while the
+ *     deployment still booted healthy — so a missing secret meant user sync
+ *     silently stopped with nothing obviously broken. It now logs the reason once
+ *     at startup and rejects each request with an explicit **503**. See the
+ *     comment on the guard below for why this is not a module-load throw.
+ *     (The Phase B0 audit confirmed the secret *is* set on the live deployment,
+ *     so this is prevention, not a live fix.)
  *   - **Non-null assertions removed.** The three headers were asserted non-null
  *     on the line above the check that they were present.
  *   - **Event payload is shape-checked** before use. `email_addresses[0]` was
@@ -43,10 +44,23 @@ import { httpAction } from "../_generated/server";
 const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
 
 if (!webhookSecret) {
-  throw new Error(
-    "CLERK_WEBHOOK_SECRET is not set. Set it with " +
-      "`npx convex env set CLERK_WEBHOOK_SECRET whsec_...` — without it every " +
-      "Clerk webhook fails and user sync stops silently.",
+  // Loud, but NOT a throw.
+  //
+  // Throwing here would block the deploy, which sounds safer but creates a
+  // bootstrap deadlock: Clerk only issues the signing secret once you register
+  // an endpoint, and you cannot register an endpoint without a deployed URL. So
+  // a fresh deployment could never be stood up.
+  //
+  // Instead the handler fails closed at request time with a 503. 503 is
+  // retryable, so once the secret is set Clerk's own retries deliver the events
+  // that were rejected in the meantime — the gap self-heals rather than being
+  // lost. And unlike the original code, which threw a bare Error inside the
+  // handler and produced an opaque 500, the reason is stated once at startup and
+  // again on every rejected request.
+  console.error(
+    "[clerk] CLERK_WEBHOOK_SECRET is not set — user sync is DISABLED. " +
+      "Every webhook will be rejected with 503 until it is configured: " +
+      "npx convex env set CLERK_WEBHOOK_SECRET whsec_...",
   );
 }
 
@@ -92,6 +106,12 @@ function primaryEmail(data: ClerkUserData): string | undefined {
 }
 
 export const clerkWebhook = httpAction(async (ctx, request) => {
+  if (!webhookSecret) {
+    // Fail closed. 503 so Clerk retries once the secret exists.
+    console.error("[clerk] rejected webhook: CLERK_WEBHOOK_SECRET not set");
+    return new Response("Webhook not configured", { status: 503 });
+  }
+
   const event = await verifyRequest(request);
 
   // 401, not 400: the request was well-formed, it just was not authenticated.
