@@ -8,6 +8,7 @@ import {
   isTransferEvent,
   parseWebhookPayload,
   paystackPaths,
+  paymentMethodFromChannel,
   timingSafeEqual,
   toMinorUnits,
   verifyPaystackSignature,
@@ -208,5 +209,83 @@ describe("endpoints", () => {
     expect(paystackPaths.verifyTransaction("BLK/123")).toBe(
       "/transaction/verify/BLK%2F123",
     );
+  });
+});
+
+describe("paymentMethodFromChannel", () => {
+  const resp = (channel: string) => ({ data: { channel } });
+
+  it.each([
+    ["mobile_money", "Mobile Money"],
+    ["mobile money", "Mobile Money"],
+    ["mpesa", "Mobile Money"],
+    ["MPESA", "Mobile Money"],
+    ["bank", "Bank Transfer"],
+    ["bank_transfer", "Bank Transfer"],
+    ["card", "Card"],
+    ["Card", "Card"],
+  ] as const)("%s -> %s", (channel, expected) => {
+    expect(paymentMethodFromChannel(resp(channel))).toBe(expected);
+  });
+
+  it("reads the nested authorization.channel fallback", () => {
+    // Paystack has moved this field between the two locations.
+    expect(
+      paymentMethodFromChannel({ data: { authorization: { channel: "mpesa" } } }),
+    ).toBe("Mobile Money");
+  });
+
+  it("prefers data.channel over the nested one", () => {
+    expect(
+      paymentMethodFromChannel({
+        data: { channel: "card", authorization: { channel: "mpesa" } },
+      }),
+    ).toBe("Card");
+  });
+
+  it("defaults to Card rather than throwing", () => {
+    // The channel is informational on an already-settled payment. Failing order
+    // creation over an unfamiliar channel string would be worse than a slightly
+    // wrong label.
+    for (const bad of [
+      undefined,
+      null,
+      {},
+      { data: {} },
+      { data: { channel: "" } },
+      { data: { channel: "something_new" } },
+      "not an object",
+      42,
+    ]) {
+      expect(paymentMethodFromChannel(bad)).toBe("Card");
+    }
+  });
+
+  it("mobile wins over bank when both substrings appear", () => {
+    // Pins the branch order: the two replaced copies both checked mobile first.
+    expect(paymentMethodFromChannel(resp("mobile_bank"))).toBe("Mobile Money");
+  });
+
+  it("does NOT recognise a hyphenated m-pesa — known gap, pinned", () => {
+    // "M-PESA".toLowerCase() is "m-pesa", which does not contain the substring
+    // "mpesa", so it falls through to Card. Discovered by this test asserting
+    // the wrong thing first.
+    //
+    // Low risk in practice: Paystack's channel vocabulary is card, bank, ussd,
+    // qr, mobile_money, bank_transfer, eft — "mobile_money" matches. But the
+    // code checks "mpesa" explicitly, so someone clearly expected an M-Pesa-ish
+    // string to arrive, and a hyphenated one would be silently mislabelled.
+    //
+    // Not "fixed" here: widening the match changes the payment_method recorded
+    // on live orders, which is a data change, not a refactor.
+    expect(paymentMethodFromChannel(resp("M-PESA"))).toBe("Card");
+    expect(paymentMethodFromChannel(resp("m-pesa"))).toBe("Card");
+  });
+
+  it("maps Paystack's other real channels to Card", () => {
+    // ussd, qr and eft are genuine Paystack channels with no Blink equivalent.
+    for (const c of ["ussd", "qr", "eft"]) {
+      expect(paymentMethodFromChannel(resp(c))).toBe("Card");
+    }
   });
 });

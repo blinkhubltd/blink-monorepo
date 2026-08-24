@@ -3,7 +3,7 @@ import { mutation } from "../_generated/server";
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { OrderItemWithoutOrderId, OrdersValidator } from "../validators";
-import { getNestedString } from "../lib/json";
+import { paymentMethodFromChannel } from "../lib/paystack";
 
 /**
  * Order finalisation after payment.
@@ -92,23 +92,9 @@ export const finalizePaidOrders = mutation({
     }
 
     const created: { orderId: Id<"orders">; vendor: Id<"vendors"> }[] = [];
-    const deriveOrderPaymentMethod = (
-      payment: Doc<"payments">,
-    ): "Card" | "Mobile Money" | "Bank Transfer" | "Cash on Delivery" => {
-      const resp: unknown = payment.paystackResponse;
-      const channel =
-        getNestedString(resp, ["data", "channel"]) ||
-        getNestedString(resp, ["data", "authorization", "channel"]) ||
-        "";
-      const lower = String(channel).toLowerCase();
-      if (lower.includes("mobile") || lower.includes("mpesa"))
-        return "Mobile Money";
-      if (lower.includes("card")) return "Card";
-      if (lower.includes("bank")) return "Bank Transfer";
-      return "Card"; // default fallback
-    };
-
-    const orderPaymentMethod = deriveOrderPaymentMethod(payment);
+    const orderPaymentMethod = paymentMethodFromChannel(
+      payment.paystackResponse,
+    );
 
     const normalizedInputMethod =
       args.payment_method === "Paystack" ? "Card" : args.payment_method;
@@ -409,21 +395,7 @@ export const finalizePaidClearanceOrders = mutation({
     }
 
     // 3. Derive payment method from Paystack response
-    const deriveMethod = (
-      p: typeof payment,
-    ): "Card" | "Mobile Money" | "Bank Transfer" | "Cash on Delivery" => {
-      const resp: unknown = p.paystackResponse;
-      const channel =
-        getNestedString(resp, ["data", "channel"]) ||
-        getNestedString(resp, ["data", "authorization", "channel"]) ||
-        "";
-      const lc = channel.toLowerCase();
-      if (lc.includes("mobile") || lc.includes("mpesa")) return "Mobile Money";
-      if (lc.includes("bank")) return "Bank Transfer";
-      return "Card";
-    };
-
-    const paymentMethod = deriveMethod(payment);
+    const paymentMethod = paymentMethodFromChannel(payment.paystackResponse);
     const customer = await ctx.db.get(args.user_id);
     const customerName = customer
       ? customer.name ||
