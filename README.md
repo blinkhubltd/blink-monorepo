@@ -44,7 +44,7 @@ zero callers, publicly callable in production).
 ```
 convex/
   schema.ts  validators.ts  auth.config.ts  auth.helpers.ts  http.ts  crons.ts
-  data/        43 domain modules
+  data/        47 domain modules
   user/        users, roles, clerk
   actions/     import_jobs_action  ("use node" only)
   webhooks/    agent_scan, location, paystack
@@ -292,3 +292,29 @@ pnpm turbo check-types
 ```bash
 pnpm --filter @repo/backend dev
 ```
+
+### data/payments.ts split
+
+2593 lines, 33% of it a single action handler. Now six files:
+
+| file | lines | holds |
+|---|---|---|
+| `data/payments.ts` | 833 | queries, payment-record mutations, verification, initiation |
+| `data/payment_split.ts` | 1062 | `preparePaystackSplitForCheckout` and the nine helpers only it used |
+| `data/payment_finalization.ts` | 685 | the four `finalize*Orders` mutations |
+| `data/paystack_api.ts` | 68 | `paystackRequest`, `getPaystackCurrency` — the only `fetch` site |
+| `lib/json.ts` | 24 | safe navigation of untyped API responses |
+| `lib/env.ts` | 19 | `requireEnv` / `getOptionalEnv` |
+
+A pure move: no handler body was rewritten. Verified by the deployed function
+count staying at 477, with `payments` 14 + `payment_finalization` 4 +
+`payment_split` 1 = the 19 the single file used to export, and
+`dataModel.d.ts` unchanged.
+
+Two follow-ups deliberately left: collapsing the four finalizers into one
+parameterised mutation (needs extract-then-collapse plus a golden-record replay,
+since they create orders and mark payments consumed with no tests), and breaking
+the 858-line split handler into stages. Also note `data/payment_split.ts` keeps
+its own `toMinorUnits`, which differs from the one in `lib/paystack.ts`: the local
+one returns `NaN` silently, the shared one throws. Reconciling them changes
+behaviour on a live payment path, so it needs a decision rather than a tidy-up.

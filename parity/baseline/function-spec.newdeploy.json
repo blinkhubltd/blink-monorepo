@@ -7841,1970 +7841,6 @@
     {
       "args": {
         "type": "object",
-        "value": {
-          "orders": {
-            "fieldType": {
-              "type": "array",
-              "value": {
-                "type": "object",
-                "value": {
-                  "clearance_items": {
-                    "fieldType": {
-                      "type": "array",
-                      "value": {
-                        "type": "object",
-                        "value": {
-                          "clearance_price": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "clearance_product_id": {
-                            "fieldType": {
-                              "tableName": "clearance_products",
-                              "type": "id"
-                            },
-                            "optional": false
-                          },
-                          "discount_percentage": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "name": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "original_price": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "quantity": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "sku": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "unit_type": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": true
-                          },
-                          "unit_value": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "vendor_id": {
-                            "fieldType": {
-                              "tableName": "vendors",
-                              "type": "id"
-                            },
-                            "optional": false
-                          }
-                        }
-                      }
-                    },
-                    "optional": false
-                  },
-                  "order": {
-                    "fieldType": {
-                      "type": "object",
-                      "value": {
-                        "address": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "address_1": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "address_2": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "city": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "country": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "lat": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "lng": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "postal_code": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "state": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "street": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              }
-                            }
-                          },
-                          "optional": false
-                        },
-                        "assigned_picker_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "batch_id": {
-                          "fieldType": {
-                            "tableName": "clearance_batches",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "confirmed_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code_verified": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "delivery_fee": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "discount_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "is_clearance": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "order_date": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "order_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Pending"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Confirmed"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Processing"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Pickup"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivered"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cancelled"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_collected_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "payment_method": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Card"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mobile Money"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mpesa"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cash on Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Bank Transfer"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paystack"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_mode": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "pay_now"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "pay_on_delivery"
-                              }
-                            ]
-                          },
-                          "optional": true
-                        },
-                        "payment_reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "payment_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Unpaid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "picked_up_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "receiver_contact": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "email": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "name": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              },
-                              "phone": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              }
-                            }
-                          },
-                          "optional": true
-                        },
-                        "reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": false
-                        },
-                        "rider_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "rider_rating": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "searchText": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "service_radius": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "special_instructions": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "subtotal_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "tax_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "total_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "updated_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "user_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": false
-                        },
-                        "vendor_id": {
-                          "fieldType": {
-                            "tableName": "vendors",
-                            "type": "id"
-                          },
-                          "optional": false
-                        }
-                      }
-                    },
-                    "optional": false
-                  }
-                }
-              }
-            },
-            "optional": false
-          },
-          "reference": {
-            "fieldType": {
-              "type": "string"
-            },
-            "optional": false
-          },
-          "user_id": {
-            "fieldType": {
-              "tableName": "users",
-              "type": "id"
-            },
-            "optional": false
-          }
-        }
-      },
-      "functionType": "Mutation",
-      "identifier": "data/payments.js:finalizePaidClearanceOrders",
-      "returns": null,
-      "visibility": {
-        "kind": "public"
-      }
-    },
-    {
-      "args": {
-        "type": "object",
-        "value": {
-          "orders": {
-            "fieldType": {
-              "type": "array",
-              "value": {
-                "type": "object",
-                "value": {
-                  "items": {
-                    "fieldType": {
-                      "type": "array",
-                      "value": {
-                        "type": "object",
-                        "value": {
-                          "barcodeVerified": {
-                            "fieldType": {
-                              "type": "boolean"
-                            },
-                            "optional": true
-                          },
-                          "barcodeVerifiedAt": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "discount": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "is_picked": {
-                            "fieldType": {
-                              "type": "boolean"
-                            },
-                            "optional": true
-                          },
-                          "name": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "picked_quantity": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "price": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "product_id": {
-                            "fieldType": {
-                              "tableName": "products",
-                              "type": "id"
-                            },
-                            "optional": false
-                          },
-                          "quantity": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "requires_prescription": {
-                            "fieldType": {
-                              "type": "boolean"
-                            },
-                            "optional": true
-                          },
-                          "sku": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "tax": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "total": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "unit_type": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": true
-                          },
-                          "unit_value": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "vendor_id": {
-                            "fieldType": {
-                              "tableName": "vendors",
-                              "type": "id"
-                            },
-                            "optional": false
-                          }
-                        }
-                      }
-                    },
-                    "optional": false
-                  },
-                  "order": {
-                    "fieldType": {
-                      "type": "object",
-                      "value": {
-                        "address": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "address_1": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "address_2": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "city": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "country": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "lat": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "lng": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "postal_code": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "state": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "street": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              }
-                            }
-                          },
-                          "optional": false
-                        },
-                        "assigned_picker_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "batch_id": {
-                          "fieldType": {
-                            "tableName": "clearance_batches",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "confirmed_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code_verified": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "delivery_fee": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "discount_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "is_clearance": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "order_date": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "order_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Pending"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Confirmed"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Processing"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Pickup"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivered"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cancelled"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_collected_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "payment_method": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Card"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mobile Money"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mpesa"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cash on Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Bank Transfer"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paystack"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_mode": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "pay_now"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "pay_on_delivery"
-                              }
-                            ]
-                          },
-                          "optional": true
-                        },
-                        "payment_reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "payment_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Unpaid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "picked_up_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "receiver_contact": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "email": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "name": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              },
-                              "phone": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              }
-                            }
-                          },
-                          "optional": true
-                        },
-                        "reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": false
-                        },
-                        "rider_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "rider_rating": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "searchText": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "service_radius": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "special_instructions": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "subtotal_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "tax_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "total_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "updated_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "user_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": false
-                        },
-                        "vendor_id": {
-                          "fieldType": {
-                            "tableName": "vendors",
-                            "type": "id"
-                          },
-                          "optional": false
-                        }
-                      }
-                    },
-                    "optional": false
-                  }
-                }
-              }
-            },
-            "optional": false
-          },
-          "payment_method": {
-            "fieldType": {
-              "type": "union",
-              "value": [
-                {
-                  "type": "literal",
-                  "value": "Card"
-                },
-                {
-                  "type": "literal",
-                  "value": "Mobile Money"
-                },
-                {
-                  "type": "literal",
-                  "value": "Cash on Delivery"
-                },
-                {
-                  "type": "literal",
-                  "value": "Bank Transfer"
-                },
-                {
-                  "type": "literal",
-                  "value": "Paystack"
-                }
-              ]
-            },
-            "optional": false
-          },
-          "reference": {
-            "fieldType": {
-              "type": "string"
-            },
-            "optional": false
-          },
-          "user_id": {
-            "fieldType": {
-              "tableName": "users",
-              "type": "id"
-            },
-            "optional": false
-          }
-        }
-      },
-      "functionType": "Mutation",
-      "identifier": "data/payments.js:finalizePaidOrders",
-      "returns": null,
-      "visibility": {
-        "kind": "public"
-      }
-    },
-    {
-      "args": {
-        "type": "object",
-        "value": {
-          "orders": {
-            "fieldType": {
-              "type": "array",
-              "value": {
-                "type": "object",
-                "value": {
-                  "clearance_items": {
-                    "fieldType": {
-                      "type": "array",
-                      "value": {
-                        "type": "object",
-                        "value": {
-                          "clearance_price": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "clearance_product_id": {
-                            "fieldType": {
-                              "tableName": "clearance_products",
-                              "type": "id"
-                            },
-                            "optional": false
-                          },
-                          "discount_percentage": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "name": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "original_price": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "quantity": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "sku": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "unit_type": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": true
-                          },
-                          "unit_value": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "vendor_id": {
-                            "fieldType": {
-                              "tableName": "vendors",
-                              "type": "id"
-                            },
-                            "optional": false
-                          }
-                        }
-                      }
-                    },
-                    "optional": false
-                  },
-                  "order": {
-                    "fieldType": {
-                      "type": "object",
-                      "value": {
-                        "address": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "address_1": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "address_2": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "city": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "country": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "lat": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "lng": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "postal_code": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "state": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "street": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              }
-                            }
-                          },
-                          "optional": false
-                        },
-                        "assigned_picker_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "batch_id": {
-                          "fieldType": {
-                            "tableName": "clearance_batches",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "confirmed_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code_verified": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "delivery_fee": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "discount_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "is_clearance": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "order_date": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "order_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Pending"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Confirmed"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Processing"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Pickup"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivered"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cancelled"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_collected_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "payment_method": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Card"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mobile Money"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mpesa"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cash on Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Bank Transfer"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paystack"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_mode": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "pay_now"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "pay_on_delivery"
-                              }
-                            ]
-                          },
-                          "optional": true
-                        },
-                        "payment_reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "payment_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Unpaid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "picked_up_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "receiver_contact": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "email": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "name": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              },
-                              "phone": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              }
-                            }
-                          },
-                          "optional": true
-                        },
-                        "reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": false
-                        },
-                        "rider_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "rider_rating": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "searchText": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "service_radius": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "special_instructions": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "subtotal_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "tax_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "total_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "updated_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "user_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": false
-                        },
-                        "vendor_id": {
-                          "fieldType": {
-                            "tableName": "vendors",
-                            "type": "id"
-                          },
-                          "optional": false
-                        }
-                      }
-                    },
-                    "optional": false
-                  }
-                }
-              }
-            },
-            "optional": false
-          },
-          "user_id": {
-            "fieldType": {
-              "tableName": "users",
-              "type": "id"
-            },
-            "optional": false
-          }
-        }
-      },
-      "functionType": "Mutation",
-      "identifier": "data/payments.js:finalizePayOnDeliveryClearanceOrders",
-      "returns": null,
-      "visibility": {
-        "kind": "public"
-      }
-    },
-    {
-      "args": {
-        "type": "object",
-        "value": {
-          "orders": {
-            "fieldType": {
-              "type": "array",
-              "value": {
-                "type": "object",
-                "value": {
-                  "items": {
-                    "fieldType": {
-                      "type": "array",
-                      "value": {
-                        "type": "object",
-                        "value": {
-                          "barcodeVerified": {
-                            "fieldType": {
-                              "type": "boolean"
-                            },
-                            "optional": true
-                          },
-                          "barcodeVerifiedAt": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "discount": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "is_picked": {
-                            "fieldType": {
-                              "type": "boolean"
-                            },
-                            "optional": true
-                          },
-                          "name": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "picked_quantity": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "price": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "product_id": {
-                            "fieldType": {
-                              "tableName": "products",
-                              "type": "id"
-                            },
-                            "optional": false
-                          },
-                          "quantity": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "requires_prescription": {
-                            "fieldType": {
-                              "type": "boolean"
-                            },
-                            "optional": true
-                          },
-                          "sku": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": false
-                          },
-                          "tax": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "total": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": false
-                          },
-                          "unit_type": {
-                            "fieldType": {
-                              "type": "string"
-                            },
-                            "optional": true
-                          },
-                          "unit_value": {
-                            "fieldType": {
-                              "type": "number"
-                            },
-                            "optional": true
-                          },
-                          "vendor_id": {
-                            "fieldType": {
-                              "tableName": "vendors",
-                              "type": "id"
-                            },
-                            "optional": false
-                          }
-                        }
-                      }
-                    },
-                    "optional": false
-                  },
-                  "order": {
-                    "fieldType": {
-                      "type": "object",
-                      "value": {
-                        "address": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "address_1": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "address_2": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "city": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "country": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "lat": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "lng": {
-                                "fieldType": {
-                                  "type": "number"
-                                },
-                                "optional": true
-                              },
-                              "postal_code": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "state": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "street": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              }
-                            }
-                          },
-                          "optional": false
-                        },
-                        "assigned_picker_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "batch_id": {
-                          "fieldType": {
-                            "tableName": "clearance_batches",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "confirmed_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "delivery_code_verified": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "delivery_fee": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "discount_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "is_clearance": {
-                          "fieldType": {
-                            "type": "boolean"
-                          },
-                          "optional": true
-                        },
-                        "order_date": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "order_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Pending"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Confirmed"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Processing"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Pickup"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Delivered"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cancelled"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_collected_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "payment_method": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Card"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mobile Money"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Mpesa"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Cash on Delivery"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Bank Transfer"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paystack"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "payment_mode": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "pay_now"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "pay_on_delivery"
-                              }
-                            ]
-                          },
-                          "optional": true
-                        },
-                        "payment_reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "payment_status": {
-                          "fieldType": {
-                            "type": "union",
-                            "value": [
-                              {
-                                "type": "literal",
-                                "value": "Unpaid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Paid"
-                              },
-                              {
-                                "type": "literal",
-                                "value": "Refunded"
-                              }
-                            ]
-                          },
-                          "optional": false
-                        },
-                        "picked_up_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "receiver_contact": {
-                          "fieldType": {
-                            "type": "object",
-                            "value": {
-                              "email": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": true
-                              },
-                              "name": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              },
-                              "phone": {
-                                "fieldType": {
-                                  "type": "string"
-                                },
-                                "optional": false
-                              }
-                            }
-                          },
-                          "optional": true
-                        },
-                        "reference": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": false
-                        },
-                        "rider_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": true
-                        },
-                        "rider_rating": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "searchText": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "service_radius": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "special_instructions": {
-                          "fieldType": {
-                            "type": "string"
-                          },
-                          "optional": true
-                        },
-                        "subtotal_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "tax_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "total_amount": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": false
-                        },
-                        "updated_at": {
-                          "fieldType": {
-                            "type": "number"
-                          },
-                          "optional": true
-                        },
-                        "user_id": {
-                          "fieldType": {
-                            "tableName": "users",
-                            "type": "id"
-                          },
-                          "optional": false
-                        },
-                        "vendor_id": {
-                          "fieldType": {
-                            "tableName": "vendors",
-                            "type": "id"
-                          },
-                          "optional": false
-                        }
-                      }
-                    },
-                    "optional": false
-                  }
-                }
-              }
-            },
-            "optional": false
-          },
-          "payment_method": {
-            "fieldType": {
-              "type": "union",
-              "value": [
-                {
-                  "type": "literal",
-                  "value": "Cash on Delivery"
-                },
-                {
-                  "type": "literal",
-                  "value": "Card"
-                },
-                {
-                  "type": "literal",
-                  "value": "Mobile Money"
-                },
-                {
-                  "type": "literal",
-                  "value": "Bank Transfer"
-                }
-              ]
-            },
-            "optional": false
-          },
-          "user_id": {
-            "fieldType": {
-              "tableName": "users",
-              "type": "id"
-            },
-            "optional": false
-          }
-        }
-      },
-      "functionType": "Mutation",
-      "identifier": "data/payments.js:finalizePayOnDeliveryOrders",
-      "returns": null,
-      "visibility": {
-        "kind": "public"
-      }
-    },
-    {
-      "args": {
-        "type": "object",
         "value": {}
       },
       "functionType": "Query",
@@ -10060,49 +8096,6 @@
       },
       "functionType": "Mutation",
       "identifier": "data/payments.js:persistInitiatedPaystackPayment",
-      "returns": null,
-      "visibility": {
-        "kind": "public"
-      }
-    },
-    {
-      "args": {
-        "type": "object",
-        "value": {
-          "cartItems": {
-            "fieldType": {
-              "type": "array",
-              "value": {
-                "type": "object",
-                "value": {
-                  "productId": {
-                    "fieldType": {
-                      "tableName": "products",
-                      "type": "id"
-                    },
-                    "optional": false
-                  },
-                  "quantity": {
-                    "fieldType": {
-                      "type": "number"
-                    },
-                    "optional": false
-                  }
-                }
-              }
-            },
-            "optional": false
-          },
-          "reference": {
-            "fieldType": {
-              "type": "string"
-            },
-            "optional": false
-          }
-        }
-      },
-      "functionType": "Action",
-      "identifier": "data/payments.js:preparePaystackSplitForCheckout",
       "returns": null,
       "visibility": {
         "kind": "public"
@@ -21793,6 +19786,2013 @@
       "returns": null,
       "visibility": {
         "kind": "internal"
+      }
+    },
+    {
+      "args": {
+        "type": "object",
+        "value": {
+          "orders": {
+            "fieldType": {
+              "type": "array",
+              "value": {
+                "type": "object",
+                "value": {
+                  "clearance_items": {
+                    "fieldType": {
+                      "type": "array",
+                      "value": {
+                        "type": "object",
+                        "value": {
+                          "clearance_price": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "clearance_product_id": {
+                            "fieldType": {
+                              "tableName": "clearance_products",
+                              "type": "id"
+                            },
+                            "optional": false
+                          },
+                          "discount_percentage": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "name": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "original_price": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "quantity": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "sku": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "unit_type": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": true
+                          },
+                          "unit_value": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "vendor_id": {
+                            "fieldType": {
+                              "tableName": "vendors",
+                              "type": "id"
+                            },
+                            "optional": false
+                          }
+                        }
+                      }
+                    },
+                    "optional": false
+                  },
+                  "order": {
+                    "fieldType": {
+                      "type": "object",
+                      "value": {
+                        "address": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "address_1": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "address_2": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "city": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "country": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "lat": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "lng": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "postal_code": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "state": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "street": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              }
+                            }
+                          },
+                          "optional": false
+                        },
+                        "assigned_picker_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "batch_id": {
+                          "fieldType": {
+                            "tableName": "clearance_batches",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "confirmed_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code_verified": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "delivery_fee": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "discount_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "is_clearance": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "order_date": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "order_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Pending"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Confirmed"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Processing"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Pickup"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivered"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cancelled"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_collected_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "payment_method": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Card"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mobile Money"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mpesa"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cash on Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Bank Transfer"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paystack"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_mode": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "pay_now"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "pay_on_delivery"
+                              }
+                            ]
+                          },
+                          "optional": true
+                        },
+                        "payment_reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "payment_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Unpaid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "picked_up_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "receiver_contact": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "email": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "name": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              },
+                              "phone": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              }
+                            }
+                          },
+                          "optional": true
+                        },
+                        "reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": false
+                        },
+                        "rider_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "rider_rating": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "searchText": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "service_radius": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "special_instructions": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "subtotal_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "tax_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "total_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "updated_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "user_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": false
+                        },
+                        "vendor_id": {
+                          "fieldType": {
+                            "tableName": "vendors",
+                            "type": "id"
+                          },
+                          "optional": false
+                        }
+                      }
+                    },
+                    "optional": false
+                  }
+                }
+              }
+            },
+            "optional": false
+          },
+          "reference": {
+            "fieldType": {
+              "type": "string"
+            },
+            "optional": false
+          },
+          "user_id": {
+            "fieldType": {
+              "tableName": "users",
+              "type": "id"
+            },
+            "optional": false
+          }
+        }
+      },
+      "functionType": "Mutation",
+      "identifier": "data/payment_finalization.js:finalizePaidClearanceOrders",
+      "returns": null,
+      "visibility": {
+        "kind": "public"
+      }
+    },
+    {
+      "args": {
+        "type": "object",
+        "value": {
+          "orders": {
+            "fieldType": {
+              "type": "array",
+              "value": {
+                "type": "object",
+                "value": {
+                  "items": {
+                    "fieldType": {
+                      "type": "array",
+                      "value": {
+                        "type": "object",
+                        "value": {
+                          "barcodeVerified": {
+                            "fieldType": {
+                              "type": "boolean"
+                            },
+                            "optional": true
+                          },
+                          "barcodeVerifiedAt": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "discount": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "is_picked": {
+                            "fieldType": {
+                              "type": "boolean"
+                            },
+                            "optional": true
+                          },
+                          "name": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "picked_quantity": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "price": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "product_id": {
+                            "fieldType": {
+                              "tableName": "products",
+                              "type": "id"
+                            },
+                            "optional": false
+                          },
+                          "quantity": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "requires_prescription": {
+                            "fieldType": {
+                              "type": "boolean"
+                            },
+                            "optional": true
+                          },
+                          "sku": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "tax": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "total": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "unit_type": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": true
+                          },
+                          "unit_value": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "vendor_id": {
+                            "fieldType": {
+                              "tableName": "vendors",
+                              "type": "id"
+                            },
+                            "optional": false
+                          }
+                        }
+                      }
+                    },
+                    "optional": false
+                  },
+                  "order": {
+                    "fieldType": {
+                      "type": "object",
+                      "value": {
+                        "address": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "address_1": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "address_2": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "city": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "country": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "lat": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "lng": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "postal_code": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "state": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "street": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              }
+                            }
+                          },
+                          "optional": false
+                        },
+                        "assigned_picker_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "batch_id": {
+                          "fieldType": {
+                            "tableName": "clearance_batches",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "confirmed_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code_verified": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "delivery_fee": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "discount_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "is_clearance": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "order_date": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "order_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Pending"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Confirmed"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Processing"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Pickup"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivered"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cancelled"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_collected_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "payment_method": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Card"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mobile Money"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mpesa"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cash on Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Bank Transfer"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paystack"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_mode": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "pay_now"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "pay_on_delivery"
+                              }
+                            ]
+                          },
+                          "optional": true
+                        },
+                        "payment_reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "payment_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Unpaid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "picked_up_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "receiver_contact": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "email": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "name": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              },
+                              "phone": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              }
+                            }
+                          },
+                          "optional": true
+                        },
+                        "reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": false
+                        },
+                        "rider_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "rider_rating": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "searchText": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "service_radius": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "special_instructions": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "subtotal_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "tax_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "total_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "updated_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "user_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": false
+                        },
+                        "vendor_id": {
+                          "fieldType": {
+                            "tableName": "vendors",
+                            "type": "id"
+                          },
+                          "optional": false
+                        }
+                      }
+                    },
+                    "optional": false
+                  }
+                }
+              }
+            },
+            "optional": false
+          },
+          "payment_method": {
+            "fieldType": {
+              "type": "union",
+              "value": [
+                {
+                  "type": "literal",
+                  "value": "Card"
+                },
+                {
+                  "type": "literal",
+                  "value": "Mobile Money"
+                },
+                {
+                  "type": "literal",
+                  "value": "Cash on Delivery"
+                },
+                {
+                  "type": "literal",
+                  "value": "Bank Transfer"
+                },
+                {
+                  "type": "literal",
+                  "value": "Paystack"
+                }
+              ]
+            },
+            "optional": false
+          },
+          "reference": {
+            "fieldType": {
+              "type": "string"
+            },
+            "optional": false
+          },
+          "user_id": {
+            "fieldType": {
+              "tableName": "users",
+              "type": "id"
+            },
+            "optional": false
+          }
+        }
+      },
+      "functionType": "Mutation",
+      "identifier": "data/payment_finalization.js:finalizePaidOrders",
+      "returns": null,
+      "visibility": {
+        "kind": "public"
+      }
+    },
+    {
+      "args": {
+        "type": "object",
+        "value": {
+          "orders": {
+            "fieldType": {
+              "type": "array",
+              "value": {
+                "type": "object",
+                "value": {
+                  "clearance_items": {
+                    "fieldType": {
+                      "type": "array",
+                      "value": {
+                        "type": "object",
+                        "value": {
+                          "clearance_price": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "clearance_product_id": {
+                            "fieldType": {
+                              "tableName": "clearance_products",
+                              "type": "id"
+                            },
+                            "optional": false
+                          },
+                          "discount_percentage": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "name": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "original_price": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "quantity": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "sku": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "unit_type": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": true
+                          },
+                          "unit_value": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "vendor_id": {
+                            "fieldType": {
+                              "tableName": "vendors",
+                              "type": "id"
+                            },
+                            "optional": false
+                          }
+                        }
+                      }
+                    },
+                    "optional": false
+                  },
+                  "order": {
+                    "fieldType": {
+                      "type": "object",
+                      "value": {
+                        "address": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "address_1": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "address_2": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "city": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "country": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "lat": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "lng": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "postal_code": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "state": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "street": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              }
+                            }
+                          },
+                          "optional": false
+                        },
+                        "assigned_picker_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "batch_id": {
+                          "fieldType": {
+                            "tableName": "clearance_batches",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "confirmed_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code_verified": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "delivery_fee": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "discount_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "is_clearance": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "order_date": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "order_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Pending"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Confirmed"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Processing"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Pickup"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivered"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cancelled"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_collected_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "payment_method": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Card"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mobile Money"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mpesa"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cash on Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Bank Transfer"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paystack"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_mode": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "pay_now"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "pay_on_delivery"
+                              }
+                            ]
+                          },
+                          "optional": true
+                        },
+                        "payment_reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "payment_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Unpaid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "picked_up_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "receiver_contact": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "email": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "name": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              },
+                              "phone": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              }
+                            }
+                          },
+                          "optional": true
+                        },
+                        "reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": false
+                        },
+                        "rider_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "rider_rating": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "searchText": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "service_radius": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "special_instructions": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "subtotal_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "tax_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "total_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "updated_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "user_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": false
+                        },
+                        "vendor_id": {
+                          "fieldType": {
+                            "tableName": "vendors",
+                            "type": "id"
+                          },
+                          "optional": false
+                        }
+                      }
+                    },
+                    "optional": false
+                  }
+                }
+              }
+            },
+            "optional": false
+          },
+          "user_id": {
+            "fieldType": {
+              "tableName": "users",
+              "type": "id"
+            },
+            "optional": false
+          }
+        }
+      },
+      "functionType": "Mutation",
+      "identifier": "data/payment_finalization.js:finalizePayOnDeliveryClearanceOrders",
+      "returns": null,
+      "visibility": {
+        "kind": "public"
+      }
+    },
+    {
+      "args": {
+        "type": "object",
+        "value": {
+          "orders": {
+            "fieldType": {
+              "type": "array",
+              "value": {
+                "type": "object",
+                "value": {
+                  "items": {
+                    "fieldType": {
+                      "type": "array",
+                      "value": {
+                        "type": "object",
+                        "value": {
+                          "barcodeVerified": {
+                            "fieldType": {
+                              "type": "boolean"
+                            },
+                            "optional": true
+                          },
+                          "barcodeVerifiedAt": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "discount": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "is_picked": {
+                            "fieldType": {
+                              "type": "boolean"
+                            },
+                            "optional": true
+                          },
+                          "name": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "picked_quantity": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "price": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "product_id": {
+                            "fieldType": {
+                              "tableName": "products",
+                              "type": "id"
+                            },
+                            "optional": false
+                          },
+                          "quantity": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "requires_prescription": {
+                            "fieldType": {
+                              "type": "boolean"
+                            },
+                            "optional": true
+                          },
+                          "sku": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": false
+                          },
+                          "tax": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "total": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": false
+                          },
+                          "unit_type": {
+                            "fieldType": {
+                              "type": "string"
+                            },
+                            "optional": true
+                          },
+                          "unit_value": {
+                            "fieldType": {
+                              "type": "number"
+                            },
+                            "optional": true
+                          },
+                          "vendor_id": {
+                            "fieldType": {
+                              "tableName": "vendors",
+                              "type": "id"
+                            },
+                            "optional": false
+                          }
+                        }
+                      }
+                    },
+                    "optional": false
+                  },
+                  "order": {
+                    "fieldType": {
+                      "type": "object",
+                      "value": {
+                        "address": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "address_1": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "address_2": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "city": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "country": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "lat": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "lng": {
+                                "fieldType": {
+                                  "type": "number"
+                                },
+                                "optional": true
+                              },
+                              "postal_code": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "state": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "street": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              }
+                            }
+                          },
+                          "optional": false
+                        },
+                        "assigned_picker_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "batch_id": {
+                          "fieldType": {
+                            "tableName": "clearance_batches",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "confirmed_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "delivery_code_verified": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "delivery_fee": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "discount_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "is_clearance": {
+                          "fieldType": {
+                            "type": "boolean"
+                          },
+                          "optional": true
+                        },
+                        "order_date": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "order_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Pending"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Confirmed"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Processing"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Pickup"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Delivered"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cancelled"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_collected_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "payment_method": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Card"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mobile Money"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Mpesa"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Cash on Delivery"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Bank Transfer"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paystack"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "payment_mode": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "pay_now"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "pay_on_delivery"
+                              }
+                            ]
+                          },
+                          "optional": true
+                        },
+                        "payment_reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "payment_status": {
+                          "fieldType": {
+                            "type": "union",
+                            "value": [
+                              {
+                                "type": "literal",
+                                "value": "Unpaid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Paid"
+                              },
+                              {
+                                "type": "literal",
+                                "value": "Refunded"
+                              }
+                            ]
+                          },
+                          "optional": false
+                        },
+                        "picked_up_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "receiver_contact": {
+                          "fieldType": {
+                            "type": "object",
+                            "value": {
+                              "email": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": true
+                              },
+                              "name": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              },
+                              "phone": {
+                                "fieldType": {
+                                  "type": "string"
+                                },
+                                "optional": false
+                              }
+                            }
+                          },
+                          "optional": true
+                        },
+                        "reference": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": false
+                        },
+                        "rider_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": true
+                        },
+                        "rider_rating": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "searchText": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "service_radius": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "special_instructions": {
+                          "fieldType": {
+                            "type": "string"
+                          },
+                          "optional": true
+                        },
+                        "subtotal_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "tax_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "total_amount": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": false
+                        },
+                        "updated_at": {
+                          "fieldType": {
+                            "type": "number"
+                          },
+                          "optional": true
+                        },
+                        "user_id": {
+                          "fieldType": {
+                            "tableName": "users",
+                            "type": "id"
+                          },
+                          "optional": false
+                        },
+                        "vendor_id": {
+                          "fieldType": {
+                            "tableName": "vendors",
+                            "type": "id"
+                          },
+                          "optional": false
+                        }
+                      }
+                    },
+                    "optional": false
+                  }
+                }
+              }
+            },
+            "optional": false
+          },
+          "payment_method": {
+            "fieldType": {
+              "type": "union",
+              "value": [
+                {
+                  "type": "literal",
+                  "value": "Cash on Delivery"
+                },
+                {
+                  "type": "literal",
+                  "value": "Card"
+                },
+                {
+                  "type": "literal",
+                  "value": "Mobile Money"
+                },
+                {
+                  "type": "literal",
+                  "value": "Bank Transfer"
+                }
+              ]
+            },
+            "optional": false
+          },
+          "user_id": {
+            "fieldType": {
+              "tableName": "users",
+              "type": "id"
+            },
+            "optional": false
+          }
+        }
+      },
+      "functionType": "Mutation",
+      "identifier": "data/payment_finalization.js:finalizePayOnDeliveryOrders",
+      "returns": null,
+      "visibility": {
+        "kind": "public"
+      }
+    },
+    {
+      "args": {
+        "type": "object",
+        "value": {
+          "cartItems": {
+            "fieldType": {
+              "type": "array",
+              "value": {
+                "type": "object",
+                "value": {
+                  "productId": {
+                    "fieldType": {
+                      "tableName": "products",
+                      "type": "id"
+                    },
+                    "optional": false
+                  },
+                  "quantity": {
+                    "fieldType": {
+                      "type": "number"
+                    },
+                    "optional": false
+                  }
+                }
+              }
+            },
+            "optional": false
+          },
+          "reference": {
+            "fieldType": {
+              "type": "string"
+            },
+            "optional": false
+          }
+        }
+      },
+      "functionType": "Action",
+      "identifier": "data/payment_split.js:preparePaystackSplitForCheckout",
+      "returns": null,
+      "visibility": {
+        "kind": "public"
       }
     }
   ]
