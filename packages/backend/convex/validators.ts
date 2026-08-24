@@ -232,6 +232,79 @@ export const vehicleTypes = [
   "Car",
   "Van",
 ] as const;
+// ─── SHARED SHAPES ────────────────────────────────────────────────────────
+
+// Object shapes that appeared verbatim in several tables. Extracting them is
+// mechanical, but the reason is not cosmetic: the seven-weekday block below was
+// written out four times, so a change to one copy silently diverged from the
+// other three. `VendorsValidator.schedule.weeklySchedule` and
+// `SchedulesValidator.weeklySchedule` had in fact already diverged — the second
+// carries a required `enabled` the first does not — which is why there are two
+// week shapes here rather than one. Unifying them would need a data migration,
+// so the divergence is named and kept rather than papered over.
+
+/** A vendor's opening hours for one day. */
+const dayWindow = v.object({
+  startTime: v.string(),
+  endTime: v.string(),
+});
+
+/** A staff shift for one day. Same as `dayWindow` plus a required `enabled`. */
+const scheduledDayWindow = v.object({
+  startTime: v.string(),
+  endTime: v.string(),
+  enabled: v.boolean(),
+});
+
+/** Vendor opening hours, Monday through Sunday. Every day optional. */
+export const weeklyOpeningHours = v.object({
+  Monday: v.optional(dayWindow),
+  Tuesday: v.optional(dayWindow),
+  Wednesday: v.optional(dayWindow),
+  Thursday: v.optional(dayWindow),
+  Friday: v.optional(dayWindow),
+  Saturday: v.optional(dayWindow),
+  Sunday: v.optional(dayWindow),
+});
+
+/** Staff shift schedule, Monday through Sunday. Every day optional. */
+export const weeklyShiftSchedule = v.object({
+  Monday: v.optional(scheduledDayWindow),
+  Tuesday: v.optional(scheduledDayWindow),
+  Wednesday: v.optional(scheduledDayWindow),
+  Thursday: v.optional(scheduledDayWindow),
+  Friday: v.optional(scheduledDayWindow),
+  Saturday: v.optional(scheduledDayWindow),
+  Sunday: v.optional(scheduledDayWindow),
+});
+
+/**
+ * Kenyan postal address, as stored on vendors, shipments and agent zones.
+ *
+ * Note `UsersValidator.address` and `ShipmentValidator.delivery_address` are
+ * deliberately NOT this shape — they carry extra fields (`street`, `state`,
+ * `postal_code`). Widening them to match would change what those tables accept.
+ */
+export const postalAddress = v.object({
+  address_1: v.optional(v.string()),
+  address_2: v.optional(v.string()),
+  city: v.optional(v.string()),
+  country: v.optional(v.string()),
+});
+
+/** A bare coordinate pair. */
+export const geoPoint = v.object({
+  lat: v.float64(),
+  lng: v.float64(),
+});
+
+/** A resolved place: human-readable address plus its coordinates. */
+export const addressWithCoordinates = v.object({
+  address: v.string(),
+  lat: v.number(),
+  lng: v.number(),
+});
+
 // ─── TABLES ─────────────────────────────────────────────────────────────
 
 export const CartValidator = v.object({
@@ -386,11 +459,7 @@ export const UsersValidator = v.object({
   email: v.string(),
   phone: v.string(),
   searchText: v.optional(v.string()),
-  address: v.object({
-    address: v.string(),
-    lat: v.number(),
-    lng: v.number(),
-  }),
+  address: addressWithCoordinates,
   rider_details: v.optional(
     v.object({
       vehicle_type: v.union(...vehicleTypes.map((e) => v.literal(e))),
@@ -398,10 +467,7 @@ export const UsersValidator = v.object({
       vendor_id: v.optional(v.id("vendors")),
       status: v.union(...riderStatus.map((e) => v.literal(e))),
       coordinates: v.optional(
-        v.object({
-          lat: v.float64(),
-          lng: v.float64(),
-        }),
+        geoPoint,
       ),
       rating: v.optional(v.float64()),
       rating_count: v.optional(v.number()),
@@ -443,11 +509,7 @@ export const UsersUpdateValidator = v.object({
   phone: v.optional(v.string()),
   searchText: v.optional(v.string()),
   address: v.optional(
-    v.object({
-      address: v.string(),
-      lat: v.number(),
-      lng: v.number(),
-    }),
+    addressWithCoordinates,
   ),
   rider_details: v.optional(
     v.object({
@@ -456,10 +518,7 @@ export const UsersUpdateValidator = v.object({
       vendor_id: v.optional(v.id("vendors")),
       status: v.union(...riderStatus.map((e) => v.literal(e))),
       coordinates: v.optional(
-        v.object({
-          lat: v.float64(),
-          lng: v.float64(),
-        }),
+        geoPoint,
       ),
       rating: v.optional(v.float64()),
       id_image: v.optional(v.id("_storage")),
@@ -508,11 +567,7 @@ export const ProductsValidator = v.object({
   item_number: v.optional(v.string()),
   vendor_id: v.optional(v.id("vendors")),
   vendor_location: v.optional(
-    v.object({
-      address: v.string(),
-      lat: v.number(),
-      lng: v.number(),
-    }),
+    addressWithCoordinates,
   ),
   tags: v.optional(
     v.array(
@@ -548,11 +603,7 @@ export const ProductsUpdateValidator = v.object({
   item_number: v.optional(v.string()),
   vendor_id: v.optional(v.id("vendors")),
   vendor_location: v.optional(
-    v.object({
-      address: v.string(),
-      lat: v.number(),
-      lng: v.number(),
-    }),
+    addressWithCoordinates,
   ),
   tags: v.optional(
     v.array(
@@ -590,21 +641,10 @@ export const VendorsValidator = v.object({
     phone: v.string(),
     email: v.string(),
   }),
-  address: v.object({
-    address_1: v.optional(v.string()),
-    address_2: v.optional(v.string()),
-    city: v.optional(v.string()),
-    country: v.optional(v.string()),
-  }),
-  coordinates: v.object({
-    lat: v.float64(),
-    lng: v.float64(),
-  }),
+  address: postalAddress,
+  coordinates: geoPoint,
   service_center: v.optional(
-    v.object({
-      lat: v.float64(),
-      lng: v.float64(),
-    }),
+    geoPoint,
   ),
   business_details: v.optional(
     v.object({
@@ -624,50 +664,7 @@ export const VendorsValidator = v.object({
     v.object({
       is_fulltime: v.boolean(),
       weeklySchedule: v.optional(
-        v.object({
-          Monday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Tuesday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Wednesday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Thursday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Friday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Saturday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Sunday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-        }),
+        weeklyOpeningHours,
       ),
     }),
   ),
@@ -688,24 +685,13 @@ export const VendorsUpdateValidator = v.object({
     }),
   ),
   address: v.optional(
-    v.object({
-      address_1: v.optional(v.string()),
-      address_2: v.optional(v.string()),
-      city: v.optional(v.string()),
-      country: v.optional(v.string()),
-    }),
+    postalAddress,
   ),
   coordinates: v.optional(
-    v.object({
-      lat: v.float64(),
-      lng: v.float64(),
-    }),
+    geoPoint,
   ),
   service_center: v.optional(
-    v.object({
-      lat: v.float64(),
-      lng: v.float64(),
-    }),
+    geoPoint,
   ),
   business_details: v.optional(
     v.object({
@@ -727,50 +713,7 @@ export const VendorsUpdateValidator = v.object({
     v.object({
       is_fulltime: v.boolean(),
       weeklySchedule: v.optional(
-        v.object({
-          Monday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Tuesday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Wednesday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Thursday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Friday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Saturday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-          Sunday: v.optional(
-            v.object({
-              startTime: v.string(),
-              endTime: v.string(),
-            }),
-          ),
-        }),
+        weeklyOpeningHours,
       ),
     }),
   ),
@@ -829,16 +772,8 @@ export const AddressValidator = v.object({
   addresses: v.array(
     v.object({
       label: v.string(),
-      address: v.object({
-        address_1: v.optional(v.string()),
-        address_2: v.optional(v.string()),
-        city: v.optional(v.string()),
-        country: v.optional(v.string()),
-      }),
-      coordinates: v.object({
-        lat: v.float64(),
-        lng: v.float64(),
-      }),
+      address: postalAddress,
+      coordinates: geoPoint,
       is_default: v.boolean(),
       status: v.union(...recordStatus.map((e) => v.literal(e))),
       created_at: v.number(),
@@ -854,12 +789,7 @@ export const ShipmentValidator = v.object({
   vendor_id: v.id("vendors"),
   rider_id: v.id("users"),
   searchText: v.optional(v.string()),
-  pickup_address: v.object({
-    address_1: v.optional(v.string()),
-    address_2: v.optional(v.string()),
-    city: v.optional(v.string()),
-    country: v.optional(v.string()),
-  }),
+  pickup_address: postalAddress,
   delivery_address: v.object({
     address_1: v.optional(v.string()),
     address_2: v.optional(v.string()),
@@ -1028,57 +958,7 @@ export const BannersUpdateValidator = v.object({
 export const SchedulesValidator = v.object({
   userId: v.id("users"),
   vendorId: v.optional(v.id("vendors")),
-  weeklySchedule: v.object({
-    Monday: v.optional(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        enabled: v.boolean(),
-      }),
-    ),
-    Tuesday: v.optional(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        enabled: v.boolean(),
-      }),
-    ),
-    Wednesday: v.optional(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        enabled: v.boolean(),
-      }),
-    ),
-    Thursday: v.optional(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        enabled: v.boolean(),
-      }),
-    ),
-    Friday: v.optional(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        enabled: v.boolean(),
-      }),
-    ),
-    Saturday: v.optional(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        enabled: v.boolean(),
-      }),
-    ),
-    Sunday: v.optional(
-      v.object({
-        startTime: v.string(),
-        endTime: v.string(),
-        enabled: v.boolean(),
-      }),
-    ),
-  }),
+  weeklySchedule: weeklyShiftSchedule,
   updated_at: v.optional(v.number()),
 });
 
@@ -1087,57 +967,7 @@ export const ScheduleUpdateValidator = v.object({
   userId: v.optional(v.id("users")),
   vendorId: v.optional(v.id("vendors")),
   weeklySchedule: v.optional(
-    v.object({
-      Monday: v.optional(
-        v.object({
-          startTime: v.string(),
-          endTime: v.string(),
-          enabled: v.boolean(),
-        }),
-      ),
-      Tuesday: v.optional(
-        v.object({
-          startTime: v.string(),
-          endTime: v.string(),
-          enabled: v.boolean(),
-        }),
-      ),
-      Wednesday: v.optional(
-        v.object({
-          startTime: v.string(),
-          endTime: v.string(),
-          enabled: v.boolean(),
-        }),
-      ),
-      Thursday: v.optional(
-        v.object({
-          startTime: v.string(),
-          endTime: v.string(),
-          enabled: v.boolean(),
-        }),
-      ),
-      Friday: v.optional(
-        v.object({
-          startTime: v.string(),
-          endTime: v.string(),
-          enabled: v.boolean(),
-        }),
-      ),
-      Saturday: v.optional(
-        v.object({
-          startTime: v.string(),
-          endTime: v.string(),
-          enabled: v.boolean(),
-        }),
-      ),
-      Sunday: v.optional(
-        v.object({
-          startTime: v.string(),
-          endTime: v.string(),
-          enabled: v.boolean(),
-        }),
-      ),
-    }),
+    weeklyShiftSchedule,
   ),
   updated_at: v.optional(v.number()),
 });

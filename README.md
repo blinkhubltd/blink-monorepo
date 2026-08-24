@@ -78,6 +78,25 @@ both need a migration: `payments.status` is Title case while
 `transactions.payment_method` accepts 2 of the 6 methods, so a
 payment-on-delivery order can never produce a transaction row.
 
+Duplicated object shapes are also extracted — 19 sites across 5 named shapes,
+**1393 -> 1223 lines**:
+
+| shape | sites |
+|---|---|
+| `weeklyOpeningHours` | 2 |
+| `weeklyShiftSchedule` | 2 |
+| `postalAddress` | 4 |
+| `geoPoint` | 7 |
+| `addressWithCoordinates` | 4 |
+
+There are **two** week shapes rather than one because
+`VendorsValidator.schedule.weeklySchedule` and `SchedulesValidator.weeklySchedule`
+had already diverged: the second carries a required `enabled` the first does not.
+Unifying them needs a data migration, so the divergence is named and kept.
+`UsersValidator.address` and `ShipmentValidator.delivery_address` are likewise
+left alone — they carry extra fields (`street`, `state`, `postal_code`), and
+widening them would change what those tables accept.
+
 `helpers/` and `hooks/` are gone. Where their contents went:
 
 | was | now | note |
