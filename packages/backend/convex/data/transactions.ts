@@ -1,5 +1,9 @@
 import { mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
+import {
+  transactionStatus,
+  transactionTypes,
+} from "../validators";
 
 // ── Status Transition Guard ──────────────────────────────────────────────────
 //
@@ -46,14 +50,9 @@ export const getTransactions = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     statusFilter: v.optional(
-      v.union(
-        v.literal("pending"),
-        v.literal("successful"),
-        v.literal("failed"),
-        v.literal("refunded"),
-      ),
+      v.union(...transactionStatus.map((e) => v.literal(e))),
     ),
-    typeFilter: v.optional(v.union(v.literal("credit"), v.literal("debit"))),
+    typeFilter: v.optional(v.union(...transactionTypes.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit));
@@ -130,12 +129,7 @@ export const getTransaction = query({
 export const updateTransactionStatus = mutation({
   args: {
     id: v.id("transactions"),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("successful"),
-      v.literal("failed"),
-      v.literal("refunded"),
-    ),
+    status: v.union(...transactionStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const txn = await ctx.db.get(args.id);

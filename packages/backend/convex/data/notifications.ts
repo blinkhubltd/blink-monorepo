@@ -2,6 +2,10 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { api } from "../_generated/api";
+import {
+  notificationTypes,
+  orderStatus,
+} from "../validators";
 
 /**
  * Central helpers & unified push notification sending
@@ -114,12 +118,7 @@ async function sendExpo(messages: any[]): Promise<ExpoSendResult> {
 export const notifyUser = action({
   args: {
     userId: v.id("users"),
-    type: v.union(
-      v.literal("order_update"),
-      v.literal("delivery"),
-      v.literal("promotion"),
-      v.literal("system"),
-    ),
+    type: v.union(...notificationTypes.map((e) => v.literal(e))),
     title: v.string(),
     message: v.string(),
     data: v.optional(v.any()),
@@ -192,12 +191,7 @@ export const notifyUser = action({
 export const notifyUsers = action({
   args: {
     userIds: v.array(v.id("users")),
-    type: v.union(
-      v.literal("order_update"),
-      v.literal("delivery"),
-      v.literal("promotion"),
-      v.literal("system"),
-    ),
+    type: v.union(...notificationTypes.map((e) => v.literal(e))),
     title: v.string(),
     message: v.string(),
     data: v.optional(v.any()),
@@ -808,16 +802,7 @@ export const triggerOrderStatusNotification = action({
 export const updateOrderStatusWithNotifications = action({
   args: {
     orderId: v.id("orders"),
-    newStatus: v.union(
-      v.literal("Pending"),
-      v.literal("Confirmed"),
-      v.literal("Processing"),
-      v.literal("Pickup"),
-      v.literal("Delivery"),
-      v.literal("Delivered"),
-      v.literal("Cancelled"),
-      v.literal("Refunded"),
-    ),
+    newStatus: v.union(...orderStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const order: any = await ctx.runQuery(api.data.orders.getOrderById, {

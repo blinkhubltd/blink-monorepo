@@ -1,7 +1,12 @@
 import { Id } from "../_generated/dataModel";
 import { mutation, query, internalMutation } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
-import { ProductsUpdateValidator, ProductsValidator } from "../validators";
+import {
+  ProductsUpdateValidator,
+  ProductsValidator,
+  productStatus,
+  productTags,
+} from "../validators";
 import { haversineMeters } from "../lib/geo";
 import { checkVendorSchedule } from "../lib/schedule";
 
@@ -482,11 +487,7 @@ export const getProducts = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     status: v.optional(
-      v.union(
-        v.literal("Active"),
-        v.literal("Inactive"),
-        v.literal("Archived"),
-      ),
+      v.union(...productStatus.map((e) => v.literal(e))),
     ),
     category_id: v.optional(v.id("categories")),
     vendor_id: v.optional(v.id("vendors")),
@@ -1108,11 +1109,7 @@ export const updateProductQuantity = mutation({
 export const updateSingleProductStatus = mutation({
   args: {
     productId: v.id("products"),
-    status: v.union(
-      v.literal("Active"),
-      v.literal("Inactive"),
-      v.literal("Archived"),
-    ),
+    status: v.union(...productStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -1131,11 +1128,7 @@ export const updateSingleProductStatus = mutation({
 export const bulkUpdateProductStatus = mutation({
   args: {
     productIds: v.array(v.id("products")),
-    status: v.union(
-      v.literal("Active"),
-      v.literal("Inactive"),
-      v.literal("Archived"),
-    ),
+    status: v.union(...productStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const results = [];
@@ -1328,18 +1321,10 @@ export const bulkCreateProducts = mutation({
         unit_value: v.optional(v.float64()),
         unit_type: v.optional(v.string()),
         description: v.optional(v.string()),
-        status: v.union(
-          v.literal("Active"),
-          v.literal("Inactive"),
-          v.literal("Archived"),
-        ),
+        status: v.union(...productStatus.map((e) => v.literal(e))),
         tags: v.optional(
           v.array(
-            v.union(
-              v.literal("Featured"),
-              v.literal("Offer"),
-              v.literal("Hot"),
-            ),
+            v.union(...productTags.map((e) => v.literal(e))),
           ),
         ),
         upc: v.optional(v.number()),
@@ -1429,18 +1414,10 @@ export const internalBulkCreateProducts = internalMutation({
         unit_value: v.optional(v.float64()),
         unit_type: v.optional(v.string()),
         description: v.optional(v.string()),
-        status: v.union(
-          v.literal("Active"),
-          v.literal("Inactive"),
-          v.literal("Archived"),
-        ),
+        status: v.union(...productStatus.map((e) => v.literal(e))),
         tags: v.optional(
           v.array(
-            v.union(
-              v.literal("Featured"),
-              v.literal("Offer"),
-              v.literal("Hot"),
-            ),
+            v.union(...productTags.map((e) => v.literal(e))),
           ),
         ),
         upc: v.optional(v.number()),

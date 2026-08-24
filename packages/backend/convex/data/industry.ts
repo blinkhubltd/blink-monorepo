@@ -2,7 +2,11 @@ import { Id } from "../_generated/dataModel";
 import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
-import { IndustryUpdateValidator, IndustryValidator } from "../validators";
+import {
+  IndustryUpdateValidator,
+  IndustryValidator,
+  recordStatus,
+} from "../validators";
 
 export const createIndustry = mutation({
   args: IndustryValidator,
@@ -36,7 +40,7 @@ export const getIndustries = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+    status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit));
@@ -221,7 +225,7 @@ export const deleteIndustry = mutation({
 export const updateIndustryStatus = mutation({
   args: {
     id: v.id("industry"),
-    status: v.union(v.literal("Active"), v.literal("Inactive")),
+    status: v.union(...recordStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const existingIndustry = await ctx.db.get(args.id);

@@ -3,6 +3,9 @@ import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { QueryCtx, MutationCtx } from "../_generated/server";
 import { getUserRoleName } from "../lib/roles";
+import {
+  incentiveRoles,
+} from "../validators";
 
 // Helpers
 const startOfDay = (date = new Date()) => {
@@ -26,7 +29,7 @@ const startOfMonth = (date = new Date()) => {
 
 // CONFIG
 export const getIncentiveConfig = query({
-  args: { role: v.union(v.literal("RIDER"), v.literal("PICKER")) },
+  args: { role: v.union(...incentiveRoles.map((e) => v.literal(e))) },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("incentive_configs")
@@ -37,7 +40,7 @@ export const getIncentiveConfig = query({
 
 export const setIncentiveConfig = mutation({
   args: {
-    role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+    role: v.union(...incentiveRoles.map((e) => v.literal(e))),
     threshold_daily: v.number(),
     bonus_per_extra_daily: v.float64(),
     effective_from: v.optional(v.number()),
@@ -88,7 +91,7 @@ export const getUserTargets = query({
 export const setUserTargets = mutation({
   args: {
     user_id: v.id("users"),
-    role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+    role: v.union(...incentiveRoles.map((e) => v.literal(e))),
     daily_target: v.number(),
     weekly_target: v.number(),
     monthly_target: v.number(),
@@ -120,7 +123,7 @@ export const setUserTargets = mutation({
 export const getIncentiveDashboard = query({
   args: {
     user_id: v.id("users"),
-    role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+    role: v.union(...incentiveRoles.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const now = new Date();
@@ -318,7 +321,7 @@ export const logPickerActivity = mutation({
 // Only allow input of editable fields; timestamps are added internally
 export const createBaseEarnings = mutation({
   args: {
-    role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+    role: v.union(...incentiveRoles.map((e) => v.literal(e))),
     monthly_base_amount: v.float64(),
     currency: v.optional(v.string()),
     effective_from: v.number(),
@@ -398,7 +401,7 @@ export const updateBaseEarnings = mutation({
 });
 
 export const getBaseEarnings = query({
-  args: { role: v.optional(v.union(v.literal("RIDER"), v.literal("PICKER"))) },
+  args: { role: v.optional(v.union(...incentiveRoles.map((e) => v.literal(e)))) },
   handler: async (ctx, args) => {
     // Check authentication
     const identity = await ctx.auth.getUserIdentity();
@@ -430,7 +433,7 @@ export const getBaseEarnings = query({
 });
 
 export const getCurrentBaseEarnings = query({
-  args: { role: v.union(v.literal("RIDER"), v.literal("PICKER")) },
+  args: { role: v.union(...incentiveRoles.map((e) => v.literal(e))) },
   handler: async (ctx, args) => {
     // Check authentication
     const identity = await ctx.auth.getUserIdentity();
@@ -465,7 +468,7 @@ export const getCurrentBaseEarnings = query({
 
 export const createIncentiveConfigNew = mutation({
   args: {
-    role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+    role: v.union(...incentiveRoles.map((e) => v.literal(e))),
     threshold_daily: v.number(),
     bonus_per_extra_daily: v.float64(),
     currency: v.optional(v.string()),
@@ -534,7 +537,7 @@ export const updateIncentiveConfigNew = mutation({
 });
 
 export const getIncentiveConfigsNew = query({
-  args: { role: v.optional(v.union(v.literal("RIDER"), v.literal("PICKER"))) },
+  args: { role: v.optional(v.union(...incentiveRoles.map((e) => v.literal(e)))) },
   handler: async (ctx, args) => {
     // Check authentication
     const identity = await ctx.auth.getUserIdentity();
@@ -566,7 +569,7 @@ export const getIncentiveConfigsNew = query({
 });
 
 export const getCurrentIncentiveConfigNew = query({
-  args: { role: v.union(v.literal("RIDER"), v.literal("PICKER")) },
+  args: { role: v.union(...incentiveRoles.map((e) => v.literal(e))) },
   handler: async (ctx, args) => {
     // Check authentication
     const identity = await ctx.auth.getUserIdentity();

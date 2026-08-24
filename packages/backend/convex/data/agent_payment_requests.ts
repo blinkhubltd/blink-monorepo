@@ -11,6 +11,9 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { assertAgentOwner, assertPermission } from "../auth.helpers";
 import { PAYSTACK_BASE_URL } from "../lib/paystack";
+import {
+  agentPaymentRequestStatus,
+} from "../validators";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -66,12 +69,7 @@ export const getPaymentRequests = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     status: v.optional(
-      v.union(
-        v.literal("pending"),
-        v.literal("approved"),
-        v.literal("rejected"),
-        v.literal("paid"),
-      ),
+      v.union(...agentPaymentRequestStatus.map((e) => v.literal(e))),
     ),
   },
   handler: async (ctx, args) => {

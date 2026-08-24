@@ -52,6 +52,32 @@ convex/
                permissions, roles, schedule, status_mapping
 ```
 
+### validators.ts is the single source of truth for enums
+
+Every enum is a plain `as const` tuple, expanded at each use site with
+`v.union(...name.map((e) => v.literal(e)))` — sydia's idiom. **36 named enums
+replaced 142 inline union sites**: 61 inside `validators.ts` and 81 across 23
+modules.
+
+Proof the rewrite changed nothing observable: `_generated/dataModel.d.ts` and
+`_generated/api.d.ts` are both byte-identical before and after. No table shape
+moved, and no function argument validator changed shape.
+
+16 unions were deliberately left inline because they are **narrower** than the
+shared enum — `approved | rejected` on an approve endpoint, `Processing | Pickup`
+on a transition. A tighter argument validator is a feature; widening it would
+accept values the endpoint should reject.
+
+The enums are exported through `@repo/backend/validators`, so the apps can import
+what the database validates against instead of hand-copying string literals the
+way `blink-rider/lib/constants.ts` does today.
+
+Two known data-model defects are pinned by test rather than silently fixed, since
+both need a migration: `payments.status` is Title case while
+`transactions.status` is lowercase for the same four concepts, and
+`transactions.payment_method` accepts 2 of the 6 methods, so a
+payment-on-delivery order can never produce a transaction row.
+
 `helpers/` and `hooks/` are gone. Where their contents went:
 
 | was | now | note |

@@ -1,6 +1,10 @@
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "../_generated/server";
-import { BannersValidator, BannersUpdateValidator } from "../validators";
+import {
+  BannersUpdateValidator,
+  BannersValidator,
+  lowercaseRecordStatus,
+} from "../validators";
 
 const TYPE_LIMITS: Record<string, number> = {
   product: 8,
@@ -198,7 +202,7 @@ export const deleteBanner = mutation({
 // Get all banners with optional status filter
 export const getBanners = query({
   args: {
-    status: v.optional(v.union(v.literal("active"), v.literal("inactive"))),
+    status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     if (args.status) {
@@ -281,7 +285,7 @@ export const getBannerById = query({
 
 export const getBannersFiltered = query({
   args: {
-    status: v.optional(v.union(v.literal("active"), v.literal("inactive"))),
+    status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
     includeExpired: v.optional(v.boolean()),
     includeFuture: v.optional(v.boolean()),
   },
@@ -322,7 +326,7 @@ export const getBannersFiltered = query({
 export const getBannersByCategory = query({
   args: {
     categoryId: v.optional(v.id("categories")),
-    status: v.optional(v.union(v.literal("active"), v.literal("inactive"))),
+    status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     let banners;
@@ -436,7 +440,7 @@ export const getCategoryDisplayBanners = query({
 export const getBannersByProduct = query({
   args: {
     productId: v.id("products"),
-    status: v.optional(v.union(v.literal("active"), v.literal("inactive"))),
+    status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     let banners;
@@ -485,7 +489,7 @@ export const toggleBannerStatus = mutation({
 export const getBannersByBrand = query({
   args: {
     brand: v.string(),
-    status: v.optional(v.union(v.literal("active"), v.literal("inactive"))),
+    status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     let query = ctx.db

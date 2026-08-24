@@ -1,5 +1,239 @@
 import { v } from "convex/values";
 
+// ─── ENUMS ──────────────────────────────────────────────────────────────
+
+// Plain `as const` tuples, expanded at each use site with
+// `v.union(...name.map((e) => v.literal(e)))`. Verified type-preserving:
+// `_generated/dataModel.d.ts` is byte-identical before and after, so the
+// wire format and every generated Doc type are unchanged.
+//
+// Exported through `@repo/backend/validators` so the apps can import the same
+// tuples the database validates against, instead of hand-copying them as
+// string literals the way `blink-rider/lib/constants.ts` does today.
+
+export const agentEarningTypes = [
+  "install",
+  "registration",
+  "fixed",
+] as const;
+
+export const agentPaymentRequestStatus = [
+  "pending",
+  "approved",
+  "rejected",
+  "paid",
+] as const;
+
+export const agentTransactionTypes = [
+  "signup",
+  "purchase",
+] as const;
+
+export const agentZoneEarningTypes = [
+  "fixed",
+  "per_conversion",
+  "both",
+] as const;
+
+export const bannerPromoTypes = [
+  "product",
+  "brand",
+  "blink",
+] as const;
+
+export const bannerTags = [
+  "Featured",
+  "Offer",
+] as const;
+
+export const bannerTextPositions = [
+  "top-left",
+  "top-right",
+  "bottom-left",
+] as const;
+
+export const clearanceBatchStatus = [
+  "Pending",
+  "Assigned",
+  "In Transit",
+  "Completed",
+] as const;
+
+export const clearanceProductStatus = [
+  "Active",
+  "Inactive",
+  "Sold Out",
+  "Expired",
+] as const;
+
+export const commissionTypes = [
+  "percentage",
+  "fixed",
+] as const;
+
+export const importJobStatus = [
+  "pending",
+  "processing",
+  "done",
+  "failed",
+] as const;
+
+export const incentiveRoles = [
+  "RIDER",
+  "PICKER",
+] as const;
+
+export const lowercaseRecordStatus = [
+  "active",
+  "inactive",
+] as const;
+
+export const notificationReadStatus = [
+  "read",
+  "unread",
+] as const;
+
+export const notificationTypes = [
+  "order_update",
+  "delivery",
+  "promotion",
+  "system",
+] as const;
+
+export const orderPaymentStatus = [
+  "Unpaid",
+  "Paid",
+  "Refunded",
+] as const;
+
+export const orderStatus = [
+  "Pending",
+  "Confirmed",
+  "Processing",
+  "Pickup",
+  "Delivery",
+  "Delivered",
+  "Cancelled",
+  "Refunded",
+] as const;
+
+export const payerTypes = [
+  "customer",
+  "receiver",
+] as const;
+
+export const paymentMethods = [
+  "Card",
+  "Mobile Money",
+  "Mpesa",
+  "Cash on Delivery",
+  "Bank Transfer",
+  "Paystack",
+] as const;
+
+export const paymentModes = [
+  "pay_now",
+  "pay_on_delivery",
+] as const;
+
+export const paymentStatus = [
+  "Pending",
+  "Successful",
+  "Failed",
+  "Refunded",
+] as const;
+
+export const paystackSubaccountKeys = [
+  "primary",
+  "secondary",
+] as const;
+
+export const pickerAssignmentTypes = [
+  "order",
+  "prescription",
+] as const;
+
+export const pickerStatus = [
+  "Active",
+  "On Order",
+  "Inactive",
+] as const;
+
+export const prescriptionStatus = [
+  "pending",
+  "approved",
+  "rejected",
+] as const;
+
+export const productStatus = [
+  "Active",
+  "Inactive",
+  "Archived",
+] as const;
+
+export const productTags = [
+  "Featured",
+  "Offer",
+  "Hot",
+] as const;
+
+export const pushPlatforms = [
+  "ios",
+  "android",
+  "web",
+] as const;
+
+export const recordStatus = [
+  "Active",
+  "Inactive",
+] as const;
+
+export const riderStatus = [
+  "Active",
+  "On Delivery",
+  "Inactive",
+] as const;
+
+export const shipmentStatus = [
+  "Awaiting Pickup",
+  "Picked Up",
+  "Out for Delivery",
+  "Delivered",
+  "Failed Delivery",
+] as const;
+
+export const stockReservationStatus = [
+  "Reserved",
+  "PaidReserved",
+  "Fulfilled",
+  "Released",
+] as const;
+
+export const transactionPaymentMethods = [
+  "Card",
+  "Mobile Money",
+] as const;
+
+export const transactionStatus = [
+  "pending",
+  "successful",
+  "failed",
+  "refunded",
+] as const;
+
+export const transactionTypes = [
+  "credit",
+  "debit",
+] as const;
+
+export const vehicleTypes = [
+  "Motorbike",
+  "Bicycle",
+  "Car",
+  "Van",
+] as const;
+// ─── TABLES ─────────────────────────────────────────────────────────────
+
 export const CartValidator = v.object({
   user_id: v.id("users"),
   products: v.array(
@@ -22,51 +256,14 @@ export const AddToCartValidator = v.object({
   quantity: v.number(),
 });
 
-export const CartUpdateValidator = v.object({
-  products: v.optional(
-    v.array(
-      v.object({
-        product: v.id("products"),
-        quantity: v.number(),
-      }),
-    ),
-  ),
-  updated_at: v.optional(v.number()),
-});
-
 export const TransactionsValidator = v.object({
   reference: v.string(),
   order_id: v.id("orders"),
   amount: v.float64(),
-  type: v.union(v.literal("credit"), v.literal("debit")),
-  status: v.union(
-    v.literal("pending"),
-    v.literal("successful"),
-    v.literal("failed"),
-    v.literal("refunded"),
-  ),
-  payment_method: v.union(v.literal("Card"), v.literal("Mobile Money")),
+  type: v.union(...transactionTypes.map((e) => v.literal(e))),
+  status: v.union(...transactionStatus.map((e) => v.literal(e))),
+  payment_method: v.union(...transactionPaymentMethods.map((e) => v.literal(e))),
   searchText: v.optional(v.string()),
-  updated_at: v.optional(v.number()),
-});
-
-export const TransactionsUpdateValidator = v.object({
-  id: v.id("transactions"),
-  reference: v.optional(v.string()),
-  order_id: v.optional(v.id("orders")),
-  amount: v.optional(v.float64()),
-  type: v.optional(v.union(v.literal("credit"), v.literal("debit"))),
-  status: v.optional(
-    v.union(
-      v.literal("pending"),
-      v.literal("successful"),
-      v.literal("failed"),
-      v.literal("refunded"),
-    ),
-  ),
-  payment_method: v.optional(
-    v.union(v.literal("Card"), v.literal("Mobile Money")),
-  ),
   updated_at: v.optional(v.number()),
 });
 
@@ -79,32 +276,11 @@ export const OrdersValidator = v.object({
   user_id: v.id("users"),
   service_radius: v.number(),
   payment_mode: v.optional(
-    v.union(v.literal("pay_now"), v.literal("pay_on_delivery")),
+    v.union(...paymentModes.map((e) => v.literal(e))),
   ),
-  order_status: v.union(
-    v.literal("Pending"),
-    v.literal("Confirmed"),
-    v.literal("Processing"),
-    v.literal("Pickup"),
-    v.literal("Delivery"),
-    v.literal("Delivered"),
-    v.literal("Cancelled"),
-    v.literal("Refunded"),
-  ),
-  payment_status: v.union(
-    v.literal("Unpaid"),
-    v.literal("Paid"),
-    v.literal("Refunded"),
-  ),
-  payment_method: v.union(
-    v.literal("Card"),
-    v.literal("Mobile Money"),
-    // Legacy client value
-    v.literal("Mpesa"),
-    v.literal("Cash on Delivery"),
-    v.literal("Bank Transfer"),
-    v.literal("Paystack"),
-  ),
+  order_status: v.union(...orderStatus.map((e) => v.literal(e))),
+  payment_status: v.union(...orderPaymentStatus.map((e) => v.literal(e))),
+  payment_method: v.union(...paymentMethods.map((e) => v.literal(e))),
   subtotal_amount: v.float64(),
   tax_amount: v.float64(),
   discount_amount: v.float64(),
@@ -217,19 +393,10 @@ export const UsersValidator = v.object({
   }),
   rider_details: v.optional(
     v.object({
-      vehicle_type: v.union(
-        v.literal("Motorbike"),
-        v.literal("Bicycle"),
-        v.literal("Car"),
-        v.literal("Van"),
-      ),
+      vehicle_type: v.union(...vehicleTypes.map((e) => v.literal(e))),
       vehicle_plate: v.optional(v.string()),
       vendor_id: v.optional(v.id("vendors")),
-      status: v.union(
-        v.literal("Active"),
-        v.literal("On Delivery"),
-        v.literal("Inactive"),
-      ),
+      status: v.union(...riderStatus.map((e) => v.literal(e))),
       coordinates: v.optional(
         v.object({
           lat: v.float64(),
@@ -247,11 +414,7 @@ export const UsersValidator = v.object({
   picker_details: v.optional(
     v.object({
       vendor_id: v.id("vendors"),
-      status: v.union(
-        v.literal("Active"),
-        v.literal("On Order"),
-        v.literal("Inactive"),
-      ),
+      status: v.union(...pickerStatus.map((e) => v.literal(e))),
       is_overtime: v.optional(v.boolean()),
     }),
   ),
@@ -261,7 +424,7 @@ export const UsersValidator = v.object({
       assigned_at: v.optional(v.number()),
     }),
   ),
-  status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+  status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
   notifications: v.optional(v.boolean()),
   push_token: v.optional(v.string()),
   role_id: v.optional(v.id("roles")),
@@ -288,19 +451,10 @@ export const UsersUpdateValidator = v.object({
   ),
   rider_details: v.optional(
     v.object({
-      vehicle_type: v.union(
-        v.literal("Motorbike"),
-        v.literal("Bicycle"),
-        v.literal("Car"),
-        v.literal("Van"),
-      ),
+      vehicle_type: v.union(...vehicleTypes.map((e) => v.literal(e))),
       vehicle_plate: v.optional(v.string()),
       vendor_id: v.optional(v.id("vendors")),
-      status: v.union(
-        v.literal("Active"),
-        v.literal("On Delivery"),
-        v.literal("Inactive"),
-      ),
+      status: v.union(...riderStatus.map((e) => v.literal(e))),
       coordinates: v.optional(
         v.object({
           lat: v.float64(),
@@ -317,11 +471,7 @@ export const UsersUpdateValidator = v.object({
   picker_details: v.optional(
     v.object({
       vendor_id: v.id("vendors"),
-      status: v.union(
-        v.literal("Active"),
-        v.literal("On Order"),
-        v.literal("Inactive"),
-      ),
+      status: v.union(...pickerStatus.map((e) => v.literal(e))),
       is_overtime: v.optional(v.boolean()),
     }),
   ),
@@ -331,7 +481,7 @@ export const UsersUpdateValidator = v.object({
       assigned_at: v.optional(v.number()),
     }),
   ),
-  status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+  status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
   notifications: v.optional(v.boolean()),
   push_token: v.optional(v.string()),
   role_id: v.optional(v.id("roles")),
@@ -349,11 +499,7 @@ export const ProductsValidator = v.object({
   brand: v.optional(v.string()),
   category_id: v.id("categories"),
   description: v.optional(v.string()),
-  status: v.union(
-    v.literal("Active"),
-    v.literal("Inactive"),
-    v.literal("Archived"),
-  ),
+  status: v.union(...productStatus.map((e) => v.literal(e))),
   price: v.float64(),
   quantity: v.number(),
   unit_value: v.optional(v.float64()),
@@ -370,7 +516,7 @@ export const ProductsValidator = v.object({
   ),
   tags: v.optional(
     v.array(
-      v.union(v.literal("Featured"), v.literal("Offer"), v.literal("Hot")),
+      v.union(...productTags.map((e) => v.literal(e))),
     ),
   ),
   requires_prescription: v.optional(v.boolean()),
@@ -392,7 +538,7 @@ export const ProductsUpdateValidator = v.object({
   category_id: v.optional(v.id("categories")),
   description: v.optional(v.string()),
   status: v.optional(
-    v.union(v.literal("Active"), v.literal("Inactive"), v.literal("Archived")),
+    v.union(...productStatus.map((e) => v.literal(e))),
   ),
   price: v.optional(v.float64()),
   quantity: v.optional(v.number()),
@@ -410,7 +556,7 @@ export const ProductsUpdateValidator = v.object({
   ),
   tags: v.optional(
     v.array(
-      v.union(v.literal("Featured"), v.literal("Offer"), v.literal("Hot")),
+      v.union(...productTags.map((e) => v.literal(e))),
     ),
   ),
   requires_prescription: v.optional(v.boolean()),
@@ -428,7 +574,7 @@ export const CategoriesValidator = v.object({
   parent_category_id: v.optional(v.id("categories")),
   description: v.optional(v.string()),
   image: v.optional(v.id("_storage")),
-  status: v.union(v.literal("active"), v.literal("inactive")),
+  status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
   sort_order: v.number(),
   created_at: v.optional(v.number()),
   updated_at: v.optional(v.number()),
@@ -470,9 +616,9 @@ export const VendorsValidator = v.object({
     }),
   ),
   service_radius: v.number(),
-  status: v.union(v.literal("Active"), v.literal("Inactive")),
+  status: v.union(...recordStatus.map((e) => v.literal(e))),
   commission: v.float64(),
-  commission_type: v.union(v.literal("percentage"), v.literal("fixed")),
+  commission_type: v.union(...commissionTypes.map((e) => v.literal(e))),
   hub_manager_id: v.optional(v.union(v.id("users"), v.null())),
   schedule: v.optional(
     v.object({
@@ -571,10 +717,10 @@ export const VendorsUpdateValidator = v.object({
     }),
   ),
   service_radius: v.optional(v.number()),
-  status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+  status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
   commission: v.optional(v.float64()),
   commission_type: v.optional(
-    v.union(v.literal("percentage"), v.literal("fixed")),
+    v.union(...commissionTypes.map((e) => v.literal(e))),
   ),
   hub_manager_id: v.optional(v.union(v.id("users"), v.null())),
   schedule: v.optional(
@@ -635,7 +781,7 @@ export const IndustryValidator = v.object({
   name: v.string(),
   description: v.optional(v.string()),
   image: v.optional(v.id("_storage")),
-  status: v.union(v.literal("Active"), v.literal("Inactive")),
+  status: v.union(...recordStatus.map((e) => v.literal(e))),
   bank_details: v.optional(
     v.object({
       business_name: v.string(),
@@ -653,7 +799,7 @@ export const IndustryUpdateValidator = v.object({
   name: v.optional(v.string()),
   description: v.optional(v.string()),
   image: v.optional(v.id("_storage")),
-  status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+  status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
   bank_details: v.optional(
     v.object({
       business_name: v.string(),
@@ -668,7 +814,7 @@ export const IndustryUpdateValidator = v.object({
 });
 
 export const PaystackSubaccountValidator = v.object({
-  key: v.union(v.literal("primary"), v.literal("secondary")),
+  key: v.union(...paystackSubaccountKeys.map((e) => v.literal(e))),
   business_name: v.string(),
   bank_code: v.string(),
   account_number: v.string(),
@@ -694,7 +840,7 @@ export const AddressValidator = v.object({
         lng: v.float64(),
       }),
       is_default: v.boolean(),
-      status: v.union(v.literal("Active"), v.literal("Inactive")),
+      status: v.union(...recordStatus.map((e) => v.literal(e))),
       created_at: v.number(),
       updated_at: v.optional(v.number()),
     }),
@@ -725,13 +871,7 @@ export const ShipmentValidator = v.object({
     lat: v.optional(v.float64()),
     lng: v.optional(v.float64()),
   }),
-  status: v.union(
-    v.literal("Awaiting Pickup"),
-    v.literal("Picked Up"),
-    v.literal("Out for Delivery"),
-    v.literal("Delivered"),
-    v.literal("Failed Delivery"),
-  ),
+  status: v.union(...shipmentStatus.map((e) => v.literal(e))),
   updated_at: v.number(),
 });
 
@@ -740,15 +880,7 @@ export const PaymentsValidator = v.object({
   user_id: v.id("users"),
   customerEmail: v.string(),
   searchText: v.optional(v.string()),
-  payment_method: v.union(
-    v.literal("Card"),
-    v.literal("Mobile Money"),
-    // Legacy client value
-    v.literal("Mpesa"),
-    v.literal("Cash on Delivery"),
-    v.literal("Bank Transfer"),
-    v.literal("Paystack"),
-  ),
+  payment_method: v.union(...paymentMethods.map((e) => v.literal(e))),
   amount: v.float64(),
   reference: v.string(),
   paystackResponse: v.optional(v.any()),
@@ -774,14 +906,9 @@ export const PaymentsValidator = v.object({
     }),
   ),
   payer_phone: v.optional(v.string()),
-  payer_type: v.optional(v.union(v.literal("customer"), v.literal("receiver"))),
+  payer_type: v.optional(v.union(...payerTypes.map((e) => v.literal(e)))),
   payment_date: v.number(),
-  status: v.union(
-    v.literal("Pending"),
-    v.literal("Successful"),
-    v.literal("Failed"),
-    v.literal("Refunded"),
-  ),
+  status: v.union(...paymentStatus.map((e) => v.literal(e))),
   updated_at: v.number(),
 });
 
@@ -789,12 +916,7 @@ export const StockReservationValidator = v.object({
   product_id: v.id("products"),
   order_reference: v.string(),
   quantity_reserved: v.number(),
-  status: v.union(
-    v.literal("Reserved"),
-    v.literal("PaidReserved"),
-    v.literal("Fulfilled"),
-    v.literal("Released"),
-  ),
+  status: v.union(...stockReservationStatus.map((e) => v.literal(e))),
   reserved_at: v.number(),
   expires_at: v.optional(v.number()),
   confirmed_at: v.optional(v.number()),
@@ -803,13 +925,8 @@ export const StockReservationValidator = v.object({
 
 export const NotificationsValidator = v.object({
   user_id: v.id("users"),
-  type: v.union(
-    v.literal("order_update"),
-    v.literal("delivery"),
-    v.literal("promotion"),
-    v.literal("system"),
-  ),
-  status: v.union(v.literal("read"), v.literal("unread")),
+  type: v.union(...notificationTypes.map((e) => v.literal(e))),
+  status: v.union(...notificationReadStatus.map((e) => v.literal(e))),
   title: v.string(),
   message: v.string(),
   data: v.optional(v.any()),
@@ -821,7 +938,7 @@ export const NotificationsValidator = v.object({
 export const PushTokensValidator = v.object({
   user_id: v.id("users"),
   token: v.string(),
-  platform: v.union(v.literal("ios"), v.literal("android"), v.literal("web")),
+  platform: v.union(...pushPlatforms.map((e) => v.literal(e))),
   device_id: v.optional(v.string()),
   enabled: v.boolean(),
   last_seen: v.optional(v.number()),
@@ -829,7 +946,7 @@ export const PushTokensValidator = v.object({
 });
 
 export const IncentiveConfigValidator = v.object({
-  role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+  role: v.union(...incentiveRoles.map((e) => v.literal(e))),
   threshold_daily: v.number(),
   bonus_per_extra_daily: v.float64(),
   currency: v.optional(v.string()),
@@ -840,7 +957,7 @@ export const IncentiveConfigValidator = v.object({
 
 export const UserIncentiveTargetValidator = v.object({
   user_id: v.id("users"),
-  role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+  role: v.union(...incentiveRoles.map((e) => v.literal(e))),
   daily_target: v.number(),
   weekly_target: v.number(),
   monthly_target: v.number(),
@@ -858,7 +975,7 @@ export const PickerActivityValidator = v.object({
 });
 
 export const BaseEarningsValidator = v.object({
-  role: v.union(v.literal("RIDER"), v.literal("PICKER")),
+  role: v.union(...incentiveRoles.map((e) => v.literal(e))),
   monthly_base_amount: v.float64(),
   currency: v.optional(v.string()),
   effective_from: v.number(),
@@ -872,20 +989,16 @@ export const BannersValidator = v.object({
   sub_header: v.optional(v.string()),
   cta_text: v.optional(v.string()),
   promo_type: v.optional(
-    v.union(v.literal("product"), v.literal("brand"), v.literal("blink")),
+    v.union(...bannerPromoTypes.map((e) => v.literal(e))),
   ),
   product_id: v.optional(v.id("products")),
   brand: v.optional(v.string()),
   categoryId: v.optional(v.id("categories")),
-  status: v.union(v.literal("active"), v.literal("inactive")),
+  status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
   start_date: v.number(),
   end_date: v.number(),
   textOverlayPos: v.optional(
-    v.union(
-      v.literal("top-left"),
-      v.literal("top-right"),
-      v.literal("bottom-left"),
-    ),
+    v.union(...bannerTextPositions.map((e) => v.literal(e))),
   ),
   created_at: v.optional(v.number()),
   updated_at: v.optional(v.number()),
@@ -898,20 +1011,16 @@ export const BannersUpdateValidator = v.object({
   sub_header: v.optional(v.string()),
   cta_text: v.optional(v.string()),
   promo_type: v.optional(
-    v.union(v.literal("product"), v.literal("brand"), v.literal("blink")),
+    v.union(...bannerPromoTypes.map((e) => v.literal(e))),
   ),
   product_id: v.optional(v.id("products")),
   brand: v.optional(v.string()),
   categoryId: v.optional(v.id("categories")),
-  status: v.optional(v.union(v.literal("active"), v.literal("inactive"))),
+  status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   start_date: v.optional(v.number()),
   end_date: v.optional(v.number()),
   textOverlayPos: v.optional(
-    v.union(
-      v.literal("top-left"),
-      v.literal("top-right"),
-      v.literal("bottom-left"),
-    ),
+    v.union(...bannerTextPositions.map((e) => v.literal(e))),
   ),
   updated_at: v.optional(v.number()),
 });
@@ -1037,28 +1146,11 @@ export const PrescriptionValidator = v.object({
   user_id: v.id("users"),
   vendor_id: v.id("vendors"),
   prescription_document: v.id("_storage"),
-  status: v.union(
-    v.literal("pending"),
-    v.literal("approved"),
-    v.literal("rejected"),
-  ),
+  status: v.union(...prescriptionStatus.map((e) => v.literal(e))),
   notes: v.optional(v.string()),
   rejection_reason_id: v.optional(v.id("prescriptionRejectionReasons")),
   assigned_picker_id: v.optional(v.id("users")),
   uploaded_at: v.number(),
-});
-
-export const PrescriptionUpdateValidator = v.object({
-  id: v.id("prescriptions"),
-  user_id: v.optional(v.id("users")),
-  vendor_id: v.optional(v.id("vendors")),
-  prescription_document: v.optional(v.id("_storage")),
-  status: v.optional(
-    v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
-  ),
-  notes: v.optional(v.string()),
-  rejection_reason_id: v.optional(v.id("prescriptionRejectionReasons")),
-  uploaded_at: v.optional(v.number()),
 });
 
 export const PickerAssignmentValidator = v.object({
@@ -1066,7 +1158,7 @@ export const PickerAssignmentValidator = v.object({
   picker_id: v.id("users"),
   order_id: v.optional(v.id("orders")),
   prescription_id: v.optional(v.id("prescriptions")),
-  type: v.union(v.literal("order"), v.literal("prescription")),
+  type: v.union(...pickerAssignmentTypes.map((e) => v.literal(e))),
   assigned_at: v.number(),
 });
 
@@ -1122,11 +1214,7 @@ export const AgentsUpdateValidator = v.object({
 export const AgentZonesValidator = v.object({
   name: v.string(),
   description: v.optional(v.string()),
-  earning_type: v.union(
-    v.literal("fixed"),
-    v.literal("per_conversion"),
-    v.literal("both"),
-  ),
+  earning_type: v.union(...agentZoneEarningTypes.map((e) => v.literal(e))),
   fixed_amount: v.optional(v.number()),
   min_installs: v.optional(v.number()),
   min_registrations: v.optional(v.number()),
@@ -1139,11 +1227,7 @@ export const AgentZonesValidator = v.object({
 
 export const AgentEarningsValidator = v.object({
   agent_id: v.id("agents"),
-  type: v.union(
-    v.literal("install"),
-    v.literal("registration"),
-    v.literal("fixed"),
-  ),
+  type: v.union(...agentEarningTypes.map((e) => v.literal(e))),
   amount: v.number(),
   zone_id: v.optional(v.id("agent_zones")),
   created_at: v.number(),
@@ -1152,12 +1236,7 @@ export const AgentEarningsValidator = v.object({
 export const AgentPaymentRequestsValidator = v.object({
   agent_id: v.id("agents"),
   amount: v.number(),
-  status: v.union(
-    v.literal("pending"),
-    v.literal("approved"),
-    v.literal("rejected"),
-    v.literal("paid"),
-  ),
+  status: v.union(...agentPaymentRequestStatus.map((e) => v.literal(e))),
   paystack_transfer_code: v.optional(v.string()),
   paystack_reference: v.optional(v.string()),
   rejection_reason: v.optional(v.string()),
@@ -1204,16 +1283,11 @@ export const ClearanceProductValidator = v.object({
   quantity: v.number(),
   expiry_date: v.number(),
   display_end_date: v.number(),
-  status: v.union(
-    v.literal("Active"),
-    v.literal("Inactive"),
-    v.literal("Sold Out"),
-    v.literal("Expired"),
-  ),
+  status: v.union(...clearanceProductStatus.map((e) => v.literal(e))),
   unit_value: v.optional(v.float64()),
   unit_type: v.optional(v.string()),
   description: v.optional(v.string()),
-  tags: v.optional(v.array(v.union(v.literal("Featured"), v.literal("Offer")))),
+  tags: v.optional(v.array(v.union(...bannerTags.map((e) => v.literal(e))))),
   created_at: v.number(),
   updated_at: v.optional(v.number()),
   created_by: v.optional(v.id("users")),
@@ -1239,17 +1313,12 @@ export const ClearanceProductUpdateValidator = v.object({
   expiry_date: v.optional(v.number()),
   display_end_date: v.optional(v.number()),
   status: v.optional(
-    v.union(
-      v.literal("Active"),
-      v.literal("Inactive"),
-      v.literal("Sold Out"),
-      v.literal("Expired"),
-    ),
+    v.union(...clearanceProductStatus.map((e) => v.literal(e))),
   ),
   unit_value: v.optional(v.float64()),
   unit_type: v.optional(v.string()),
   description: v.optional(v.string()),
-  tags: v.optional(v.array(v.union(v.literal("Featured"), v.literal("Offer")))),
+  tags: v.optional(v.array(v.union(...bannerTags.map((e) => v.literal(e))))),
   updated_at: v.optional(v.number()),
 });
 
@@ -1273,7 +1342,7 @@ export const LegalAcceptanceValidator = v.object({
   privacy_version: v.string(),
   eula_version: v.optional(v.string()),
   transaction_type: v.optional(
-    v.union(v.literal("signup"), v.literal("purchase")),
+    v.union(...agentTransactionTypes.map((e) => v.literal(e))),
   ),
 });
 
@@ -1303,12 +1372,7 @@ export const ClearanceBatchValidator = v.object({
   vendor_id: v.id("vendors"),
   order_ids: v.array(v.id("orders")),
   rider_id: v.optional(v.id("users")),
-  status: v.union(
-    v.literal("Pending"),
-    v.literal("Assigned"),
-    v.literal("In Transit"),
-    v.literal("Completed"),
-  ),
+  status: v.union(...clearanceBatchStatus.map((e) => v.literal(e))),
   created_at: v.number(),
   assigned_at: v.optional(v.number()),
 });
@@ -1316,12 +1380,7 @@ export const ClearanceBatchValidator = v.object({
 // ── Import Jobs ────────────────────────────────────────────────
 export const ImportJobsValidator = v.object({
   type: v.literal("products"),
-  status: v.union(
-    v.literal("pending"),
-    v.literal("processing"),
-    v.literal("done"),
-    v.literal("failed"),
-  ),
+  status: v.union(...importJobStatus.map((e) => v.literal(e))),
   total: v.number(),
   processed: v.number(),
   success: v.number(),

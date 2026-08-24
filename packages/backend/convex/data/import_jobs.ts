@@ -6,6 +6,9 @@ import {
   internalQuery,
 } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
+import {
+  importJobStatus,
+} from "../validators";
 
 // ── Public: create a pending job and return its id ─────────────
 export const createImportJob = mutation({
@@ -57,12 +60,7 @@ export const updateJobProgress = internalMutation({
     failed: v.number(),
     errors: v.array(v.string()),
     status: v.optional(
-      v.union(
-        v.literal("pending"),
-        v.literal("processing"),
-        v.literal("done"),
-        v.literal("failed"),
-      ),
+      v.union(...importJobStatus.map((e) => v.literal(e))),
     ),
     total: v.optional(v.number()),
   },

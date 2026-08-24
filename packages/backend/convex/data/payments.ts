@@ -1,6 +1,10 @@
 import { mutation, query, action } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
-import { OrderItemValidator } from "../validators";
+import {
+  OrderItemValidator,
+  payerTypes,
+  paymentStatus,
+} from "../validators";
 import { OrdersValidator, OrderItemWithoutOrderId } from "../validators";
 import { api } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
@@ -537,12 +541,7 @@ export const createPaymentWithStockReservation = mutation({
 export const updatePaymentStatus = mutation({
   args: {
     reference: v.string(),
-    status: v.union(
-      v.literal("Pending"),
-      v.literal("Successful"),
-      v.literal("Failed"),
-      v.literal("Refunded"),
-    ),
+    status: v.union(...paymentStatus.map((e) => v.literal(e))),
     paystackResponse: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
@@ -1648,7 +1647,7 @@ export const verifyPaystack = action({
 //     payerPhone: v.string(),
 //     channel: v.optional(v.union(v.literal("mobile_money"), v.literal("card"))),
 //     payerType: v.optional(
-//       v.union(v.literal("customer"), v.literal("receiver"))
+//       v.union(...payerTypes.map((e) => v.literal(e)))
 //     ),
 //   },
 //   // placeholder handler replaced by action below
@@ -1675,7 +1674,7 @@ export const persistInitiatedPaystackPayment = mutation({
     userId: v.id("users"),
     finalEmail: v.string(),
     payerPhone: v.string(),
-    payerType: v.union(v.literal("customer"), v.literal("receiver")),
+    payerType: v.union(...payerTypes.map((e) => v.literal(e))),
     channel: v.optional(v.union(v.literal("mobile_money"), v.literal("card"))),
     initResp: v.any(),
     reference: v.string(),
@@ -1744,7 +1743,7 @@ export const initiatePaystackTransactionAction = action({
     payerPhone: v.string(),
     channel: v.optional(v.union(v.literal("mobile_money"), v.literal("card"))),
     payerType: v.optional(
-      v.union(v.literal("customer"), v.literal("receiver")),
+      v.union(...payerTypes.map((e) => v.literal(e))),
     ),
   },
   handler: async (ctx, args): Promise<InitiatePaystackResult> => {

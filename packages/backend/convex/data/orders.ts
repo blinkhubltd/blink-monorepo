@@ -2,7 +2,12 @@ import { mutation, query } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
 import { api } from "../_generated/api";
-import { OrderItemUpdateValidator, OrdersValidator } from "../validators";
+import {
+  OrderItemUpdateValidator,
+  OrdersValidator,
+  orderPaymentStatus,
+  orderStatus,
+} from "../validators";
 import { getUserByClerkId } from "../auth.helpers";
 import { syncShipmentStatusForOrder } from "./shipments";
 import { generateDeliveryCode as createDeliveryCode } from "../lib/delivery_code";
@@ -38,19 +43,10 @@ export const paginateOrders = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     order_status: v.optional(
-      v.union(
-        v.literal("Pending"),
-        v.literal("Confirmed"),
-        v.literal("Processing"),
-        v.literal("Pickup"),
-        v.literal("Delivery"),
-        v.literal("Delivered"),
-        v.literal("Cancelled"),
-        v.literal("Refunded"),
-      ),
+      v.union(...orderStatus.map((e) => v.literal(e))),
     ),
     payment_status: v.optional(
-      v.union(v.literal("Unpaid"), v.literal("Paid"), v.literal("Refunded")),
+      v.union(...orderPaymentStatus.map((e) => v.literal(e))),
     ),
     vendor_id: v.optional(v.id("vendors")),
     vendor_ids: v.optional(v.array(v.id("vendors"))),
@@ -396,16 +392,7 @@ export const listOrdersFiltered = query({
   args: {
     userId: v.optional(v.id("users")),
     status: v.optional(
-      v.union(
-        v.literal("Pending"),
-        v.literal("Confirmed"),
-        v.literal("Processing"),
-        v.literal("Pickup"),
-        v.literal("Delivery"),
-        v.literal("Delivered"),
-        v.literal("Cancelled"),
-        v.literal("Refunded"),
-      ),
+      v.union(...orderStatus.map((e) => v.literal(e))),
     ),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
@@ -467,16 +454,7 @@ export const deleteOrder = mutation({
 export const updateOrderStatus = mutation({
   args: {
     orderId: v.id("orders"),
-    status: v.union(
-      v.literal("Pending"),
-      v.literal("Confirmed"),
-      v.literal("Processing"),
-      v.literal("Pickup"),
-      v.literal("Delivery"),
-      v.literal("Delivered"),
-      v.literal("Cancelled"),
-      v.literal("Refunded"),
-    ),
+    status: v.union(...orderStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
@@ -637,11 +615,7 @@ export const finalizePicking = mutation({
 export const updatePaymentStatus = mutation({
   args: {
     orderId: v.id("orders"),
-    status: v.union(
-      v.literal("Unpaid"),
-      v.literal("Paid"),
-      v.literal("Refunded"),
-    ),
+    status: v.union(...orderPaymentStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.orderId, {
@@ -849,16 +823,7 @@ export const checkDeliveryCode = query({
 export const bulkUpdateOrderStatus = mutation({
   args: {
     orderIds: v.array(v.id("orders")),
-    status: v.union(
-      v.literal("Pending"),
-      v.literal("Confirmed"),
-      v.literal("Processing"),
-      v.literal("Pickup"),
-      v.literal("Delivery"),
-      v.literal("Delivered"),
-      v.literal("Cancelled"),
-      v.literal("Refunded"),
-    ),
+    status: v.union(...orderStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const { orderIds, status } = args;
@@ -896,16 +861,7 @@ export const listOrdersWithDetails = query({
   args: {
     userId: v.optional(v.id("users")),
     status: v.optional(
-      v.union(
-        v.literal("Pending"),
-        v.literal("Confirmed"),
-        v.literal("Processing"),
-        v.literal("Pickup"),
-        v.literal("Delivery"),
-        v.literal("Delivered"),
-        v.literal("Cancelled"),
-        v.literal("Refunded"),
-      ),
+      v.union(...orderStatus.map((e) => v.literal(e))),
     ),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),

@@ -7,6 +7,9 @@ import {
   shipmentStatusToOrderStatus,
   type OrderStatus,
 } from "../lib/status_mapping";
+import {
+  shipmentStatus,
+} from "../validators";
 
 const computeShipmentSearchText = (shipment: {
   status?: string;
@@ -45,13 +48,7 @@ export const getShipments = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     status: v.optional(
-      v.union(
-        v.literal("Awaiting Pickup"),
-        v.literal("Picked Up"),
-        v.literal("Out for Delivery"),
-        v.literal("Delivered"),
-        v.literal("Failed Delivery"),
-      ),
+      v.union(...shipmentStatus.map((e) => v.literal(e))),
     ),
     vendor_id: v.optional(v.id("vendors")),
     rider_id: v.optional(v.id("users")),
@@ -269,13 +266,7 @@ export const backfillShipmentsSearchText = mutation({
 export const updateStatus = mutation({
   args: {
     shipmentId: v.id("shipments"),
-    status: v.union(
-      v.literal("Awaiting Pickup"),
-      v.literal("Picked Up"),
-      v.literal("Out for Delivery"),
-      v.literal("Delivered"),
-      v.literal("Failed Delivery"),
-    ),
+    status: v.union(...shipmentStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const currentShipment = await ctx.db.get(args.shipmentId);

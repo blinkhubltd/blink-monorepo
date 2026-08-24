@@ -1,12 +1,15 @@
 import { api } from "../_generated/api";
 import { mutation, query, action } from "../_generated/server";
 import { v } from "convex/values";
+import {
+  pushPlatforms,
+} from "../validators";
 
 export const registerPushToken = mutation({
   args: {
     userId: v.id("users"),
     token: v.string(),
-    platform: v.union(v.literal("ios"), v.literal("android"), v.literal("web")),
+    platform: v.union(...pushPlatforms.map((e) => v.literal(e))),
     deviceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

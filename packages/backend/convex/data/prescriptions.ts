@@ -1,6 +1,9 @@
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import {
+  prescriptionStatus,
+} from "../validators";
 
 // Notify picker when prescription is uploaded
 export const notifyPickerPrescriptionUploaded = mutation({
@@ -173,11 +176,7 @@ export const validateOrderPrescriptionRequirements = mutation({
 export const updatePrescriptionStatus = mutation({
   args: {
     prescriptionId: v.id("prescriptions"),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("approved"),
-      v.literal("rejected"),
-    ),
+    status: v.union(...prescriptionStatus.map((e) => v.literal(e))),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -226,11 +225,7 @@ export const updatePrescriptionStatus = mutation({
 export const updatePrescriptionStatusWithReason = mutation({
   args: {
     prescriptionId: v.id("prescriptions"),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("approved"),
-      v.literal("rejected"),
-    ),
+    status: v.union(...prescriptionStatus.map((e) => v.literal(e))),
     rejectionReasonId: v.optional(v.id("prescriptionRejectionReasons")),
     customNotes: v.optional(v.string()),
   },

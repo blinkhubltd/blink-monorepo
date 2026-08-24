@@ -1,7 +1,11 @@
 import { query, mutation, internalMutation } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
-import { ClearanceProductUpdateValidator } from "../validators";
+import {
+  ClearanceProductUpdateValidator,
+  bannerTags,
+  clearanceProductStatus,
+} from "../validators";
 import { haversineMeters } from "../lib/geo";
 
 const DAY_MS = 86400000;
@@ -51,7 +55,7 @@ export const create = mutation({
     unit_type: v.optional(v.string()),
     description: v.optional(v.string()),
     tags: v.optional(
-      v.array(v.union(v.literal("Featured"), v.literal("Offer"))),
+      v.array(v.union(...bannerTags.map((e) => v.literal(e)))),
     ),
   },
   handler: async (ctx, args) => {
@@ -250,12 +254,7 @@ export const getById = query({
 export const getAll = query({
   args: {
     status: v.optional(
-      v.union(
-        v.literal("Active"),
-        v.literal("Inactive"),
-        v.literal("Sold Out"),
-        v.literal("Expired"),
-      ),
+      v.union(...clearanceProductStatus.map((e) => v.literal(e))),
     ),
     vendor_id: v.optional(v.id("vendors")),
     category_id: v.optional(v.id("categories")),

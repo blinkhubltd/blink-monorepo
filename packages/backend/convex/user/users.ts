@@ -1,6 +1,12 @@
 import { internalMutation, mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
-import { UsersUpdateValidator } from "../validators";
+import {
+  UsersUpdateValidator,
+  pickerStatus,
+  recordStatus,
+  riderStatus,
+  vehicleTypes,
+} from "../validators";
 import { validateRiderActivation } from "../lib/account_completion";
 import { Id } from "../_generated/dataModel";
 import {
@@ -83,19 +89,10 @@ export const getRiders = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     status: v.optional(
-      v.union(
-        v.literal("Active"),
-        v.literal("On Delivery"),
-        v.literal("Inactive"),
-      ),
+      v.union(...riderStatus.map((e) => v.literal(e))),
     ),
     vehicle_type: v.optional(
-      v.union(
-        v.literal("Motorbike"),
-        v.literal("Bicycle"),
-        v.literal("Car"),
-        v.literal("Van"),
-      ),
+      v.union(...vehicleTypes.map((e) => v.literal(e))),
     ),
     vendorId: v.optional(v.id("vendors")),
   },
@@ -208,17 +205,8 @@ export const getAllRiders = query({
 export const updateRiderStatus = mutation({
   args: {
     riderId: v.id("users"),
-    status: v.union(
-      v.literal("Active"),
-      v.literal("On Delivery"),
-      v.literal("Inactive"),
-    ),
-    vehicle_type: v.union(
-      v.literal("Motorbike"),
-      v.literal("Bicycle"),
-      v.literal("Car"),
-      v.literal("Van"),
-    ),
+    status: v.union(...riderStatus.map((e) => v.literal(e))),
+    vehicle_type: v.union(...vehicleTypes.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const rider = await ctx.db.get(args.riderId);
@@ -295,7 +283,7 @@ export const getCustomers = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+    status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
     orderCountBucket: v.optional(
       v.union(
         v.literal("none"),
@@ -437,7 +425,7 @@ export const updateCustomer = mutation({
 
 export const updateCustomerStatus = mutation({
   args: {
-    status: v.union(v.literal("Active"), v.literal("Inactive")),
+    status: v.union(...recordStatus.map((e) => v.literal(e))),
     customerId: v.id("users"),
   },
   handler: async (ctx, args) => {
@@ -454,11 +442,7 @@ export const getPickers = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     status: v.optional(
-      v.union(
-        v.literal("Active"),
-        v.literal("On Order"),
-        v.literal("Inactive"),
-      ),
+      v.union(...pickerStatus.map((e) => v.literal(e))),
     ),
     vendorId: v.optional(v.id("vendors")),
   },
@@ -584,11 +568,7 @@ export const getAllPickers = query({
 export const updatePickerStatus = mutation({
   args: {
     pickerId: v.id("users"),
-    status: v.union(
-      v.literal("Active"),
-      v.literal("On Order"),
-      v.literal("Inactive"),
-    ),
+    status: v.union(...pickerStatus.map((e) => v.literal(e))),
     vendor_id: v.id("vendors"),
   },
   handler: async (ctx, args) => {
@@ -884,7 +864,7 @@ export const getUsers = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+    status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit));
@@ -933,7 +913,7 @@ export const getAllUsersExcludingRiders = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("Active"), v.literal("Inactive"))),
+    status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit));
@@ -1046,12 +1026,7 @@ export const assignRoleToUser = mutation({
     vendor_ids: v.optional(v.array(v.id("vendors"))),
     // Rider-specific extras (only when role name is "rider")
     rider_vehicle_type: v.optional(
-      v.union(
-        v.literal("Motorbike"),
-        v.literal("Bicycle"),
-        v.literal("Car"),
-        v.literal("Van"),
-      ),
+      v.union(...vehicleTypes.map((e) => v.literal(e))),
     ),
     rider_vehicle_plate: v.optional(v.string()),
   },
@@ -1132,19 +1107,10 @@ export const assignGeneralManager = mutation({
 export const assignRiderWithDetails = mutation({
   args: {
     userId: v.id("users"),
-    vehicleType: v.union(
-      v.literal("Motorbike"),
-      v.literal("Bicycle"),
-      v.literal("Car"),
-      v.literal("Van"),
-    ),
+    vehicleType: v.union(...vehicleTypes.map((e) => v.literal(e))),
     vehiclePlate: v.optional(v.string()),
     vendorId: v.optional(v.id("vendors")),
-    status: v.union(
-      v.literal("Active"),
-      v.literal("On Delivery"),
-      v.literal("Inactive"),
-    ),
+    status: v.union(...riderStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
@@ -1181,11 +1147,7 @@ export const assignPickerWithDetails = mutation({
   args: {
     userId: v.id("users"),
     vendorId: v.id("vendors"),
-    status: v.union(
-      v.literal("Active"),
-      v.literal("On Order"),
-      v.literal("Inactive"),
-    ),
+    status: v.union(...pickerStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
@@ -1378,7 +1340,7 @@ export const assignVendorContactWithVendor = mutation({
 export const updateUserStatus = mutation({
   args: {
     userId: v.id("users"),
-    status: v.union(v.literal("Active"), v.literal("Inactive")),
+    status: v.union(...recordStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.userId, {
