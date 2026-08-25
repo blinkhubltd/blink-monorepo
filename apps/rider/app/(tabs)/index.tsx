@@ -1,7 +1,14 @@
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowRight, Bell, ChevronRight, MapPin } from "lucide-react-native";
+import { Linking } from "react-native";
+import {
+  ArrowRight,
+  Bell,
+  ChevronRight,
+  MapPin,
+  TriangleAlert,
+} from "lucide-react-native";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Card } from "@repo/mobile-ui/components/ui/card";
@@ -14,6 +21,7 @@ import { ProgressBar } from "../../components/ProgressBar";
 import { Screen } from "../../components/Screen";
 import { Stat } from "../../components/Stat";
 import { useCrew, useCrewRole } from "../../providers/CrewProvider";
+import { useLocationSharing } from "../../providers/LocationProvider";
 import { greeting, initials } from "../../lib/format";
 import { useHome, useUnreadCount } from "../../lib/data";
 import { progressPct } from "../../lib/incentives";
@@ -39,6 +47,7 @@ export default function HomeRoute() {
   const { crew, online, setOnline } = useCrew();
   const home = useHome();
   const unread = useUnreadCount();
+  const location = useLocationSharing();
 
   return (
     <Screen withTabBar>
@@ -110,6 +119,46 @@ export default function HomeRoute() {
               aria-label={online ? "Go offline" : "Go online"}
             />
           </Card>
+        ) : null}
+
+        {/*
+          Said out loud because it fails silently otherwise. A rider who declined
+          background location is online, taking work, and invisible to their hub —
+          and nothing on screen would tell them until someone rang to ask where
+          they were.
+        */}
+        {role === "rider" && location.needsPermission ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fix location permission in settings"
+            onPress={() => {
+              void Linking.openSettings();
+            }}
+            className="active:opacity-80"
+          >
+            <Card className="flex-row items-center gap-space-4 border-warning bg-warning-soft">
+              <TriangleAlert
+                size={20}
+                strokeWidth={2}
+                className="text-warning-foreground"
+              />
+              <View className="flex-1">
+                <Text weight="semibold" size="sm" className="text-strong">
+                  Your hub can’t see your location
+                </Text>
+                <Text variant="muted" size="caption">
+                  {location.state === "background_denied"
+                    ? "Set location to “Allow all the time” so deliveries keep tracking while the app is closed."
+                    : "Turn on location access to receive and track deliveries."}
+                </Text>
+              </View>
+              <ChevronRight
+                size={18}
+                strokeWidth={2}
+                className="text-warning-foreground"
+              />
+            </Card>
+          </Pressable>
         ) : null}
 
         {home === undefined ? (

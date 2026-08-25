@@ -4864,6 +4864,12 @@ exports[`table shapes > matches the committed snapshot 1`] = `
               },
               "optional": true,
             },
+            "location_updated_at": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": true,
+            },
             "rating": {
               "fieldType": {
                 "type": "number",
@@ -5169,6 +5175,12 @@ exports[`table shapes > matches the committed snapshot 1`] = `
               "fieldType": {
                 "tableName": "_storage",
                 "type": "id",
+              },
+              "optional": true,
+            },
+            "location_updated_at": {
+              "fieldType": {
+                "type": "number",
               },
               "optional": true,
             },

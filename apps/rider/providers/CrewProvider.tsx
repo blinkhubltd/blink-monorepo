@@ -4,6 +4,8 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
 import { crewRoleFromRoleName, type CrewRole } from "../lib/roles";
+import { getDeviceId } from "../lib/device";
+import { stopLocationReporting } from "../lib/location-task";
 import type { Crew } from "../lib/data/types";
 
 /**
@@ -53,6 +55,9 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
 
   const setOnlineStatus = useMutation(
     api.data.rider_analytics.updateRiderOnlineStatus,
+  );
+  const deregisterDevice = useMutation(
+    api.data.push_tokens.deregisterMyDevice,
   );
 
   // A picker belongs to a vendor, which is their hub. A rider has no vendor on
@@ -122,6 +127,20 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
       online,
       setOnline,
       signOut: async () => {
+        // Order matters. Both of these need the session that signOut destroys,
+        // so they run first — and neither is allowed to block the sign-out: a
+        // rider who taps it must get out even with no connectivity.
+        try {
+          await deregisterDevice({ deviceId: await getDeviceId() });
+        } catch {
+          // The row stays enabled and this device keeps receiving push until it
+          // registers again. Worth a retry later, not worth trapping the rider.
+        }
+        try {
+          await stopLocationReporting();
+        } catch {
+          // LocationProvider stops it again once the gate flips to no_session.
+        }
         await signOut();
       },
     }),
@@ -133,6 +152,7 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
       online,
       setOnline,
       signOut,
+      deregisterDevice,
     ],
   );
 

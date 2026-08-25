@@ -497,6 +497,14 @@ export const UsersValidator = v.object({
       coordinates: v.optional(
         geoPoint,
       ),
+      /**
+       * When `coordinates` was recorded ON THE DEVICE, not when it was written.
+       *
+       * A background task batches points and delivers them late, so arrival
+       * order is not fix order. Without this, a two-minute-old point queued
+       * behind a tunnel overwrites the rider's current position.
+       */
+      location_updated_at: v.optional(v.number()),
       rating: v.optional(v.float64()),
       rating_count: v.optional(v.number()),
       id_image: v.optional(v.id("_storage")),
@@ -548,6 +556,14 @@ export const UsersUpdateValidator = v.object({
       coordinates: v.optional(
         geoPoint,
       ),
+      /**
+       * When `coordinates` was recorded ON THE DEVICE, not when it was written.
+       *
+       * A background task batches points and delivers them late, so arrival
+       * order is not fix order. Without this, a two-minute-old point queued
+       * behind a tunnel overwrites the rider's current position.
+       */
+      location_updated_at: v.optional(v.number()),
       rating: v.optional(v.float64()),
       id_image: v.optional(v.id("_storage")),
       license_image: v.optional(v.id("_storage")),

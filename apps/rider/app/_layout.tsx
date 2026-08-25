@@ -1,4 +1,7 @@
 import "../global.css";
+// Imported for its side effect: TaskManager.defineTask must run before the OS
+// can invoke the background location task, which is earlier than any render.
+import "../lib/location-task";
 
 import { useEffect } from "react";
 import { Stack } from "expo-router";
@@ -20,6 +23,8 @@ import {
 
 import { ConvexClerkProvider } from "../providers/ConvexClerkProvider";
 import { CrewProvider } from "../providers/CrewProvider";
+import { LocationProvider } from "../providers/LocationProvider";
+import { PushProvider } from "../providers/PushProvider";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden, or called twice under Fast Refresh. Not fatal.
@@ -51,6 +56,8 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ConvexClerkProvider>
           <CrewProvider>
+            <PushProvider>
+              <LocationProvider>
           <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
           {/*
             headerShown is off for the whole app. Pushed screens render their own
@@ -63,6 +70,8 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
           </Stack>
           <PortalHost />
+              </LocationProvider>
+            </PushProvider>
           </CrewProvider>
         </ConvexClerkProvider>
       </SafeAreaProvider>
