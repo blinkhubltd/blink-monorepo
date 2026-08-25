@@ -48,8 +48,11 @@ const expoConfig: ExpoConfig = {
         "Blink uses your location to show nearby orders and track deliveries.",
       NSLocationAlwaysAndWhenInUseUsageDescription:
         "Blink uses your location in the background to track active deliveries and improve assignments.",
+      // Overridden by the expo-camera plugin above; kept so a bare-workflow
+      // build (no plugins) still carries a usage string rather than crashing on
+      // first camera access.
       NSCameraUsageDescription:
-        "Blink uses the camera to scan delivery codes and capture proof of delivery.",
+        "Blink uses the camera to scan barcodes while you pick an order, and to capture proof of delivery.",
       NSPhotoLibraryUsageDescription:
         "Blink needs photo access to attach prescription images to an order.",
       UIBackgroundModes: ["location", "remote-notification"],
@@ -76,6 +79,7 @@ const expoConfig: ExpoConfig = {
       "FOREGROUND_SERVICE",
       "FOREGROUND_SERVICE_LOCATION",
       "POST_NOTIFICATIONS",
+      "CAMERA",
       "RECEIVE_BOOT_COMPLETED",
       "VIBRATE",
       "WAKE_LOCK",
@@ -121,6 +125,21 @@ const expoConfig: ExpoConfig = {
       {
         icon: "./assets/images/adaptive-icon.png",
         color: "#FFC50B",
+      },
+    ],
+    [
+      "expo-camera",
+      {
+        // Covers BOTH camera uses on purpose. expo-camera and expo-image-picker
+        // each write NSCameraUsageDescription, and the last plugin to run wins —
+        // introspecting the resolved config shows this string is the one that
+        // ships, so a barcode-only wording would understate what the app does
+        // and the infoPlist entry below never reaches the build.
+        cameraPermission:
+          "Blink uses the camera to scan barcodes while you pick an order, and to capture proof of delivery.",
+        // The scanner never records audio, and asking for the microphone
+        // alongside the camera makes a barcode reader look like a recorder.
+        recordAudioAndroid: false,
       },
     ],
     [

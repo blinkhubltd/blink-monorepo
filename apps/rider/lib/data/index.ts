@@ -38,6 +38,7 @@ import type {
   HomeSummary,
   PickItem,
   QueueItem,
+  ScanOutcome,
 } from "./types";
 import { formatMoneyCompact } from "../format";
 import { toIncentiveRole } from "../roles";
@@ -349,10 +350,39 @@ export function usePickActions(orderId: Id<"orders"> | null) {
           delta,
         });
       },
-      /** Barcode path. Resolves the item itself, so it takes no item id. */
-      async scanBarcode(barcode: string) {
-        if (!orderId || !userId) return null;
-        return await scan({ orderId, barcode, pickerId: userId });
+      /**
+       * Barcode path. Resolves the item itself, so it takes no item id.
+       *
+       * Never throws: a scanner is used in a hurry and an unrecognised code is
+       * an ordinary event, not an exception. The three cases a picker can act on
+       * are translated here rather than at each call site.
+       */
+      async scanBarcode(barcode: string): Promise<ScanOutcome> {
+        if (!orderId || !userId) {
+          return { ok: false, message: "Not signed in" };
+        }
+        try {
+          const result = await scan({ orderId, barcode, pickerId: userId });
+          return {
+            ok: true,
+            message: result.item.name,
+            picked: result.item.picked_quantity ?? 0,
+            total: result.item.quantity,
+            orderComplete: result.orderComplete,
+          };
+        } catch (err) {
+          const raw = err instanceof Error ? err.message : "";
+          return {
+            ok: false,
+            message: /not in the current order/i.test(raw)
+              ? "Not on this order"
+              : /exceeded/i.test(raw)
+                ? "Already fully picked"
+                : /not found/i.test(raw)
+                  ? "No product matches that code"
+                  : "Could not record that scan",
+          };
+        }
       },
       /**
        * Whole-item override, for an item whose units cannot be counted one at a

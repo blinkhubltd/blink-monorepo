@@ -1,31 +1,35 @@
 import { useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { ScanLine, X } from "lucide-react-native";
+import { Camera, ScanLine, X } from "lucide-react-native";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { cn } from "@repo/mobile-ui/lib/utils";
+import type { ScanOutcome } from "../../lib/data/types";
 
 interface BarcodeFieldProps {
-  onScan: (barcode: string) => Promise<{ ok: boolean; message?: string }>;
+  onScan: (barcode: string) => Promise<ScanOutcome>;
+  /** Opens the camera scanner. */
+  onOpenCamera: () => void;
   disabled?: boolean;
 }
 
 /**
- * Barcode entry for the pick list.
+ * Typed barcode entry, with the camera one tap away.
  *
- * This is a text field, not a camera. Hardware scanners in a warehouse act as
- * keyboard wedges — they type the code and send Enter — so a focused field is
- * the fastest path with the equipment a hub already has, and it works with a
- * thumb when there is no scanner.
- *
- * A camera scanner is a genuine addition on top of this and needs `expo-camera`,
- * which is not a dependency yet. Deliberately not faked: an inert camera button
- * is worse than an honest field.
+ * The field is not a fallback for the camera — it is the faster path with the
+ * equipment a hub already has. Warehouse scanners act as keyboard wedges: they
+ * type the code and send Enter, so a focused field consumes them at the speed
+ * the picker can present items, with no camera to aim. It is also the only route
+ * when a barcode is torn, wrapped round a curve, or on a frozen bag.
  *
  * `blurOnSubmit={false}` and clearing in place are what make repeat scanning
  * work — a picker scans twelve eggs without touching the screen between them.
  */
-export function BarcodeField({ onScan, disabled = false }: BarcodeFieldProps) {
+export function BarcodeField({
+  onScan,
+  onOpenCamera,
+  disabled = false,
+}: BarcodeFieldProps) {
   const inputRef = useRef<TextInput>(null);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,7 +50,7 @@ export function BarcodeField({ onScan, disabled = false }: BarcodeFieldProps) {
           : Haptics.NotificationFeedbackType.Error,
       );
       if (!result.ok) {
-        setFeedback({ ok: false, message: result.message ?? "Not on this order" });
+        setFeedback({ ok: false, message: result.message });
       }
       // Cleared either way, so a rejected scan does not block the next one.
       setValue("");
@@ -99,7 +103,27 @@ export function BarcodeField({ onScan, disabled = false }: BarcodeFieldProps) {
           >
             <X size={16} strokeWidth={2} className="text-subtle" />
           </Pressable>
-        ) : null}
+        ) : (
+          /*
+            Inside the field rather than a separate row: the two are the same
+            action by different means, and splitting them into competing buttons
+            makes the picker choose before they know which is quicker.
+          */
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Scan with the camera"
+            onPress={onOpenCamera}
+            disabled={disabled}
+            hitSlop={8}
+            className="h-space-9 w-space-9 items-center justify-center rounded-md bg-inverse active:scale-[0.96]"
+          >
+            <Camera
+              size={18}
+              strokeWidth={2}
+              className="text-inverse-foreground"
+            />
+          </Pressable>
+        )}
       </Pressable>
 
       {feedback && !feedback.ok ? (

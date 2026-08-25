@@ -69,6 +69,23 @@ export interface PickItem {
   scanned: boolean;
 }
 
+/**
+ * The result of one barcode read, as the scanner needs to present it.
+ *
+ * Deliberately not the raw mutation return: the failure cases are ConvexErrors
+ * whose messages are written for a developer, and the picker needs to know which
+ * of three things went wrong — wrong order, already complete, or unknown code.
+ */
+export interface ScanOutcome {
+  ok: boolean;
+  /** Item name on success, or the reason it was rejected. */
+  message: string;
+  /** Units of that item now picked, when known. */
+  picked?: number;
+  total?: number;
+  orderComplete?: boolean;
+}
+
 export interface PickList {
   id: string;
   reference: string;

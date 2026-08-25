@@ -13,6 +13,7 @@ import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Screen } from "../../components/Screen";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { BarcodeField } from "../../components/pick/BarcodeField";
+import { BarcodeScanner } from "../../components/pick/BarcodeScanner";
 import { PickProgress } from "../../components/pick/PickProgress";
 import { PickRow } from "../../components/pick/PickRow";
 import { usePickActions, usePickList } from "../../lib/data";
@@ -62,6 +63,7 @@ export default function PickListRoute() {
 
   const [busyItem, setBusyItem] = useState<Id<"order_items"> | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Opening the list is what puts the order into Processing, so the hub sees
@@ -90,27 +92,9 @@ export default function PickListRoute() {
     [actions],
   );
 
-  const onScan = useCallback(
-    async (barcode: string) => {
-      try {
-        const result = await actions.scanBarcode(barcode);
-        return { ok: result?.success === true };
-      } catch (err) {
-        // scanItem raises ConvexError for the cases a picker can act on, so they
-        // are surfaced as such rather than as a generic failure.
-        const raw = err instanceof Error ? err.message : "";
-        const message = /not in the current order/i.test(raw)
-          ? "That product isn’t on this order"
-          : /exceeded/i.test(raw)
-            ? "All units of that item are already picked"
-            : /not found/i.test(raw)
-              ? "No product matches that code"
-              : "Could not record that scan";
-        return { ok: false, message };
-      }
-    },
-    [actions],
-  );
+  // scanBarcode never throws and already carries the picker-facing message, so
+  // both the field and the camera share it unchanged.
+  const onScan = actions.scanBarcode;
 
   async function onComplete() {
     setCompleting(true);
@@ -194,7 +178,11 @@ export default function PickListRoute() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <BarcodeField onScan={onScan} disabled={completing} />
+        <BarcodeField
+          onScan={onScan}
+          onOpenCamera={() => setScannerOpen(true)}
+          disabled={completing}
+        />
 
         {groups.map((group) => (
           <Animated.View
@@ -275,6 +263,14 @@ export default function PickListRoute() {
           </Text>
         ) : null}
       </View>
+
+      <BarcodeScanner
+        visible={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={onScan}
+        unitsPicked={model.unitsPicked}
+        unitsTotal={model.unitsTotal}
+      />
     </View>
   );
 }
