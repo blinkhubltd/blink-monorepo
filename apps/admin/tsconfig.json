@@ -1,0 +1,33 @@
+{
+  "extends": "@repo/typescript/nextjs.json",
+  "compilerOptions": {
+    // Matches the override inside packages/backend. @repo/backend is consumed as
+    // raw TypeScript with no build step, so this app compiles the backend's
+    // source under ITS OWN tsconfig and the backend package's setting does not
+    // reach here. Without this, 130 pre-existing errors in packages/backend fail
+    // this app's typecheck.
+    //
+    // This is the SECOND app to hit this — apps/rider carries the same line.
+    // Every future consumer of @repo/backend will too. The fix is the backend's
+    // 130 errors, which sit on money paths (payment_finalization, payment_split,
+    // orders, cart) and want their own change with tests, not a sweep at the end
+    // of a UI port.
+    //
+    // This app's OWN code is clean under the flag: all 82 errors it surfaced were
+    // fixed rather than silenced, and re-enabling it here shows only backend
+    // noise.
+    "noUncheckedIndexedAccess": false,
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "types/**/*.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

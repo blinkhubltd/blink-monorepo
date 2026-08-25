@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/*
+ * The shared Blink web theme: palette, radii, chart series, sidebar tokens.
+ *
+ * This app previously carried 208 lines of plain shadcn neutral with no brand at
+ * all, so the admin dashboard looked like a different product from the crew app.
+ * Anything genuinely admin-only belongs below the import, not in the package.
+ */
+@import "@repo/tailwind/base.css";
