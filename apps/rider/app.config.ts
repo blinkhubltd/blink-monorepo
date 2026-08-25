@@ -24,10 +24,31 @@ function requiredPublic(name: string): string {
   return value;
 }
 
+/**
+ * Under EAS, every public var the app needs is required at CONFIG time.
+ *
+ * This is what makes the `production` profile in eas.json safe to leave empty:
+ * it carries no inlined Convex URL, so if the EAS production environment is
+ * missing one the build fails here rather than producing an app that either
+ * crashes on launch or — worse — quietly points at the development deployment.
+ *
+ * Locally these stay optional, so `expo start` works from a fresh clone before
+ * anyone has filled in .env.local.
+ */
 const isBuild = process.env.EAS_BUILD === "true";
-const mapsApiKey = isBuild
-  ? requiredPublic("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY")
-  : (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? "");
+
+function publicVar(name: string): string {
+  return isBuild ? requiredPublic(name) : (process.env[name] ?? "");
+}
+
+const mapsApiKey = publicVar("EXPO_PUBLIC_GOOGLE_MAPS_API_KEY");
+
+if (isBuild) {
+  // Read for their side effect: both are consumed at runtime rather than here,
+  // and a build that ships without them is a build nobody can sign into.
+  requiredPublic("EXPO_PUBLIC_CONVEX_URL");
+  requiredPublic("EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY");
+}
 
 const expoConfig: ExpoConfig = {
   name: "Blink Rider",
