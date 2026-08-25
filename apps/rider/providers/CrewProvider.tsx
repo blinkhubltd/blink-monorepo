@@ -62,9 +62,15 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
 
   // A picker belongs to a vendor, which is their hub. A rider has no vendor on
   // their user document at all, so there is no hub name to resolve for one.
+  //
+  // getHubForCrew, not getVendorById: the full vendor document carries the hub's
+  // commission rate, commission type, service radius and business_details — bank
+  // code, account number, KRA PIN. None of that is a crew member's business, and
+  // a query result on a handset is readable by whoever holds the handset. This
+  // returns a name and a town.
   const vendorId = doc?.picker_details?.vendor_id;
   const vendor = useQuery(
-    api.data.vendors.getVendorById,
+    api.data.vendors.getHubForCrew,
     vendorId ? { vendorId } : "skip",
   );
 

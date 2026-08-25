@@ -6,6 +6,7 @@ import {
   VendorsValidator,
   recordStatus,
 } from "../validators";
+import { getAuthUser } from "../auth.helpers";
 
 export const getVendors = query({
   args: {
@@ -379,5 +380,34 @@ export const setVendorPaystackSubaccountCode = mutation({
       },
       updated_at: Date.now(),
     });
+  },
+});
+
+/**
+ * The bare hub identity a crew member is allowed to see.
+ *
+ * `getVendorById` returns the whole vendor document, which carries
+ * `commission`, `commission_type`, `service_radius` and — inside
+ * `business_details` — the vendor's bank code, ACCOUNT NUMBER and KRA PIN. None
+ * of that is a rider's or picker's business, and a query result reaching a
+ * handset is readable by anyone holding it.
+ *
+ * A crew member needs to know which hub they are attached to. That is a name and
+ * a town, so that is all this returns.
+ */
+export const getHubForCrew = query({
+  args: { vendorId: v.id("vendors") },
+  handler: async (ctx, args) => {
+    // Any signed-in user may ask; the answer contains nothing privileged.
+    await getAuthUser(ctx);
+
+    const vendor = await ctx.db.get(args.vendorId);
+    if (!vendor) return null;
+
+    return {
+      _id: vendor._id,
+      name: vendor.name,
+      city: vendor.address?.city ?? null,
+    };
   },
 });

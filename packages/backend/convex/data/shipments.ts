@@ -1,4 +1,5 @@
 import { mutation, query } from "../_generated/server";
+import { getAuthUser } from "../auth.helpers";
 import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -613,3 +614,81 @@ export async function syncShipmentStatusForOrder(
     targetShipmentStatus: target,
   };
 }
+
+/**
+ * A delivery, projected to what the assigned rider needs and no more.
+ *
+ * `getShipmentDetails` above returns `{...shipment, rider, order, vendor,
+ * customer}` — four WHOLE documents, with no auth check of any kind. Two
+ * problems with a rider app calling it:
+ *
+ *  - The vendor document carries `commission`, `commission_type`,
+ *    `service_radius` and `business_details` (bank code, account number, KRA
+ *    PIN). A rider has no business seeing their hub's margin, let alone its bank
+ *    details, and anything that reaches a handset is readable by whoever holds
+ *    it.
+ *
+ *  - The customer document carries their email, address book and Clerk id. A
+ *    delivery needs a name and a phone number.
+ *
+ * It also lets ANY caller read ANY shipment — every customer's name, phone and
+ * address, by iterating ids. This one asserts the caller is the rider the
+ * shipment is assigned to.
+ *
+ * Returns null rather than throwing for a shipment belonging to someone else, so
+ * a reassigned delivery reads as "not available" instead of an error screen — and
+ * so the response cannot be used to tell "exists, not yours" from "no such
+ * shipment".
+ */
+export const getCrewDeliveryDetail = query({
+  args: { shipmentId: v.id("shipments") },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const shipment = await ctx.db.get(args.shipmentId);
+    if (!shipment) return null;
+    if (shipment.rider_id !== user._id) return null;
+
+    const order = await ctx.db.get(shipment.order_id);
+    const customer = order ? await ctx.db.get(order.user_id) : null;
+
+    const itemCount = order
+      ? (
+          await ctx.db
+            .query("order_items")
+            .withIndex("by_order", (q) => q.eq("order_id", order._id))
+            .collect()
+        ).length
+      : 0;
+
+    return {
+      _id: shipment._id,
+      status: shipment.status,
+      // The address is the job. Coordinates included; the rest of the vendor and
+      // pickup side is not a rider concern beyond where they are going.
+      delivery_address: shipment.delivery_address,
+      order: order
+        ? {
+            _id: order._id,
+            reference: order.reference,
+            payment_mode: order.payment_mode,
+            payment_status: order.payment_status,
+            total_amount: order.total_amount,
+            delivery_code_verified: order.delivery_code_verified,
+            // The customer's delivery instruction. Named
+            // special_instructions on the orders table — there is no `notes`
+            // field, so anything reading one silently rendered nothing.
+            special_instructions: order.special_instructions,
+          }
+        : null,
+      customer: customer
+        ? {
+            first_name: customer.first_name,
+            last_name: customer.last_name,
+            phone: customer.phone,
+          }
+        : null,
+      itemCount,
+    };
+  },
+});
