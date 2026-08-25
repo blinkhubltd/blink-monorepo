@@ -57,10 +57,16 @@ export interface PickItem {
   name: string;
   /** Shelf location, e.g. "Aisle 3" or "Pharmacy counter". */
   location: string;
+  /** Units the customer ordered. */
   quantity: number;
+  /** Units taken off the shelf so far, 0..quantity. */
+  pickedQuantity: number;
   /** Needs a prescription check before it can be picked. */
   requiresPrescription: boolean;
+  /** True only once every unit is accounted for. */
   picked: boolean;
+  /** Barcode-confirmed at least once, rather than counted by hand. */
+  scanned: boolean;
 }
 
 export interface PickList {

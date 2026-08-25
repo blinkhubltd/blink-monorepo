@@ -13,6 +13,104 @@ const startOfDay = (date = new Date()) => {
   return d.getTime();
 };
 
+/**
+ * Everything that must happen once every item on an order is picked.
+ *
+ * Extracted so the barcode path and the manual per-unit path cannot drift: both
+ * have to move the order on, log the picker's activity, dispatch a rider and
+ * notify the customer, and a second copy of that is how one of them ends up
+ * missing a step.
+ *
+ * Idempotent by construction — it only runs when every item reads picked, and
+ * the activity insert checks for an existing row first.
+ */
+async function completeOrderIfFullyPicked(
+  ctx: MutationCtx,
+  orderId: Id<"orders">,
+  pickerId: Id<"users">,
+): Promise<boolean> {
+  const items = await ctx.db
+    .query("order_items")
+    .withIndex("by_order", (q) => q.eq("order_id", orderId))
+    .collect();
+
+  // An order with no items is not a completed order.
+  if (items.length === 0) return false;
+  if (!items.every((item) => item.is_picked)) return false;
+
+  await ctx.db.patch(orderId, {
+    order_status: "Delivery",
+    assigned_picker_id: pickerId,
+    updated_at: Date.now(),
+  });
+
+  const existingActivity = await ctx.db
+    .query("picker_activity")
+    .withIndex("by_order", (q) => q.eq("order_id", orderId))
+    .first();
+
+  if (!existingActivity) {
+    const now = Date.now();
+    await ctx.db.insert("picker_activity", {
+      picker_id: pickerId,
+      order_id: orderId,
+      // Line items, not units: this is the count getPickerItemStats reports.
+      items_picked: items.length,
+      day_bucket: startOfDay(new Date(now)),
+      created_at: now,
+    });
+  }
+
+  try {
+    await ctx.runMutation(internal.data.dispatch.autoAssignRiderToOrderInternal, {
+      orderId,
+    });
+  } catch (err) {
+    // A dispatch failure must not roll back the pick. The order is packed
+    // either way and a rider can be assigned by hand.
+    console.error("autoAssignRiderToOrderInternal failed", err);
+  }
+
+  try {
+    await ctx.scheduler.runAfter(
+      0,
+      api.data.notifications.triggerOrderStatusNotification,
+      { orderId, newStatus: "Delivery" },
+    );
+  } catch (error) {
+    console.error("Failed to schedule status notification:", error);
+  }
+
+  return true;
+}
+
+/**
+ * Resolves and authorises a picker against an order.
+ *
+ * Every picking mutation repeats these three checks; sharing them means a new
+ * one cannot be added without them.
+ */
+async function assertPickerOwnsOrder(
+  ctx: MutationCtx,
+  orderId: Id<"orders">,
+  pickerId: Id<"users">,
+) {
+  const order = await ctx.db.get(orderId);
+  if (!order) throw new ConvexError("Order not found");
+
+  const picker = await ctx.db.get(pickerId);
+  if (!picker || !(await hasRoleName(ctx, picker, "Picker"))) {
+    throw new ConvexError("Unauthorized: not a picker");
+  }
+
+  const vendorId = picker.picker_details?.vendor_id;
+  if (!vendorId || order.vendor_id !== vendorId) {
+    throw new ConvexError("Unauthorized: order belongs to another hub");
+  }
+
+  return { order, picker, vendorId };
+}
+
 export const getPickerOrders = query({
   args: {
     pickerId: v.id("users"),
@@ -371,6 +469,15 @@ export const markReadyForPickup = mutation({
   },
 });
 
+/**
+ * Marks a whole item picked or unpicked in one call.
+ *
+ * This is the OVERRIDE, not the normal path: it sets `picked_quantity` straight
+ * to `quantity`, so for a multi-unit item it asserts every unit was taken
+ * without counting them. Use `recordItemPick` for picking, and this only where a
+ * count genuinely cannot be taken one unit at a time — clearing an item, or an
+ * item whose units are not individually handled.
+ */
 export const markItemPicked = mutation({
   args: {
     orderId: v.id("orders"),
@@ -591,18 +698,7 @@ export const scanItem = mutation({
     pickerId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const order = await ctx.db.get(args.orderId);
-    if (!order) throw new Error("Order not found");
-
-    const picker = await ctx.db.get(args.pickerId);
-    if (!picker || !(await hasRoleName(ctx, picker, "Picker"))) {
-      throw new Error("Unauthorized");
-    }
-
-    const vendorId = picker.picker_details?.vendor_id;
-    if (!vendorId || order.vendor_id !== vendorId) {
-      throw new Error("Unauthorized");
-    }
+    await assertPickerOwnsOrder(ctx, args.orderId, args.pickerId);
 
     const product = await ctx.db
       .query("products")
@@ -655,68 +751,85 @@ export const scanItem = mutation({
       barcodeVerifiedAt: Date.now(),
     });
 
-    const updatedItems = await ctx.db
-      .query("order_items")
-      .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
-      .collect();
-
-    const allPicked = updatedItems.every((item) => item.is_picked);
-
-    if (allPicked) {
-      await ctx.db.patch(args.orderId, {
-        order_status: "Delivery",
-        assigned_picker_id: args.pickerId,
-        updated_at: Date.now(),
-      });
-
-      const existingActivity = await ctx.db
-        .query("picker_activity")
-        .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
-        .first();
-
-      if (!existingActivity) {
-        const now = Date.now();
-        const day_bucket = startOfDay(new Date(now));
-        await ctx.db.insert("picker_activity", {
-          picker_id: args.pickerId,
-          order_id: args.orderId,
-          items_picked: updatedItems.length,
-          day_bucket,
-          created_at: now,
-        });
-      }
-
-      try {
-        await ctx.runMutation(
-          internal.data.dispatch.autoAssignRiderToOrderInternal,
-          {
-            orderId: args.orderId,
-          },
-        );
-      } catch (err) {
-        console.error("autoAssignRiderToOrderInternal failed", err);
-      }
-
-      /**
-       * Notification to customer */
-      try {
-        await ctx.scheduler.runAfter(
-          0,
-          api.data.notifications.triggerOrderStatusNotification,
-          {
-            orderId: args.orderId,
-            newStatus: "Delivery",
-          },
-        );
-      } catch (error) {
-        console.error("Failed to schedule status notification:", error);
-      }
-    }
+    const orderComplete = await completeOrderIfFullyPicked(
+      ctx,
+      args.orderId,
+      args.pickerId,
+    );
 
     return {
       success: true,
       item: { ...orderItem, picked_quantity: newPicked, is_picked: isPicked },
-      orderComplete: allPicked,
+      orderComplete,
+    };
+  },
+});
+
+/**
+ * Records one unit of an item as picked, or takes one back.
+ *
+ * The manual counterpart to `scanItem`: same per-unit arithmetic, no barcode.
+ * A picker taking three loaves off the shelf presses three times, and the item
+ * only reads picked once `picked_quantity` reaches `quantity`.
+ *
+ * This exists because `markItemPicked` sets `picked_quantity` straight to
+ * `quantity` in one call. That is a legitimate override — it is how an
+ * unscannable item gets cleared — but as the primary interaction it lets a
+ * picker mark three loaves picked having taken one, and the shortfall is only
+ * discovered by the customer.
+ *
+ * `delta` is deliberately +/-1 rather than an absolute count: absolute writes
+ * from a client race with each other, so two quick presses can land the same
+ * value twice and lose a unit. An increment cannot.
+ */
+export const recordItemPick = mutation({
+  args: {
+    orderId: v.id("orders"),
+    itemId: v.id("order_items"),
+    pickerId: v.id("users"),
+    /** +1 to pick a unit, -1 to undo one. */
+    delta: v.union(v.literal(1), v.literal(-1)),
+  },
+  handler: async (ctx, args) => {
+    await assertPickerOwnsOrder(ctx, args.orderId, args.pickerId);
+
+    const item = await ctx.db.get(args.itemId);
+    if (!item || item.order_id !== args.orderId) {
+      throw new ConvexError("Item not found on this order");
+    }
+
+    const current = item.picked_quantity ?? 0;
+    const next = current + args.delta;
+
+    // Clamped rather than thrown: a picker double-tapping the last unit is not
+    // an error, and an error dialog mid-pick is worse than a no-op. Exceeding
+    // the count is the case that must not silently succeed, and it cannot here.
+    if (next < 0 || next > item.quantity) {
+      return {
+        pickedQuantity: current,
+        quantity: item.quantity,
+        isPicked: current >= item.quantity,
+        orderComplete: false,
+        clamped: true,
+      };
+    }
+
+    const isPicked = next >= item.quantity;
+    await ctx.db.patch(args.itemId, {
+      picked_quantity: next,
+      is_picked: isPicked,
+    });
+
+    const orderComplete = isPicked
+      ? await completeOrderIfFullyPicked(ctx, args.orderId, args.pickerId)
+      : false;
+
+    return {
+      pickedQuantity: next,
+      quantity: item.quantity,
+      isPicked,
+      orderComplete,
+      clamped: false,
     };
   },
 });

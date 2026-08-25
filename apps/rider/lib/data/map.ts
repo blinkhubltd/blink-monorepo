@@ -309,6 +309,8 @@ export interface OrderItemDoc {
   product_name?: string;
   quantity: number;
   is_picked?: boolean;
+  picked_quantity?: number;
+  barcodeVerified?: boolean;
   requires_prescription?: boolean;
   aisle?: string;
   unit_type?: string;
@@ -330,13 +332,24 @@ export function itemLocation(doc: OrderItemDoc): string {
 }
 
 export function toPickItem(doc: OrderItemDoc): PickItem {
+  const quantity = Math.max(0, doc.quantity);
+  // Clamped against quantity rather than trusted: is_picked and picked_quantity
+  // are separate columns and markItemPicked writes both, so a legacy row can
+  // carry a count above the order quantity. A progress bar reading 4 of 3 is
+  // worse than one that reads 3 of 3.
+  const raw = doc.picked_quantity ?? (doc.is_picked === true ? quantity : 0);
+  const pickedQuantity = Math.max(0, Math.min(quantity, raw));
   return {
     id: doc._id,
     name: doc.product_name ?? doc.name ?? "Item",
     location: itemLocation(doc),
-    quantity: doc.quantity,
+    quantity,
+    pickedQuantity,
     requiresPrescription: doc.requires_prescription === true,
-    picked: doc.is_picked === true,
+    // Derived from the count, not read from is_picked. Those two can disagree on
+    // an older row, and the count is the one a picker can verify on the shelf.
+    picked: quantity > 0 && pickedQuantity >= quantity,
+    scanned: doc.barcodeVerified === true,
   };
 }
 

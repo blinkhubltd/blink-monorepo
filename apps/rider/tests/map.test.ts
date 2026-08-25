@@ -211,6 +211,89 @@ describe("toPickItem", () => {
     const item = toPickItem({ _id: itemId("i1"), quantity: 1 });
     expect(item.picked).toBe(false);
     expect(item.requiresPrescription).toBe(false);
+    expect(item.scanned).toBe(false);
+    expect(item.pickedQuantity).toBe(0);
+  });
+
+  it("is not picked until every unit is accounted for", () => {
+    // Three loaves is one line item but three picks. Marking it done at the
+    // first is what let the old app send short orders out.
+    const partial = toPickItem({
+      _id: itemId("i1"),
+      quantity: 3,
+      picked_quantity: 1,
+    });
+    expect(partial.pickedQuantity).toBe(1);
+    expect(partial.picked).toBe(false);
+
+    const full = toPickItem({
+      _id: itemId("i1"),
+      quantity: 3,
+      picked_quantity: 3,
+    });
+    expect(full.picked).toBe(true);
+  });
+
+  it("derives picked from the count, not from is_picked", () => {
+    // The two are separate columns and can disagree on an older row. The count
+    // is the one a picker can verify against the shelf, so it wins.
+    const lying = toPickItem({
+      _id: itemId("i1"),
+      quantity: 3,
+      picked_quantity: 1,
+      is_picked: true,
+    });
+    expect(lying.picked).toBe(false);
+  });
+
+  it("falls back to is_picked when no count was ever written", () => {
+    // markItemPicked writes both, but rows predating picked_quantity have only
+    // the flag. Those should still read as done rather than resetting to zero.
+    const legacy = toPickItem({
+      _id: itemId("i1"),
+      quantity: 2,
+      is_picked: true,
+    });
+    expect(legacy.pickedQuantity).toBe(2);
+    expect(legacy.picked).toBe(true);
+  });
+
+  it("clamps a count above the order quantity", () => {
+    // A progress bar reading 4 of 3 is worse than one reading 3 of 3.
+    const over = toPickItem({
+      _id: itemId("i1"),
+      quantity: 3,
+      picked_quantity: 7,
+    });
+    expect(over.pickedQuantity).toBe(3);
+    expect(over.picked).toBe(true);
+  });
+
+  it("clamps a negative count", () => {
+    const under = toPickItem({
+      _id: itemId("i1"),
+      quantity: 3,
+      picked_quantity: -2,
+    });
+    expect(under.pickedQuantity).toBe(0);
+    expect(under.picked).toBe(false);
+  });
+
+  it("does not report a zero-quantity item as picked", () => {
+    // Nothing to take is not the same as taken, and reading it as done would
+    // let an order complete with a line nobody looked at.
+    const zero = toPickItem({ _id: itemId("i1"), quantity: 0 });
+    expect(zero.picked).toBe(false);
+  });
+
+  it("reports a barcode-confirmed item as scanned", () => {
+    const scanned = toPickItem({
+      _id: itemId("i1"),
+      quantity: 1,
+      picked_quantity: 1,
+      barcodeVerified: true,
+    });
+    expect(scanned.scanned).toBe(true);
   });
 });
 

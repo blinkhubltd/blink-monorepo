@@ -290,6 +290,11 @@ export interface PickListModel {
   /** True once every item is picked. */
   complete: boolean;
   status: string;
+  /** Units taken across the whole order, for the header progress. */
+  unitsPicked: number;
+  unitsTotal: number;
+  /** Line items fully picked, which is what the order-level count means. */
+  itemsPicked: number;
 }
 
 export function usePickList(
@@ -312,19 +317,48 @@ export function usePickList(
       items,
       complete: items.length > 0 && items.every((i) => i.picked),
       status: doc.order_status,
+      // Progress is measured in UNITS, not line items. An order of one loaf and
+      // twelve eggs is not half done when the loaf is in the bag.
+      unitsPicked: items.reduce((sum, i) => sum + i.pickedQuantity, 0),
+      unitsTotal: items.reduce((sum, i) => sum + i.quantity, 0),
+      itemsPicked: items.filter((i) => i.picked).length,
     };
   }, [doc]);
 }
 
 export function usePickActions(orderId: Id<"orders"> | null) {
   const { userId } = useCrew();
+  const recordPick = useMutation(api.data.picker_orders.recordItemPick);
+  const scan = useMutation(api.data.picker_orders.scanItem);
   const markPicked = useMutation(api.data.picker_orders.markItemPicked);
   const startPicking = useMutation(api.data.picker_orders.startPicking);
   const markReady = useMutation(api.data.picker_orders.markReadyForPickup);
 
   return useMemo(
     () => ({
-      async togglePicked(itemId: Id<"order_items">, isPicked: boolean) {
+      /**
+       * Takes one unit, or puts one back. This is the picking interaction —
+       * three loaves means three calls.
+       */
+      async pickUnit(itemId: Id<"order_items">, delta: 1 | -1) {
+        if (!orderId || !userId) return null;
+        return await recordPick({
+          orderId,
+          itemId,
+          pickerId: userId,
+          delta,
+        });
+      },
+      /** Barcode path. Resolves the item itself, so it takes no item id. */
+      async scanBarcode(barcode: string) {
+        if (!orderId || !userId) return null;
+        return await scan({ orderId, barcode, pickerId: userId });
+      },
+      /**
+       * Whole-item override, for an item whose units cannot be counted one at a
+       * time. Not the normal path — see recordItemPick in the backend.
+       */
+      async setPicked(itemId: Id<"order_items">, isPicked: boolean) {
         if (!orderId || !userId) return;
         await markPicked({ orderId, itemId, pickerId: userId, isPicked });
       },
