@@ -1,4 +1,3 @@
-import { useCallback, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,8 +10,8 @@ import { EmptyState } from "../../components/EmptyState";
 import { Screen } from "../../components/Screen";
 import { useCrewRole } from "../../providers/CrewProvider";
 import { queueTabLabel } from "../../lib/roles";
-import { FIXTURE_QUEUE } from "../../lib/data/fixtures";
-import type { QueueItem, QueueTone } from "../../lib/data/types";
+import { useQueue } from "../../lib/data";
+import type { QueueTone } from "../../lib/data/types";
 
 const TONE_TO_BADGE: Record<QueueTone, "success" | "warning" | "secondary"> = {
   success: "success",
@@ -40,22 +39,10 @@ export default function QueueRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const role = useCrewRole();
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Once wired, `undefined` is Convex's loading state and drives the skeleton.
-  const items: QueueItem[] | undefined = FIXTURE_QUEUE[role];
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await Promise.resolve();
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+  const items = useQueue();
 
   return (
-    <Screen withTabBar onRefresh={onRefresh} refreshing={refreshing}>
+    <Screen withTabBar>
       <View
         style={{ paddingTop: insets.top + 12 }}
         className="gap-space-5 pb-space-7"
@@ -103,7 +90,7 @@ export default function QueueRoute() {
                     </Text>
                   </View>
                   {/*
-                    Status comes from the item, not a hardcoded string. The
+                    Status comes from the document, not a hardcoded string. The
                     reference app rendered a fixed "In Progress" chip on every
                     row regardless of the order's actual status.
                   */}

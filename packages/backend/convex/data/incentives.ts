@@ -647,3 +647,96 @@ export const deleteIncentiveConfigNew = mutation({
     return await ctx.db.delete(args.id);
   },
 });
+
+// ---------------------------------------------------------------------------
+// Picker item throughput
+// ---------------------------------------------------------------------------
+
+/**
+ * Items a picker has picked today, this week and this month.
+ *
+ * The `picker_activity` table has recorded exactly this since it was added —
+ * `items_picked` per order, with a `day_bucket` and a `by_picker_day` index —
+ * but nothing read it. `getIncentiveDashboard` counts ORDERS for a picker, so
+ * there was no source for an item count, which is what a picker's "Picked
+ * today" actually means.
+ *
+ * Two things worth knowing about the numbers this returns:
+ *
+ *  - `items_picked` is the number of LINE ITEMS on the order, not the sum of
+ *    their quantities. Three loaves of bread is one item. That matches how a
+ *    picker experiences the work (one shelf visit, one tick) but it is not a
+ *    unit count, so it is named `items` and not `units`.
+ *
+ *  - Rows are deduplicated by order. `scanItem` guards against inserting twice
+ *    for the same order, but `logPickerActivity` does not, and both
+ *    `updatePickerOrderStatus("Pickup")` and `markReadyForPickup` call it. Those
+ *    two transitions are mutually exclusive in practice, but a repeated status
+ *    write is not prevented anywhere, so counting rows directly would let a
+ *    double-write inflate a picker's figures. Deduplicating here is cheap and
+ *    makes the count correct regardless.
+ */
+export const getPickerItemStats = query({
+  args: { pickerId: v.id("users") },
+  handler: async (ctx, args) => {
+    const now = new Date();
+    const dayStart = startOfDay(now);
+    const weekStart = startOfWeek(now);
+    const monthStart = startOfMonth(now);
+
+    // Indexed on (picker_id, day_bucket) and bounded to the current month, so
+    // this does not grow with the picker's whole history.
+    const rows = await ctx.db
+      .query("picker_activity")
+      .withIndex("by_picker_day", (q) =>
+        q.eq("picker_id", args.pickerId).gte("day_bucket", monthStart),
+      )
+      .collect();
+
+    // One row per order, keeping the earliest — a later duplicate is a repeated
+    // status write, not more work done.
+    const byOrder = new Map<Id<"orders">, (typeof rows)[number]>();
+    for (const row of rows) {
+      const existing = byOrder.get(row.order_id);
+      if (!existing || row.created_at < existing.created_at) {
+        byOrder.set(row.order_id, row);
+      }
+    }
+
+    let itemsToday = 0;
+    let itemsWeek = 0;
+    let itemsMonth = 0;
+    let ordersToday = 0;
+    let ordersWeek = 0;
+    let ordersMonth = 0;
+
+    for (const row of byOrder.values()) {
+      const items = row.items_picked ?? 0;
+      itemsMonth += items;
+      ordersMonth++;
+      if (row.day_bucket >= weekStart) {
+        itemsWeek += items;
+        ordersWeek++;
+      }
+      if (row.day_bucket >= dayStart) {
+        itemsToday += items;
+        ordersToday++;
+      }
+    }
+
+    return {
+      itemsToday,
+      itemsWeek,
+      itemsMonth,
+      ordersToday,
+      ordersWeek,
+      ordersMonth,
+      /** Average line items per completed order this month; null with no orders. */
+      averageItemsPerOrder:
+        ordersMonth > 0 ? Math.round((itemsMonth / ordersMonth) * 10) / 10 : null,
+      /** Window these figures cover, so a caller can label them honestly. */
+      period: { dayStart, weekStart, monthStart },
+      generated_at: Date.now(),
+    };
+  },
+});

@@ -423,6 +423,18 @@ export const OrderItemValidator = v.object({
   is_picked: v.optional(v.boolean()),
   picked_quantity: v.optional(v.number()),
   requires_prescription: v.optional(v.boolean()),
+  /**
+   * The prescription that authorises this item.
+   *
+   * `requires_prescription` says an item needs one; this says WHICH one. Without
+   * it a picker can be told an item needs a prescription check but not which
+   * document to check, because prescriptions are keyed by customer + vendor and
+   * were never linked to the item they authorise.
+   *
+   * Optional, and unset on every row created before this field existed —
+   * `prescriptions.backfillOrderItemPrescriptions` fills those in.
+   */
+  prescription_id: v.optional(v.id("prescriptions")),
 });
 
 export const OrderItemWithoutOrderId = v.object({
@@ -442,6 +454,7 @@ export const OrderItemWithoutOrderId = v.object({
   is_picked: v.optional(v.boolean()),
   picked_quantity: v.optional(v.number()),
   requires_prescription: v.optional(v.boolean()), // Track if this item required prescription
+  prescription_id: v.optional(v.id("prescriptions")),
 });
 
 export const OrderItemUpdateValidator = v.object({
@@ -462,6 +475,7 @@ export const OrderItemUpdateValidator = v.object({
   is_picked: v.optional(v.boolean()),
   picked_quantity: v.optional(v.number()),
   requires_prescription: v.optional(v.boolean()), // Track if this item required prescription
+  prescription_id: v.optional(v.id("prescriptions")),
 });
 
 export const UsersValidator = v.object({
@@ -483,6 +497,14 @@ export const UsersValidator = v.object({
       coordinates: v.optional(
         geoPoint,
       ),
+      /**
+       * When `coordinates` was recorded ON THE DEVICE, not when it was written.
+       *
+       * A background task batches points and delivers them late, so arrival
+       * order is not fix order. Without this, a two-minute-old point queued
+       * behind a tunnel overwrites the rider's current position.
+       */
+      location_updated_at: v.optional(v.number()),
       rating: v.optional(v.float64()),
       rating_count: v.optional(v.number()),
       id_image: v.optional(v.id("_storage")),
@@ -534,6 +556,14 @@ export const UsersUpdateValidator = v.object({
       coordinates: v.optional(
         geoPoint,
       ),
+      /**
+       * When `coordinates` was recorded ON THE DEVICE, not when it was written.
+       *
+       * A background task batches points and delivers them late, so arrival
+       * order is not fix order. Without this, a two-minute-old point queued
+       * behind a tunnel overwrites the rider's current position.
+       */
+      location_updated_at: v.optional(v.number()),
       rating: v.optional(v.float64()),
       id_image: v.optional(v.id("_storage")),
       license_image: v.optional(v.id("_storage")),

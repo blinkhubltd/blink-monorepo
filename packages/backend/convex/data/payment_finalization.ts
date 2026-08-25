@@ -181,7 +181,17 @@ export const finalizePaidOrders = mutation({
         payment_reference: args.reference,
       });
       for (const item of grpWithNormalizedOrder.items) {
-        await ctx.db.insert("order_items", { ...item, order_id: orderId });
+        await ctx.db.insert("order_items", {
+          ...item,
+          order_id: orderId,
+          // Stamp the prescription that authorises this item. The lookup above
+          // already resolved it, and the order is blocked when a required
+          // prescription is missing, so from here on every
+          // prescription-required item carries a link to its document.
+          ...(item.requires_prescription && approvedPrescription
+            ? { prescription_id: approvedPrescription._id }
+            : {}),
+        });
       }
       created.push({ orderId, vendor: grpWithNormalizedOrder.order.vendor_id });
 
@@ -332,7 +342,17 @@ export const finalizePayOnDeliveryOrders = mutation({
 
       const orderId = await ctx.db.insert("orders", base);
       for (const item of grp.items) {
-        await ctx.db.insert("order_items", { ...item, order_id: orderId });
+        await ctx.db.insert("order_items", {
+          ...item,
+          order_id: orderId,
+          // Stamp the prescription that authorises this item. The lookup above
+          // already resolved it, and the order is blocked when a required
+          // prescription is missing, so from here on every
+          // prescription-required item carries a link to its document.
+          ...(item.requires_prescription && approvedPrescription
+            ? { prescription_id: approvedPrescription._id }
+            : {}),
+        });
       }
       created.push({ orderId, vendor: base.vendor_id });
 

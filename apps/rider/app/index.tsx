@@ -3,24 +3,45 @@ import { View } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Text } from "@repo/mobile-ui/components/ui/text";
+import { useCrew } from "../providers/CrewProvider";
 
 /**
- * Splash. Holds only as long as the crew identity takes to resolve, then
- * redirects. It is a route rather than a state inside the tab layout so the
- * native splash can hand off to it without a flash of the tab bar.
+ * Splash and gate.
+ *
+ * Holds only as long as Clerk and the crew document take to resolve, then routes
+ * on the real answer. It is a route rather than a state inside the tab layout so
+ * the native splash can hand off to it without a flash of the tab bar.
  */
 export default function SplashRoute() {
   const router = useRouter();
+  const { gate } = useCrew();
 
   useEffect(() => {
-    // Once Clerk is wired this branches on session + role:
-    //   no session            -> /(auth)/sign-in
-    //   session, no crew role -> /(auth)/access-denied
-    //   crew pending review   -> /(auth)/access-restricted
-    //   otherwise             -> /(tabs)
-    const t = setTimeout(() => router.replace("/(auth)/sign-in"), 900);
-    return () => clearTimeout(t);
-  }, [router]);
+    switch (gate) {
+      case "loading":
+        return;
+      case "no_session":
+        router.replace("/(auth)/sign-in");
+        return;
+      case "no_account":
+        // Signed in with Clerk but the `users` row does not exist yet. The Clerk
+        // webhook creates it, so this is usually a race on first sign-in — but it
+        // is also exactly what a genuinely unregistered number looks like, and
+        // the app cannot tell them apart. access-denied reads correctly for both
+        // and offers a way back.
+        router.replace("/(auth)/access-denied");
+        return;
+      case "not_crew":
+        router.replace("/(auth)/access-denied");
+        return;
+      case "suspended":
+        router.replace("/(auth)/access-restricted");
+        return;
+      case "ok":
+        router.replace("/(tabs)");
+        return;
+    }
+  }, [gate, router]);
 
   return (
     <View className="flex-1 items-center justify-center gap-space-5 bg-background px-space-7">

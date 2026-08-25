@@ -7,6 +7,7 @@
  * address lives across four optional fields. The mapping from documents to
  * these types is the only place that has to change when the backend does.
  */
+import type { Id } from "@repo/backend/dataModel";
 import type { CrewRole } from "../roles";
 
 export interface Crew {
@@ -47,14 +48,42 @@ export interface DeliveryDetail {
 }
 
 export interface PickItem {
-  id: string;
+  /**
+   * Typed as a real document id, not a string: this value is passed straight
+   * back to markItemPicked and to the prescription lookup, and casting it at
+   * each call site is how the wrong id ends up in a mutation.
+   */
+  id: Id<"order_items">;
   name: string;
   /** Shelf location, e.g. "Aisle 3" or "Pharmacy counter". */
   location: string;
+  /** Units the customer ordered. */
   quantity: number;
+  /** Units taken off the shelf so far, 0..quantity. */
+  pickedQuantity: number;
   /** Needs a prescription check before it can be picked. */
   requiresPrescription: boolean;
+  /** True only once every unit is accounted for. */
   picked: boolean;
+  /** Barcode-confirmed at least once, rather than counted by hand. */
+  scanned: boolean;
+}
+
+/**
+ * The result of one barcode read, as the scanner needs to present it.
+ *
+ * Deliberately not the raw mutation return: the failure cases are ConvexErrors
+ * whose messages are written for a developer, and the picker needs to know which
+ * of three things went wrong — wrong order, already complete, or unknown code.
+ */
+export interface ScanOutcome {
+  ok: boolean;
+  /** Item name on success, or the reason it was rejected. */
+  message: string;
+  /** Units of that item now picked, when known. */
+  picked?: number;
+  total?: number;
+  orderComplete?: boolean;
 }
 
 export interface PickList {

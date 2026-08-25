@@ -10,20 +10,16 @@ export type IncentivePeriod = "daily" | "weekly" | "monthly";
 
 export const INCENTIVE_PERIODS = ["daily", "weekly", "monthly"] as const;
 
-export interface IncentiveRates {
-  /** Bonus paid per completed delivery, in shillings. */
-  bonusPerDelivery: number;
-  /** Guaranteed base pay for a worked day, in shillings. */
-  baseDailyPay: number;
-  /** Days in a working week, used for weekly projections. */
-  workingDaysPerWeek: number;
-}
-
-export const DEFAULT_INCENTIVE_RATES: IncentiveRates = {
-  bonusPerDelivery: 45,
-  baseDailyPay: 500,
-  workingDaysPerWeek: 6,
-};
+/**
+ * Working days the backend assumes when it derives its own fallback targets
+ * (`data/incentives.ts`: weekly = daily * 6, monthly = daily * 24).
+ *
+ * Used rather than 7 and 28 so a target written from this app expands the same
+ * way the backend would have expanded it — otherwise the weekly and monthly
+ * targets stored by the app disagree with the ones a hub config implies.
+ */
+export const BACKEND_WORKING_DAYS_PER_WEEK = 6;
+export const BACKEND_WORKING_DAYS_PER_MONTH = 24;
 
 export interface Bucket {
   label: string;
@@ -50,7 +46,6 @@ export function bucketTarget(
   period: IncentivePeriod,
   dailyTarget: number,
   bucketCount: number,
-  rates: IncentiveRates = DEFAULT_INCENTIVE_RATES,
 ): number {
   if (period === "daily") {
     // Guard the divisor: an empty bucket list would otherwise yield Infinity
@@ -58,7 +53,7 @@ export function bucketTarget(
     return bucketCount > 0 ? dailyTarget / bucketCount : dailyTarget;
   }
   if (period === "weekly") return dailyTarget;
-  return dailyTarget * rates.workingDaysPerWeek;
+  return dailyTarget * BACKEND_WORKING_DAYS_PER_WEEK;
 }
 
 /** The whole-period plan a period's total is compared against. */
@@ -67,8 +62,8 @@ export function periodPlan(
   dailyTarget: number,
 ): number {
   if (period === "daily") return dailyTarget;
-  if (period === "weekly") return dailyTarget * 7;
-  return dailyTarget * 28;
+  if (period === "weekly") return dailyTarget * BACKEND_WORKING_DAYS_PER_WEEK;
+  return dailyTarget * BACKEND_WORKING_DAYS_PER_MONTH;
 }
 
 export interface ChartModel {
@@ -110,67 +105,6 @@ export function trendVsPlan(total: number, plan: number): TrendVsPlan {
   };
 }
 
-export interface Projection {
-  perDay: number;
-  perWeek: number;
-}
-
-export function projectEarnings(
-  dailyTarget: number,
-  rates: IncentiveRates = DEFAULT_INCENTIVE_RATES,
-): Projection {
-  const perDay = rates.baseDailyPay + dailyTarget * rates.bonusPerDelivery;
-  return { perDay, perWeek: perDay * rates.workingDaysPerWeek };
-}
-
-export interface EarningsLine {
-  label: string;
-  amount: number;
-}
-
-export interface EarningsSummary {
-  lines: EarningsLine[];
-  total: number;
-  /** Null when no deliveries were made — dividing would produce NaN. */
-  averagePerDelivery: number | null;
-}
-
-/**
- * Weekly earnings breakdown.
- *
- * The prototype computed `total / deliveries` unguarded, which renders
- * "Ksh NaN" on any rider's first day. Returning null makes the caller decide
- * how to present "no data yet".
- */
-export function summariseWeek(input: {
-  deliveries: number;
-  daysWorked: number;
-  peakHourBonus: number;
-  referralBonus: number;
-  rates?: IncentiveRates;
-}): EarningsSummary {
-  const rates = input.rates ?? DEFAULT_INCENTIVE_RATES;
-  const basePay = rates.baseDailyPay * input.daysWorked;
-  const deliveryBonus = input.deliveries * rates.bonusPerDelivery;
-  const lines: EarningsLine[] = [
-    { label: `Base pay (${input.daysWorked} days)`, amount: basePay },
-    {
-      label: `Delivery bonus (${input.deliveries} × Ksh ${rates.bonusPerDelivery})`,
-      amount: deliveryBonus,
-    },
-    { label: "Peak-hour bonus", amount: input.peakHourBonus },
-    { label: "Referral bonus", amount: input.referralBonus },
-  ];
-  const total = lines.reduce((sum, l) => sum + l.amount, 0);
-  return {
-    lines,
-    total,
-    averagePerDelivery:
-      input.deliveries > 0 ? Math.round(total / input.deliveries) : null,
-  };
-}
-
-/** Progress towards today's target, as a 0–100 percentage. */
 export function progressPct(done: number, target: number): number {
   if (target <= 0) return 0;
   return clampPct(Math.round((done / target) * 100));

@@ -31,3 +31,14 @@ export function roleLabel(role: CrewRole): string {
 export function queueTabLabel(role: CrewRole): string {
   return role === "rider" ? "Deliveries" : "Orders";
 }
+
+/**
+ * The incentives module uses its own UPPERCASE role vocabulary
+ * (`incentiveRoles = ["RIDER", "PICKER"]`), distinct from the Title-case names
+ * in the `roles` table. Mapped in one place so no call site guesses the casing.
+ */
+export type IncentiveRole = "RIDER" | "PICKER";
+
+export function toIncentiveRole(role: CrewRole): IncentiveRole {
+  return role === "rider" ? "RIDER" : "PICKER";
+}
