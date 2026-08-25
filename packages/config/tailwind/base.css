@@ -1,0 +1,232 @@
+/*
+ * Blink — shared web theme.
+ *
+ * The same design system the rider app uses (apps/rider/global.css), expressed
+ * for Tailwind v4 on the web. Values are the Blink Hub tokens, not shadcn's
+ * defaults: the admin dashboard shipped with plain neutral shadcn and no brand
+ * at all, so admin and the crew app looked like different products.
+ *
+ * Kept in hex rather than converted to oklch on purpose — these are checkable
+ * against the design system by eye, and a conversion is a place to introduce a
+ * drift nobody can see.
+ *
+ * Semantic names only. Raw ramps are exposed as `blink-*` and `ink-*` for the
+ * brand-fixed cases the DS calls out (the yellow header sweep, ink pills,
+ * price gold); everything else references a semantic token so a palette change
+ * lands in one place.
+ */
+@source "../../ui/src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Brand-fixed ramps. These do not theme — per the DS the yellow IS the
+     identity, and ink pills are ink in both schemes. */
+  --color-blink-50: #fffae8;
+  --color-blink-100: #fff2c2;
+  --color-blink-200: #ffe68f;
+  --color-blink-300: #ffd84f;
+  --color-blink-400: #ffc50b;
+  --color-blink-500: #f5b800;
+  --color-blink-600: #d89f00;
+  --color-blink-700: #a87b00;
+  --color-blink-800: #6e5000;
+
+  --color-ink-50: #f8fafd;
+  --color-ink-100: #eff1f5;
+  --color-ink-200: #e4e7ec;
+  --color-ink-300: #cbd1da;
+  --color-ink-400: #a8b0bc;
+  --color-ink-500: #818a99;
+  --color-ink-600: #5a6372;
+  --color-ink-700: #3a4150;
+  --color-ink-800: #242a36;
+  --color-ink-900: #151a24;
+  --color-ink-950: #0a0e16;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  /* 12px controls / 14px cards, matching the DS radii. */
+  --radius: 0.75rem;
+
+  --background: #f8fafd; /* ink-50 — the DS page background */
+  --foreground: #242a36; /* ink-800 */
+  --card: #ffffff;
+  --card-foreground: #0a0e16; /* ink-950 for headings on a card */
+  --popover: #ffffff;
+  --popover-foreground: #0a0e16;
+
+  /* Yellow is a LIGHT surface: ink type on yellow, always. Getting this the
+     other way round is the single most common way to misuse this palette. */
+  --primary: #ffc50b;
+  --primary-foreground: #0a0e16;
+
+  --secondary: #eff1f5; /* ink-100 */
+  --secondary-foreground: #0a0e16;
+  --muted: #eff1f5;
+  --muted-foreground: #5a6372; /* ink-600 */
+  --accent: #fffae8; /* blink-50 — the soft brand wash */
+  --accent-foreground: #0a0e16;
+
+  --destructive: #e23b33;
+  --destructive-foreground: #ffffff;
+  --success: #159b62;
+  --success-foreground: #ffffff;
+  --warning: #f5b800;
+  --warning-foreground: #0a0e16;
+  --info: #2563eb;
+  --info-foreground: #ffffff;
+
+  --border: #e4e7ec; /* ink-200 hairline */
+  --input: #e4e7ec;
+  --ring: #0a0e16;
+
+  /*
+   * The sidebar is ink in BOTH schemes.
+   *
+   * The DS treats ink as a surface mode (.blink-dark), and a permanently dark
+   * rail is what makes the yellow active state read. It also stops the
+   * dashboard looking like undifferentiated white when a data table fills the
+   * content area.
+   */
+  --sidebar: #0a0e16; /* ink-950 */
+  --sidebar-foreground: #cbd1da; /* ink-300 */
+  --sidebar-primary: #ffc50b;
+  --sidebar-primary-foreground: #0a0e16;
+  --sidebar-accent: #242a36; /* ink-800 — hover */
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 10%);
+  --sidebar-ring: #ffc50b;
+
+  /*
+   * Chart series, brand-first.
+   *
+   * Ordered so a single-series chart is brand yellow and a two-series chart
+   * reads yellow-against-ink rather than two arbitrary hues. 4 and 5 are the
+   * semantic greens and reds, so a revenue-vs-refunds chart picks up the right
+   * meaning without a per-chart override.
+   */
+  --chart-1: #ffc50b;
+  --chart-2: #3a4150;
+  --chart-3: #2563eb;
+  --chart-4: #159b62;
+  --chart-5: #e23b33;
+}
+
+.dark {
+  --background: #0a0e16; /* ink-950 */
+  --foreground: #e4e7ec; /* ink-200 */
+  --card: #151a24; /* ink-900 */
+  --card-foreground: #ffffff;
+  --popover: #151a24;
+  --popover-foreground: #ffffff;
+
+  /* Brand holds across schemes — it is the identity, not a theme choice. */
+  --primary: #ffc50b;
+  --primary-foreground: #0a0e16;
+
+  --secondary: #242a36; /* ink-800 */
+  --secondary-foreground: #ffffff;
+  --muted: #242a36;
+  --muted-foreground: #a8b0bc; /* ink-400 */
+  --accent: rgb(255 197 11 / 14%);
+  --accent-foreground: #ffffff;
+
+  --destructive: #e23b33;
+  --destructive-foreground: #ffffff;
+  --success: #159b62;
+  --success-foreground: #ffffff;
+  --warning: #f5b800;
+  --warning-foreground: #0a0e16;
+  --info: #2563eb;
+  --info-foreground: #ffffff;
+
+  --border: #242a36; /* ink-800 */
+  --input: #3a4150; /* ink-700 */
+  --ring: #ffc50b;
+
+  /* Slightly lifted off the page so the rail still reads as a distinct
+     surface once the background is also ink. */
+  --sidebar: #151a24;
+  --sidebar-foreground: #cbd1da;
+  --sidebar-primary: #ffc50b;
+  --sidebar-primary-foreground: #0a0e16;
+  --sidebar-accent: #242a36;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #ffc50b;
+
+  --chart-1: #ffc50b;
+  --chart-2: #a8b0bc;
+  --chart-3: #60a5fa;
+  --chart-4: #34d399;
+  --chart-5: #f87171;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /*
+   * Tabular figures for anything in a data cell.
+   *
+   * A dashboard is mostly columns of numbers, and proportional digits make them
+   * fail to line up — which is exactly when a wrong figure stops being obvious.
+   */
+  th,
+  td {
+    font-variant-numeric: tabular-nums;
+  }
+}
