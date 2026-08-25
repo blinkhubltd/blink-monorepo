@@ -113,6 +113,12 @@ export function useHome(): HomeModel | undefined {
     api.data.picker_orders.getPickerOrders,
     !isRider && userId ? { pickerId: userId } : "skip",
   );
+  // Item throughput from picker_activity. The table has recorded it all along;
+  // getPickerItemStats is the query that finally reads it.
+  const pickerItems = useQuery(
+    api.data.incentives.getPickerItemStats,
+    !isRider && userId ? { pickerId: userId } : "skip",
+  );
 
   return useMemo(() => {
     if (isRider) {
@@ -144,7 +150,9 @@ export function useHome(): HomeModel | undefined {
       };
     }
 
-    if (pickerOrders === undefined) return undefined;
+    if (pickerOrders === undefined || pickerItems === undefined) {
+      return undefined;
+    }
     const sorted = sortPickerQueue(pickerOrders);
     const picking = sorted.find((o) => o.order_status === "Processing");
     const items = picking?.items as { is_picked?: boolean }[] | undefined;
@@ -153,17 +161,21 @@ export function useHome(): HomeModel | undefined {
 
     return {
       summary: {
-        // The design shows "Picked today" and "Accuracy". Neither has a backend
-        // source: nothing aggregates a picker's item count per day, and there
-        // is no accuracy metric at all. Showing what can be counted honestly.
+        // "Picked today" is now real, from picker_activity. Note it counts LINE
+        // ITEMS, not units — three loaves is one item, which is how a picker
+        // experiences the work.
         primary: {
-          label: "Orders today",
-          value: String(sorted.length),
-          unit: "assigned",
+          label: "Picked today",
+          value: String(pickerItems.itemsToday),
+          unit: "items",
         },
+        // "Accuracy" from the design still has no backend source — there is no
+        // metric for it anywhere — so this reports orders completed today,
+        // which the same table does record.
         secondary: {
-          label: "Being picked",
-          value: String(sorted.filter((o) => o.order_status === "Processing").length),
+          label: "Orders done",
+          value: String(pickerItems.ordersToday),
+          unit: "today",
         },
       },
       active: picking
@@ -180,7 +192,7 @@ export function useHome(): HomeModel | undefined {
         sorted.filter((o) => o.order_status !== "Processing").map(toPickerQueueItem)[0] ??
         null,
     };
-  }, [isRider, dashboard, pickerOrders]);
+  }, [isRider, dashboard, pickerOrders, pickerItems]);
 }
 
 // ---------------------------------------------------------------------------
@@ -373,6 +385,30 @@ export function usePendingPrescriptions():
         .trim(),
     }));
   }, [docs]);
+}
+
+/**
+ * The prescription authorising a specific pick-list item.
+ *
+ * Returns null when the item carries no link, which is every row created before
+ * `order_items.prescription_id` existed. Callers fall back to the picker's
+ * pending queue in that case rather than showing nothing.
+ */
+export function usePrescriptionForItem(itemId: Id<"order_items"> | null) {
+  return useQuery(
+    api.data.prescriptions.getPrescriptionForOrderItem,
+    itemId ? { itemId } : "skip",
+  );
+}
+
+/** The items a prescription authorises, so a review can name what it approves. */
+export function usePrescriptionItems(
+  prescriptionId: Id<"prescriptions"> | null,
+) {
+  return useQuery(
+    api.data.prescriptions.getOrderItemsForPrescription,
+    prescriptionId ? { prescriptionId } : "skip",
+  );
 }
 
 export function usePrescriptionImage(

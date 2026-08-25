@@ -1,5 +1,5 @@
 import { v, ConvexError } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import { internalMutation, mutation, query } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import {
   prescriptionStatus,
@@ -516,5 +516,167 @@ export const getPrescriptionStatuses = query({
     );
 
     return results;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Order item <-> prescription
+// ---------------------------------------------------------------------------
+
+/**
+ * The prescription authorising a specific order item, with its document URL.
+ *
+ * Before `order_items.prescription_id` existed, a picker could be told an item
+ * required a prescription check but not which document to check: prescriptions
+ * are keyed by customer + vendor, so an order with two prescription items and
+ * two uploaded documents was ambiguous. This resolves the link directly.
+ *
+ * Returns null when the item has no link, which is the case for every row
+ * created before the field was added — `backfillOrderItemPrescriptions` fills
+ * those in, and callers should fall back to the picker's pending queue.
+ */
+export const getPrescriptionForOrderItem = query({
+  args: { itemId: v.id("order_items") },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.itemId);
+    if (!item?.prescription_id) return null;
+
+    const prescription = await ctx.db.get(item.prescription_id);
+    if (!prescription) return null;
+
+    const [documentUrl, customer] = await Promise.all([
+      ctx.storage.getUrl(prescription.prescription_document),
+      ctx.db.get(prescription.user_id),
+    ]);
+
+    return {
+      ...prescription,
+      documentUrl,
+      customer_name: customer
+        ? `${customer.first_name} ${customer.last_name}`.trim()
+        : undefined,
+      item: {
+        _id: item._id,
+        name: item.name,
+        quantity: item.quantity,
+        order_id: item.order_id,
+      },
+    };
+  },
+});
+
+/**
+ * The items a prescription authorises, so a review screen can name what it is
+ * approving rather than showing a bare image.
+ *
+ * Uses the `by_prescription` index; returns an empty array for a prescription
+ * whose order predates the link.
+ */
+export const getOrderItemsForPrescription = query({
+  args: { prescriptionId: v.id("prescriptions") },
+  handler: async (ctx, args) => {
+    const items = await ctx.db
+      .query("order_items")
+      .withIndex("by_prescription", (q) =>
+        q.eq("prescription_id", args.prescriptionId),
+      )
+      .collect();
+
+    const orderIds = [...new Set(items.map((i) => i.order_id))];
+    const orders = await Promise.all(orderIds.map((id) => ctx.db.get(id)));
+    const referenceById = new Map(
+      orders.filter((o) => o !== null).map((o) => [o!._id, o!.reference]),
+    );
+
+    return items.map((item) => ({
+      _id: item._id,
+      name: item.name,
+      quantity: item.quantity,
+      order_id: item.order_id,
+      order_reference: referenceById.get(item.order_id),
+    }));
+  },
+});
+
+/**
+ * Backfills `prescription_id` on order items created before the field existed.
+ *
+ * Paginated and idempotent, per the migration rules: never `.collect()` the
+ * whole table (the 16k-document read ceiling is a hard throw, not a slowdown),
+ * and safe to re-run. Returns a cursor so a caller can drive it to completion,
+ * and reports what it could not resolve rather than guessing.
+ *
+ * Internal, not public: it is a migration that writes, and nothing in any app
+ * should be able to trigger it. An operator still runs it with
+ * `npx convex run data/prescriptions:backfillOrderItemPrescriptions`, which
+ * works for internal functions.
+ *
+ * The resolution is the same one the finalizers make: the approved prescription
+ * for this order's customer and vendor. Where a customer has more than one
+ * approved prescription with that vendor, the OLDEST is chosen — it is the one
+ * that existed when the order was placed. That is a heuristic, and it is why
+ * this reports `ambiguous` separately: those rows are worth a human look.
+ */
+export const backfillOrderItemPrescriptions = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const batchSize = Math.min(args.batchSize ?? 200, 500);
+
+    const page = await ctx.db
+      .query("order_items")
+      .paginate({ cursor: args.cursor ?? null, numItems: batchSize });
+
+    let linked = 0;
+    let skipped = 0;
+    let ambiguous = 0;
+    let unresolved = 0;
+
+    for (const item of page.page) {
+      if (!item.requires_prescription || item.prescription_id) {
+        skipped++;
+        continue;
+      }
+
+      const order = await ctx.db.get(item.order_id);
+      if (!order) {
+        unresolved++;
+        continue;
+      }
+
+      const approved = await ctx.db
+        .query("prescriptions")
+        .withIndex("by_user", (q) => q.eq("user_id", order.user_id))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("vendor_id"), order.vendor_id),
+            q.eq(q.field("status"), "approved"),
+          ),
+        )
+        .collect();
+
+      if (approved.length === 0) {
+        unresolved++;
+        continue;
+      }
+      if (approved.length > 1) ambiguous++;
+
+      const oldest = approved.reduce((a, b) =>
+        a.uploaded_at <= b.uploaded_at ? a : b,
+      );
+      await ctx.db.patch(item._id, { prescription_id: oldest._id });
+      linked++;
+    }
+
+    return {
+      linked,
+      skipped,
+      ambiguous,
+      unresolved,
+      isDone: page.isDone,
+      cursor: page.continueCursor,
+    };
   },
 });

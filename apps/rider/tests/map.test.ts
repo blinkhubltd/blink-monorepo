@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Id } from "@repo/backend/dataModel";
 import {
   confirmationMode,
   coordinatesOf,
@@ -15,6 +16,9 @@ import {
   toPickItem,
   toQueueItem,
 } from "../lib/data/map";
+
+/** Branded ids are opaque strings at runtime; tests only need the brand. */
+const itemId = (s: string) => s as unknown as Id<"order_items">;
 
 describe("formatAddress", () => {
   it("joins only the parts that are present", () => {
@@ -170,23 +174,23 @@ describe("itemLocation", () => {
   it("does not print the backend's synthetic aisle values", () => {
     // getPickerOrderDetails sets aisle to the literal "A1" or "General" from
     // whether the product has a category. There is no shelf field at all.
-    expect(itemLocation({ _id: "1", quantity: 1, aisle: "A1" })).toBe(
+    expect(itemLocation({ _id: itemId("1"), quantity: 1, aisle: "A1" })).toBe(
       "In store",
     );
-    expect(itemLocation({ _id: "1", quantity: 1, aisle: "General" })).toBe(
+    expect(itemLocation({ _id: itemId("1"), quantity: 1, aisle: "General" })).toBe(
       "In store",
     );
   });
 
   it("keeps a real aisle if one ever arrives", () => {
-    expect(itemLocation({ _id: "1", quantity: 1, aisle: "Aisle 3" })).toBe(
+    expect(itemLocation({ _id: itemId("1"), quantity: 1, aisle: "Aisle 3" })).toBe(
       "Aisle 3",
     );
   });
 
   it("sends a prescription item to the counter", () => {
     expect(
-      itemLocation({ _id: "1", quantity: 1, requires_prescription: true }),
+      itemLocation({ _id: itemId("1"), quantity: 1, requires_prescription: true }),
     ).toBe("Pharmacy counter");
   });
 });
@@ -194,7 +198,7 @@ describe("itemLocation", () => {
 describe("toPickItem", () => {
   it("prefers the joined product name over the snapshot name", () => {
     const item = toPickItem({
-      _id: "i1",
+      _id: itemId("i1"),
       name: "old snapshot",
       product_name: "Blue Band 500g",
       quantity: 2,
@@ -204,7 +208,7 @@ describe("toPickItem", () => {
   });
 
   it("treats absent flags as false, not undefined", () => {
-    const item = toPickItem({ _id: "i1", quantity: 1 });
+    const item = toPickItem({ _id: itemId("i1"), quantity: 1 });
     expect(item.picked).toBe(false);
     expect(item.requiresPrescription).toBe(false);
   });

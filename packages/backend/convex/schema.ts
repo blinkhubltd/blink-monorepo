@@ -125,7 +125,10 @@ export default defineSchema({
     .index("by_product", ["product_id"])
     .index("by_vendor", ["vendor_id"])
     .index("by_barcodeVerified", ["barcodeVerified"])
-    .index("by_name", ["name"]),
+    .index("by_name", ["name"])
+    // Reverse lookup: which items a given prescription authorises. Lets the
+    // review screen name what it is approving instead of showing a bare image.
+    .index("by_prescription", ["prescription_id"]),
 
   vendors: defineTable(VendorsValidator)
     .index("by_coordinates", ["coordinates"])

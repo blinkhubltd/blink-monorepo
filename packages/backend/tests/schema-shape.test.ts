@@ -60,7 +60,15 @@ function canonical(value: unknown): unknown {
 function shapes(): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [name, val] of Object.entries(V)) {
-    if (name.endsWith("Validator") && isValidator(val)) {
+    // Any exported validator, not just names ending in "Validator".
+    //
+    // The suffix filter was a real gap: `OrderItemWithoutOrderId` is the wire
+    // format of the `items` argument to both order finalizers and to
+    // `order_items.createMany`, and it was not fingerprinted at all. Shared
+    // shapes like `postalAddress` and `weeklyShiftSchedule` were also missed,
+    // and those are reused across several tables — a change to one of them
+    // changes every table that embeds it.
+    if (isValidator(val)) {
       out[name] = canonical(val.json);
     }
   }
@@ -101,5 +109,52 @@ describe("the idempotency key is present and optional", () => {
     // Must stay optional: existing orders predate the field, and the standard
     // paid path never sets it.
     expect(orders.value.idempotency_key.optional).toBe(true);
+  });
+});
+
+describe("the prescription link is present and optional", () => {
+  /**
+   * `order_items.prescription_id` says WHICH prescription authorises an item.
+   * `requires_prescription` only says that one is needed, which left a picker
+   * with two prescription items and two uploaded documents guessing.
+   */
+  const itemShapes = {
+    OrderItemValidator: V.OrderItemValidator,
+    OrderItemWithoutOrderId: V.OrderItemWithoutOrderId,
+    OrderItemUpdateValidator: V.OrderItemUpdateValidator,
+  };
+
+  for (const [name, validator] of Object.entries(itemShapes)) {
+    it(`${name} carries an optional prescription_id`, () => {
+      const shape = canonical(validator.json) as {
+        value: Record<
+          string,
+          { optional: boolean; fieldType: { type: string; tableName?: string } }
+        >;
+      };
+      const field = shape.value.prescription_id;
+      expect(field).toBeDefined();
+      // Must stay optional: every order item created before this field existed
+      // has no value for it, and making it required would invalidate all of
+      // them. backfillOrderItemPrescriptions fills them in over time; it does
+      // not make the field mandatory.
+      expect(field!.optional).toBe(true);
+      expect(field!.fieldType.type).toBe("id");
+      expect(field!.fieldType.tableName).toBe("prescriptions");
+    });
+  }
+
+  it("all three item shapes agree, so a round-trip cannot strip the link", () => {
+    // OrderItemWithoutOrderId is the finalizers' argument shape and
+    // OrderItemUpdateValidator is the patch shape. If either lacked the field,
+    // an order created or updated through it would silently lose the link.
+    const keysOf = (validator: { json: unknown }) =>
+      Object.keys(
+        (canonical(validator.json) as { value: Record<string, unknown> }).value,
+      );
+
+    const full = keysOf(V.OrderItemValidator).filter((k) => k !== "order_id");
+    expect(keysOf(V.OrderItemWithoutOrderId).sort()).toEqual(full.sort());
+    expect(keysOf(V.OrderItemUpdateValidator)).toContain("prescription_id");
   });
 });

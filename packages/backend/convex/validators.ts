@@ -423,6 +423,18 @@ export const OrderItemValidator = v.object({
   is_picked: v.optional(v.boolean()),
   picked_quantity: v.optional(v.number()),
   requires_prescription: v.optional(v.boolean()),
+  /**
+   * The prescription that authorises this item.
+   *
+   * `requires_prescription` says an item needs one; this says WHICH one. Without
+   * it a picker can be told an item needs a prescription check but not which
+   * document to check, because prescriptions are keyed by customer + vendor and
+   * were never linked to the item they authorise.
+   *
+   * Optional, and unset on every row created before this field existed —
+   * `prescriptions.backfillOrderItemPrescriptions` fills those in.
+   */
+  prescription_id: v.optional(v.id("prescriptions")),
 });
 
 export const OrderItemWithoutOrderId = v.object({
@@ -442,6 +454,7 @@ export const OrderItemWithoutOrderId = v.object({
   is_picked: v.optional(v.boolean()),
   picked_quantity: v.optional(v.number()),
   requires_prescription: v.optional(v.boolean()), // Track if this item required prescription
+  prescription_id: v.optional(v.id("prescriptions")),
 });
 
 export const OrderItemUpdateValidator = v.object({
@@ -462,6 +475,7 @@ export const OrderItemUpdateValidator = v.object({
   is_picked: v.optional(v.boolean()),
   picked_quantity: v.optional(v.number()),
   requires_prescription: v.optional(v.boolean()), // Track if this item required prescription
+  prescription_id: v.optional(v.id("prescriptions")),
 });
 
 export const UsersValidator = v.object({

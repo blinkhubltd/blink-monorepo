@@ -7,6 +7,7 @@
  * address lives across four optional fields. The mapping from documents to
  * these types is the only place that has to change when the backend does.
  */
+import type { Id } from "@repo/backend/dataModel";
 import type { CrewRole } from "../roles";
 
 export interface Crew {
@@ -47,7 +48,12 @@ export interface DeliveryDetail {
 }
 
 export interface PickItem {
-  id: string;
+  /**
+   * Typed as a real document id, not a string: this value is passed straight
+   * back to markItemPicked and to the prescription lookup, and casting it at
+   * each call site is how the wrong id ends up in a mutation.
+   */
+  id: Id<"order_items">;
   name: string;
   /** Shelf location, e.g. "Aisle 3" or "Pharmacy counter". */
   location: string;

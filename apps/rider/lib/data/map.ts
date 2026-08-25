@@ -5,6 +5,7 @@
  * the data model are tested rather than discovered on a rider's phone. The
  * structural mismatches these functions absorb are called out at each site.
  */
+import type { Id } from "@repo/backend/dataModel";
 import type {
   CrewNotification,
   CrewNotificationKind,
@@ -303,7 +304,7 @@ export function confirmationMode(
 // ---------------------------------------------------------------------------
 
 export interface OrderItemDoc {
-  _id: string;
+  _id: Id<"order_items">;
   name?: string;
   product_name?: string;
   quantity: number;

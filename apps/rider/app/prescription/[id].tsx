@@ -15,6 +15,7 @@ import { ScreenHeader } from "../../components/ScreenHeader";
 import {
   usePrescriptionActions,
   usePrescriptionImage,
+  usePrescriptionItems,
   useRejectionReasons,
 } from "../../lib/data";
 
@@ -32,6 +33,8 @@ export default function PrescriptionReviewRoute() {
     (storageId ?? null) as Id<"_storage"> | null,
   );
 
+  // What this prescription actually authorises, via order_items.by_prescription.
+  const items = usePrescriptionItems(prescriptionId);
   const reasons = useRejectionReasons();
   const actions = usePrescriptionActions();
 
@@ -76,21 +79,53 @@ export default function PrescriptionReviewRoute() {
       <ScreenHeader title="Prescription review" />
       <Screen>
         <View className="gap-space-4 pb-space-7">
-          <Card className="flex-row items-center justify-between">
-            <View className="flex-1 pr-space-4">
-              <Text weight="bold" className="text-strong">
-                Prescription
-              </Text>
-              {/*
-                No product or dosage is shown. The prescriptions table holds the
-                document, the customer and the vendor — it has no link to a
-                product, so naming one here would be invention.
-              */}
-              <Text variant="muted" size="sm">
-                Check the customer&rsquo;s ID against the name on the document.
-              </Text>
+          <Card className="gap-space-3">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-space-4">
+                <Text weight="bold" className="text-strong">
+                  Prescription
+                </Text>
+                <Text variant="muted" size="sm">
+                  Check the customer&rsquo;s ID against the name on the
+                  document.
+                </Text>
+              </View>
+              <Badge variant="warning" label="Requires ID check" />
             </View>
-            <Badge variant="warning" label="Requires ID check" />
+
+            {/*
+              The items this document authorises. Only resolvable because
+              order_items now carries prescription_id — the prescriptions table
+              itself has no link to a product, so before that this screen could
+              not say what it was approving.
+            */}
+            {items === undefined ? (
+              <Skeleton className="h-space-5 w-[200px]" />
+            ) : items.length > 0 ? (
+              <View className="gap-space-2 border-t-hairline border-border pt-space-3">
+                <Text variant="eyebrow" size="label">
+                  Authorises
+                </Text>
+                {items.map((item) => (
+                  <View
+                    key={item._id}
+                    className="flex-row items-center justify-between"
+                  >
+                    <Text size="sm" weight="medium" className="flex-1 pr-space-3">
+                      {item.name}
+                    </Text>
+                    <Text variant="muted" size="sm">
+                      Qty {item.quantity}
+                      {item.order_reference ? ` · #${item.order_reference}` : ""}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text variant="subtle" size="caption">
+                No linked items — this prescription predates item linking.
+              </Text>
+            )}
           </Card>
 
           {imageLoading ? (

@@ -2076,6 +2076,13 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         },
         "optional": true,
       },
+      "prescription_id": {
+        "fieldType": {
+          "tableName": "prescriptions",
+          "type": "id",
+        },
+        "optional": true,
+      },
       "price": {
         "fieldType": {
           "type": "number",
@@ -2183,6 +2190,123 @@ exports[`table shapes > matches the committed snapshot 1`] = `
       "picked_quantity": {
         "fieldType": {
           "type": "number",
+        },
+        "optional": true,
+      },
+      "prescription_id": {
+        "fieldType": {
+          "tableName": "prescriptions",
+          "type": "id",
+        },
+        "optional": true,
+      },
+      "price": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+      "product_id": {
+        "fieldType": {
+          "tableName": "products",
+          "type": "id",
+        },
+        "optional": false,
+      },
+      "quantity": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+      "requires_prescription": {
+        "fieldType": {
+          "type": "boolean",
+        },
+        "optional": true,
+      },
+      "sku": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": false,
+      },
+      "tax": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+      "total": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+      "unit_type": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "unit_value": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": true,
+      },
+      "vendor_id": {
+        "fieldType": {
+          "tableName": "vendors",
+          "type": "id",
+        },
+        "optional": false,
+      },
+    },
+  },
+  "OrderItemWithoutOrderId": {
+    "type": "object",
+    "value": {
+      "barcodeVerified": {
+        "fieldType": {
+          "type": "boolean",
+        },
+        "optional": true,
+      },
+      "barcodeVerifiedAt": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": true,
+      },
+      "discount": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+      "is_picked": {
+        "fieldType": {
+          "type": "boolean",
+        },
+        "optional": true,
+      },
+      "name": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": false,
+      },
+      "picked_quantity": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": true,
+      },
+      "prescription_id": {
+        "fieldType": {
+          "tableName": "prescriptions",
+          "type": "id",
         },
         "optional": true,
       },
@@ -5978,6 +6102,407 @@ exports[`table shapes > matches the committed snapshot 1`] = `
           "type": "id",
         },
         "optional": false,
+      },
+    },
+  },
+  "addressWithCoordinates": {
+    "type": "object",
+    "value": {
+      "address": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": false,
+      },
+      "lat": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+      "lng": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+    },
+  },
+  "geoPoint": {
+    "type": "object",
+    "value": {
+      "lat": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+      "lng": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": false,
+      },
+    },
+  },
+  "postalAddress": {
+    "type": "object",
+    "value": {
+      "address_1": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "address_2": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "city": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "country": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+    },
+  },
+  "weeklyOpeningHours": {
+    "type": "object",
+    "value": {
+      "Friday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Monday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Saturday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Sunday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Thursday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Tuesday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Wednesday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+    },
+  },
+  "weeklyShiftSchedule": {
+    "type": "object",
+    "value": {
+      "Friday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "enabled": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Monday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "enabled": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Saturday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "enabled": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Sunday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "enabled": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Thursday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "enabled": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Tuesday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "enabled": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
+      },
+      "Wednesday": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "enabled": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "endTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+            "startTime": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": false,
+            },
+          },
+        },
+        "optional": true,
       },
     },
   },
