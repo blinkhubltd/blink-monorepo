@@ -210,8 +210,12 @@ export interface DeliveryModel {
 export function useDelivery(
   shipmentId: Id<"shipments"> | null,
 ): DeliveryModel | null | undefined {
+  // getCrewDeliveryDetail, not getShipmentDetails: that one returns four whole
+  // documents with no auth check — the vendor's commission and bank details, the
+  // customer's email and address book, and any shipment to any caller. This is
+  // projected to the job and scoped to the assigned rider.
   const doc = useQuery(
-    api.data.shipments.getShipmentDetails,
+    api.data.shipments.getCrewDeliveryDetail,
     shipmentId ? { shipmentId } : "skip",
   );
 

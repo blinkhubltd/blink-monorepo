@@ -249,7 +249,7 @@ export interface ShipmentDetailDoc {
     payment_status?: string;
     total_amount?: number;
     delivery_code_verified?: boolean;
-    notes?: string;
+    special_instructions?: string;
   } | null;
   customer?: {
     first_name?: string;
@@ -277,7 +277,10 @@ export function toDeliveryDetail(doc: ShipmentDetailDoc): DeliveryDetail {
     customerPhone: doc.customer?.phone ?? null,
     itemCount: doc.itemCount ?? 0,
     total: doc.order?.total_amount ?? 0,
-    note: doc.order?.notes ?? null,
+    // `orders.notes` does not exist — the field is `special_instructions`, so
+    // this read `undefined` and the customer's delivery instruction never
+    // appeared on the screen that exists to show it.
+    note: doc.order?.special_instructions ?? null,
     verified: doc.order?.delivery_code_verified === true,
   };
 }
