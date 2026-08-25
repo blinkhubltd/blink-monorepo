@@ -6,9 +6,13 @@ interface ScreenProps extends ViewProps {
   /** Scrollable body. Set false for screens that centre their content. */
   scroll?: boolean;
   /**
-   * Pull-to-refresh. Omit it and no refresh control is attached at all — the
-   * reference app rendered a spinner tied to a setTimeout, so pulling appeared
-   * to refresh while fetching nothing.
+   * Pull-to-refresh. Omit it and no refresh control is attached at all.
+   *
+   * Most screens omit it deliberately. Convex queries are live subscriptions, so
+   * the data is already current and there is nothing for a pull to fetch — the
+   * reference app rendered a spinner tied to a setTimeout, which is the same
+   * gesture doing the same nothing, just less honestly. Pass onRefresh only
+   * where there is a real non-reactive action to run.
    */
   onRefresh?: () => void | Promise<void>;
   refreshing?: boolean;

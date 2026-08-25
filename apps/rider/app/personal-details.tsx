@@ -31,9 +31,13 @@ function FieldList({ fields }: { fields: Field[] }) {
 }
 
 /**
- * Read-only for now. Crew details are maintained by the hub, so editing them
- * from the app would need an approval flow that does not exist yet — showing
- * them without an edit affordance is honest; a disabled form is not.
+ * Read-only, and deliberately so.
+ *
+ * `users.updateUserPhone` exists, but it is a public mutation taking a
+ * client-supplied `userId` with no ownership check — verified: the handler looks
+ * the user up and patches it, and that is all. Wiring an edit form to it would
+ * put a "change any user's phone number" endpoint one screen from the crew app.
+ * It needs an ownership guard first.
  */
 export default function PersonalDetailsRoute() {
   const { crew } = useCrew();
@@ -48,6 +52,9 @@ export default function PersonalDetailsRoute() {
               { label: "Name", value: crew?.name ?? "—" },
               { label: "Role", value: crew ? roleLabel(crew.role) : "—" },
               { label: "Hub", value: crew?.hubName ?? "—" },
+              // Phone is not shown: the crew document has it, but the only way
+              // to change it is the unguarded mutation above, and displaying a
+              // field with no way to correct it invites a support ticket.
             ]}
           />
           <Text variant="muted" size="sm">

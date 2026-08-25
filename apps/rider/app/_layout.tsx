@@ -18,6 +18,7 @@ import {
   Rubik_800ExtraBold,
 } from "@expo-google-fonts/rubik";
 
+import { ConvexClerkProvider } from "../providers/ConvexClerkProvider";
 import { CrewProvider } from "../providers/CrewProvider";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -48,7 +49,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <CrewProvider>
+        <ConvexClerkProvider>
+          <CrewProvider>
           <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
           {/*
             headerShown is off for the whole app. Pushed screens render their own
@@ -61,7 +63,8 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
           </Stack>
           <PortalHost />
-        </CrewProvider>
+          </CrewProvider>
+        </ConvexClerkProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

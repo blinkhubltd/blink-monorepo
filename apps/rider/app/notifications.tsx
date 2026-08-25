@@ -1,13 +1,20 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { View } from "react-native";
-import { BellOff, Bike, CalendarClock, CreditCard, TrendingUp } from "lucide-react-native";
+import {
+  BellOff,
+  Bike,
+  CalendarClock,
+  CreditCard,
+  TrendingUp,
+} from "lucide-react-native";
 import { Card } from "@repo/mobile-ui/components/ui/card";
+import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { EmptyState } from "../components/EmptyState";
 import { Screen } from "../components/Screen";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { formatClock } from "../lib/format";
-import { fixtureNotifications } from "../lib/data/fixtures";
+import { useMarkNotificationsRead, useNotifications } from "../lib/data";
 import type { CrewNotification, CrewNotificationKind } from "../lib/data/types";
 
 const KIND_ICON: Record<CrewNotificationKind, typeof Bike> = {
@@ -39,27 +46,47 @@ function groupByDay(items: CrewNotification[], now: number): Group[] {
   startOfToday.setHours(0, 0, 0, 0);
   const boundary = startOfToday.getTime();
 
-  const today = items.filter((n) => n.createdAt >= boundary);
-  const earlier = items.filter((n) => n.createdAt < boundary);
-
   return [
-    { label: "Today", items: today },
-    { label: "Earlier", items: earlier },
+    { label: "Today", items: items.filter((n) => n.createdAt >= boundary) },
+    { label: "Earlier", items: items.filter((n) => n.createdAt < boundary) },
   ].filter((g) => g.items.length > 0);
 }
 
 export default function NotificationsRoute() {
-  const now = Date.now();
+  const items = useNotifications();
+  const markRead = useMarkNotificationsRead();
+  const now = useMemo(() => Date.now(), []);
+
+  // Opening the screen is the read receipt. Runs once the list has actually
+  // arrived, and only when something is unread, so it does not fire a mutation
+  // on every visit.
+  const hasUnread = items?.some((n) => !n.read) ?? false;
+  useEffect(() => {
+    if (hasUnread) {
+      void markRead().catch(() => {
+        // Non-fatal: the badge just stays until the next visit.
+      });
+    }
+  }, [hasUnread, markRead]);
+
   const groups = useMemo(
-    () => groupByDay(fixtureNotifications(now), now),
-    [now],
+    () => (items === undefined ? undefined : groupByDay(items, now)),
+    [items, now],
   );
 
   return (
     <View className="flex-1 bg-background">
       <ScreenHeader title="Notifications" />
-      <Screen scroll={groups.length > 0}>
-        {groups.length === 0 ? (
+      <Screen scroll={groups !== undefined && groups.length > 0}>
+        {groups === undefined ? (
+          <View className="gap-space-3">
+            {[0, 1, 2, 3].map((i) => (
+              <Card key={i} className="h-[60px]">
+                <Skeleton className="h-space-4 w-[180px]" />
+              </Card>
+            ))}
+          </View>
+        ) : groups.length === 0 ? (
           <EmptyState
             icon={<BellOff size={32} strokeWidth={2} className="text-subtle" />}
             title="Nothing new"
@@ -96,7 +123,10 @@ export default function NotificationsRoute() {
                           <Text variant="muted" size="label">
                             {group.label === "Today"
                               ? formatClock(item.createdAt)
-                              : "Yesterday"}
+                              : new Date(item.createdAt).toLocaleDateString(
+                                  "en-KE",
+                                  { day: "numeric", month: "short" },
+                                )}
                           </Text>
                         </View>
                         {!item.read ? (

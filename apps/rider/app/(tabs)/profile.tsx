@@ -16,15 +16,14 @@ import { Switch } from "@repo/mobile-ui/components/ui/switch";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { ListRow } from "../../components/ListRow";
 import { Screen } from "../../components/Screen";
-import { useCrew, useToggleRole } from "../../providers/CrewProvider";
+import { useCrew } from "../../providers/CrewProvider";
 import { initials } from "../../lib/format";
 import { roleLabel } from "../../lib/roles";
 
 export default function ProfileRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { crew, loading } = useCrew();
-  const toggleRole = useToggleRole();
+  const { crew, loading, signOut } = useCrew();
   const { colorScheme, setColorScheme } = useColorScheme();
   const dark = colorScheme === "dark";
 
@@ -114,24 +113,16 @@ export default function ProfileRoute() {
             icon={
               <LogOut size={18} strokeWidth={2} className="text-destructive" />
             }
-            onPress={() => router.replace("/(auth)/sign-in")}
+            onPress={() => {
+              // Clerk clears the session and the secure-store token cache; the
+              // gate at "/" then routes to sign-in. Replacing the route without
+              // signing out would leave the session live and bounce straight
+              // back in.
+              void signOut().then(() => router.replace("/"));
+            }}
           />
         </Card>
 
-        {/*
-          Dev-only. In production the role comes from the crew member's role
-          document and cannot be switched from the app.
-        */}
-        {__DEV__ ? (
-          <Card className="gap-0 p-0">
-            <ListRow
-              label={`Dev: switch to ${crew?.role === "rider" ? "picker" : "rider"}`}
-              divider={false}
-              icon={<User size={18} strokeWidth={2} className="text-subtle" />}
-              onPress={toggleRole}
-            />
-          </Card>
-        ) : null}
       </View>
     </Screen>
   );

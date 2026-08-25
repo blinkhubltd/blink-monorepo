@@ -1,27 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { isClerkAPIResponseError, useSignIn } from "@clerk/clerk-expo";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { OtpInput } from "../../components/OtpInput";
 import { Screen } from "../../components/Screen";
+import { maskE164 } from "../../lib/phone";
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
-/** "+254712345678" -> "+254 712 ••• 678" */
-function maskPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 9) return phone;
-  const local = digits.slice(-9);
-  return `+254 ${local.slice(0, 3)} ••• ${local.slice(-3)}`;
-}
-
 export default function VerifyRoute() {
   const router = useRouter();
   const { phone } = useLocalSearchParams<{ phone?: string }>();
+  const { signIn, setActive, isLoaded } = useSignIn();
   const [code, setCode] = useState("");
-  const [invalid, setInvalid] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
   const submittedFor = useRef<string | null>(null);
@@ -34,16 +29,43 @@ export default function VerifyRoute() {
 
   async function submit(value: string) {
     // Autofill can deliver the full code and fire onChange more than once;
-    // without this guard the verify mutation runs twice.
-    if (submittedFor.current === value) return;
+    // without this guard the attempt runs twice and the second one fails as a
+    // reused code.
+    if (submittedFor.current === value || !isLoaded || !signIn || !setActive) {
+      return;
+    }
     submittedFor.current = value;
     setSubmitting(true);
-    setInvalid(false);
+    setError(null);
     try {
-      // Clerk attemptFirstFactor goes here.
-      router.replace("/(tabs)");
-    } catch {
-      setInvalid(true);
+      const attempt = await signIn.attemptFirstFactor({
+        strategy: "phone_code",
+        code: value,
+      });
+      if (attempt.status !== "complete") {
+        // Clerk can require a second factor. There is no UI for it here, so say
+        // so rather than leaving the rider on a screen that cannot proceed.
+        setError(
+          "This account needs another verification step. Contact your hub lead.",
+        );
+        submittedFor.current = null;
+        return;
+      }
+      await setActive({ session: attempt.createdSessionId });
+      // Back to the gate rather than straight to the tabs: it is the one place
+      // that decides whether this crew member may actually use the app.
+      router.replace("/");
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        const failed = err.errors[0]?.code;
+        setError(
+          failed === "form_code_incorrect" || failed === "verification_failed"
+            ? "That code didn’t match. Try again."
+            : (err.errors[0]?.longMessage ?? "Verification failed."),
+        );
+      } else {
+        setError("Verification failed. Check your connection and try again.");
+      }
       setCode("");
       submittedFor.current = null;
     } finally {
@@ -51,9 +73,30 @@ export default function VerifyRoute() {
     }
   }
 
+  async function resend() {
+    if (!isLoaded || !signIn) return;
+    setError(null);
+    setCode("");
+    submittedFor.current = null;
+    try {
+      const factor = signIn.supportedFirstFactors?.find(
+        (f) => f.strategy === "phone_code",
+      );
+      if (factor && "phoneNumberId" in factor) {
+        await signIn.prepareFirstFactor({
+          strategy: "phone_code",
+          phoneNumberId: factor.phoneNumberId,
+        });
+      }
+      setSecondsLeft(RESEND_SECONDS);
+    } catch {
+      setError("Could not resend the code.");
+    }
+  }
+
   function onChange(value: string) {
     setCode(value);
-    setInvalid(false);
+    setError(null);
     if (value.length === CODE_LENGTH) void submit(value);
   }
 
@@ -72,7 +115,7 @@ export default function VerifyRoute() {
           </Text>
           <Text variant="muted">
             We sent a {CODE_LENGTH}-digit code to{" "}
-            {phone ? maskPhone(phone) : "your phone"}.
+            {phone ? maskE164(phone) : "your phone"}.
           </Text>
         </View>
 
@@ -80,13 +123,13 @@ export default function VerifyRoute() {
           value={code}
           onChange={onChange}
           length={CODE_LENGTH}
-          invalid={invalid}
+          invalid={error !== null}
           editable={!submitting}
           autoFocus
         />
-        {invalid ? (
+        {error ? (
           <Text variant="destructive" size="sm">
-            That code didn’t match. Try again.
+            {error}
           </Text>
         ) : null}
 
@@ -109,7 +152,7 @@ export default function VerifyRoute() {
           ) : (
             <Pressable
               accessibilityRole="button"
-              onPress={() => setSecondsLeft(RESEND_SECONDS)}
+              onPress={() => void resend()}
               className="active:opacity-70"
             >
               <Text

@@ -5,6 +5,7 @@ import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Card } from "@repo/mobile-ui/components/ui/card";
 import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
+import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { BarChart } from "../../components/BarChart";
 import { ProgressBar } from "../../components/ProgressBar";
@@ -13,16 +14,19 @@ import { SegmentedTabs } from "../../components/SegmentedTabs";
 import { Stat } from "../../components/Stat";
 import { formatMoneyCompact } from "../../lib/format";
 import {
+  useCompletedDeliveries,
+  useIncentiveDashboard,
+  useSetDailyTarget,
+} from "../../lib/data";
+import { bucketsFor } from "../../lib/data/buckets";
+import { useCrewRole } from "../../providers/CrewProvider";
+import {
   buildChart,
   bucketTarget,
   clampTarget,
-  DEFAULT_INCENTIVE_RATES,
   periodPlan,
   progressPct,
-  projectEarnings,
-  summariseWeek,
   trendVsPlan,
-  type Bucket,
   type IncentivePeriod,
 } from "../../lib/incentives";
 
@@ -32,72 +36,75 @@ const PERIOD_TABS = [
   { value: "monthly", label: "Monthly" },
 ] as const satisfies readonly { value: IncentivePeriod; label: string }[];
 
-/** Fixture buckets, replaced by an aggregate query per the backend plan. */
-const BUCKETS: Record<IncentivePeriod, Bucket[]> = {
-  daily: [
-    { label: "8am", value: 1 },
-    { label: "10am", value: 2 },
-    { label: "12pm", value: 1 },
-    { label: "2pm", value: 2 },
-    { label: "4pm", value: 1 },
-    { label: "6pm", value: 1 },
-  ],
-  weekly: [
-    { label: "Mon", value: 11 },
-    { label: "Tue", value: 14 },
-    { label: "Wed", value: 9 },
-    { label: "Thu", value: 13 },
-    { label: "Fri", value: 15 },
-    { label: "Sat", value: 16 },
-    { label: "Sun", value: 8 },
-  ],
-  monthly: [
-    { label: "Wk 1", value: 78 },
-    { label: "Wk 2", value: 84 },
-    { label: "Wk 3", value: 91 },
-    { label: "Wk 4", value: 86 },
-  ],
-};
-
-const DELIVERIES_TODAY = 8;
-const PEAK_HOUR_BONUS = 320;
-const REFERRAL_BONUS = 0;
-const ON_TIME_RATE = "96%";
+/** Used only until a hub publishes a threshold or the crew member sets one. */
+const DEFAULT_TARGET = 12;
 
 export default function IncentivesRoute() {
   const insets = useSafeAreaInsets();
+  const role = useCrewRole();
+  const dashboard = useIncentiveDashboard();
+  const completed = useCompletedDeliveries();
+  const setDailyTarget = useSetDailyTarget();
+
   const [period, setPeriod] = useState<IncentivePeriod>("daily");
-  const [targetText, setTargetText] = useState("12");
+  const [targetDraft, setTargetDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const target = clampTarget(Number(targetText));
-  const rates = DEFAULT_INCENTIVE_RATES;
+  // `now` is captured once per render and threaded through, so every derived
+  // number on the screen agrees on what "today" means.
+  const now = Date.now();
 
-  const model = useMemo(() => {
-    const buckets = BUCKETS[period];
-    const chart = buildChart(
+  // getIncentiveDashboard falls back to 0 when the crew member has neither a
+  // saved target nor a hub config, so 0 means "unset", not "a target of zero".
+  const savedTarget = dashboard?.targets?.daily
+    ? dashboard.targets.daily
+    : null;
+  const target = clampTarget(
+    targetDraft !== null ? Number(targetDraft) : (savedTarget ?? DEFAULT_TARGET),
+  );
+
+  const chart = useMemo(() => {
+    if (completed === undefined) return undefined;
+    const buckets = bucketsFor(period, completed, now);
+    const model = buildChart(
       buckets,
-      bucketTarget(period, target, buckets.length, rates),
+      bucketTarget(period, target, buckets.length),
     );
     const total = buckets.reduce((sum, b) => sum + b.value, 0);
-    return { chart, trend: trendVsPlan(total, periodPlan(period, target)) };
-  }, [period, target, rates]);
+    return { ...model, trend: trendVsPlan(total, periodPlan(period, target)) };
+  }, [completed, period, target, now]);
 
-  const projection = projectEarnings(target, rates);
+  async function commitTarget(value: string) {
+    const next = clampTarget(Number(value));
+    setTargetDraft(String(next));
+    setSaving(true);
+    try {
+      await setDailyTarget(next);
+    } finally {
+      setSaving(false);
+    }
+  }
 
-  const week = useMemo(() => {
-    const deliveries = BUCKETS.weekly.reduce((sum, b) => sum + b.value, 0);
-    const summary = summariseWeek({
-      deliveries,
-      daysWorked: rates.workingDaysPerWeek,
-      peakHourBonus: PEAK_HOUR_BONUS,
-      referralBonus: REFERRAL_BONUS,
-      rates,
-    });
-    const best = BUCKETS.weekly.reduce((a, b) => (b.value > a.value ? b : a));
-    return { deliveries, summary, best };
-  }, [rates]);
+  if (dashboard === undefined) {
+    return (
+      <Screen withTabBar>
+        <View
+          style={{ paddingTop: insets.top + 12 }}
+          className="gap-space-5 pb-space-7"
+        >
+          <Skeleton className="h-space-8 w-[180px]" />
+          <Card className="h-[100px]" />
+          <Card className="h-[260px]" />
+          <Card className="h-[170px]" />
+        </View>
+      </Screen>
+    );
+  }
 
-  const todayBonus = DELIVERIES_TODAY * rates.bonusPerDelivery;
+  const doneToday = dashboard.counts.daily;
+  const config = dashboard.config;
+  const base = dashboard.baseEarnings;
+  const bonus = dashboard.bonus;
 
   return (
     <Screen withTabBar>
@@ -120,17 +127,17 @@ export default function IncentivesRoute() {
             <Text weight="bold" size="sm" variant="onInverse">
               Today&rsquo;s progress
             </Text>
-            <Badge
-              variant="warning"
-              label={`Est. ${formatMoneyCompact(todayBonus)}`}
-            />
+            {bonus.bonus > 0 ? (
+              <Badge
+                variant="warning"
+                label={`Est. ${formatMoneyCompact(bonus.bonus)}`}
+              />
+            ) : null}
           </View>
-          <ProgressBar
-            onInverse
-            pct={progressPct(DELIVERIES_TODAY, target)}
-          />
+          <ProgressBar onInverse pct={progressPct(doneToday, target)} />
           <Text size="label" weight="medium" className="text-ink-400">
-            {DELIVERIES_TODAY} of {target} deliveries
+            {doneToday} of {target}{" "}
+            {role === "rider" ? "deliveries" : "orders"}
           </Text>
         </Card>
 
@@ -140,23 +147,38 @@ export default function IncentivesRoute() {
             <Text variant="heading" size="h4">
               Progress overview
             </Text>
-            <Badge
-              variant={model.trend.tone === "success" ? "success" : "warning"}
-              label={model.trend.label}
-            />
+            {chart ? (
+              <Badge
+                variant={chart.trend.tone === "success" ? "success" : "warning"}
+                label={chart.trend.label}
+              />
+            ) : null}
           </View>
           <SegmentedTabs
             items={PERIOD_TABS}
             value={period}
             onChange={setPeriod}
           />
-          <BarChart
-            bars={model.chart.bars}
-            targetLinePct={model.chart.targetLinePct}
-          />
+          {chart === undefined ? (
+            <Skeleton className="h-[120px]" />
+          ) : (
+            <BarChart bars={chart.bars} targetLinePct={chart.targetLinePct} />
+          )}
           <Text variant="muted" size="label">
-            Dashed line marks your plan.
+            {role === "rider"
+              ? "Dashed line marks your plan. Counts completed deliveries."
+              : "Dashed line marks your plan."}
           </Text>
+          {/*
+            Riders only: the buckets are derived from the rider's own shipment
+            list because no backend query returns a time series. A picker has no
+            equivalent list, so there is nothing to bucket.
+          */}
+          {role !== "rider" ? (
+            <Text variant="subtle" size="caption">
+              A per-period breakdown isn&rsquo;t available for pickers yet.
+            </Text>
+          ) : null}
         </Card>
 
         {/* Target */}
@@ -167,95 +189,117 @@ export default function IncentivesRoute() {
           <View className="flex-row items-center gap-space-4">
             <Input
               containerClassName="w-[96px]"
-              value={targetText}
-              onChangeText={(t) => setTargetText(t.replace(/\D/g, ""))}
-              onBlur={() => setTargetText(String(target))}
+              value={targetDraft ?? String(target)}
+              onChangeText={(t) => setTargetDraft(t.replace(/\D/g, ""))}
+              onBlur={() => void commitTarget(targetDraft ?? String(target))}
               keyboardType="number-pad"
               maxLength={2}
-              accessibilityLabel="Daily delivery target"
+              editable={!saving}
+              accessibilityLabel="Daily target"
             />
             <Text variant="muted" size="sm">
-              deliveries per day
+              {role === "rider" ? "deliveries" : "orders"} per day
             </Text>
           </View>
-          <View className="gap-space-1 rounded-md bg-secondary p-space-4">
-            <View className="flex-row items-center justify-between">
-              <Text size="sm" weight="medium" className="flex-1 pr-space-3">
-                Base pay + bonus (Ksh {rates.bonusPerDelivery}/delivery)
-              </Text>
-              <Text weight="bold" size="sm" className="text-strong">
-                {formatMoneyCompact(projection.perDay)}/day
-              </Text>
+
+          {config ? (
+            <View className="gap-space-1 rounded-md bg-secondary p-space-4">
+              <View className="flex-row items-center justify-between">
+                <Text size="sm" weight="medium" className="flex-1 pr-space-3">
+                  Bonus above {config.threshold_daily}/day
+                </Text>
+                <Text weight="bold" size="sm" className="text-strong">
+                  {formatMoneyCompact(config.bonus_per_extra_daily)} each
+                </Text>
+              </View>
+              {base ? (
+                <Text variant="subtle" size="label">
+                  Base {formatMoneyCompact(base.monthly_base_amount)} per month
+                </Text>
+              ) : null}
             </View>
-            <Text variant="subtle" size="label">
-              ~{formatMoneyCompact(projection.perWeek)}/week across a{" "}
-              {rates.workingDaysPerWeek}-day week
+          ) : (
+            // The projection the design shows needs a rate and a base. Both come
+            // from `incentives` config rows that a hub has to create; inventing
+            // "Ksh 45/delivery" would show every crew member a number that is
+            // not their deal.
+            <Text variant="muted" size="sm">
+              Your hub hasn&rsquo;t published bonus rates yet, so earnings
+              can&rsquo;t be projected.
             </Text>
-          </View>
+          )}
         </Card>
 
-        {/* Summary tiles */}
+        {/* Summary */}
         <Text variant="heading" size="h4">
-          Earnings summary
+          Summary
         </Text>
         <View className="gap-space-4">
           <View className="flex-row gap-space-4">
             <Card className="flex-1">
               <Stat
                 label="This week"
-                value={formatMoneyCompact(week.summary.total)}
+                value={String(dashboard.counts.weekly)}
+                unit={role === "rider" ? "deliveries" : "orders"}
               />
             </Card>
             <Card className="flex-1">
               <Stat
-                label="Avg / delivery"
-                value={
-                  week.summary.averagePerDelivery === null
-                    ? "—"
-                    : formatMoneyCompact(week.summary.averagePerDelivery)
-                }
+                label="This month"
+                value={String(dashboard.counts.monthly)}
               />
             </Card>
           </View>
           <View className="flex-row gap-space-4">
             <Card className="flex-1">
               <Stat
-                label="Best day"
-                value={week.best.label}
-                unit={`${week.best.value}`}
+                label="Daily average"
+                value={dashboard.advanced.dailyAverage.toFixed(1)}
               />
             </Card>
             <Card className="flex-1">
-              <Stat label="On-time rate" value={ON_TIME_RATE} />
+              <Stat
+                label="Projected month"
+                value={String(Math.round(dashboard.advanced.projectedMonthly))}
+              />
             </Card>
           </View>
         </View>
 
-        {/* Breakdown */}
-        <Card className="gap-space-3">
-          {week.summary.lines.map((line) => (
-            <View
-              key={line.label}
-              className="flex-row items-center justify-between"
-            >
+        {/* Earnings */}
+        {base || bonus.bonus > 0 ? (
+          <Card className="gap-space-3">
+            {base ? (
+              <View className="flex-row items-center justify-between">
+                <Text variant="muted" size="sm" className="flex-1 pr-space-3">
+                  Monthly base
+                </Text>
+                <Text size="sm" weight="semibold">
+                  {formatMoneyCompact(base.monthly_base_amount)}
+                </Text>
+              </View>
+            ) : null}
+            <View className="flex-row items-center justify-between">
               <Text variant="muted" size="sm" className="flex-1 pr-space-3">
-                {line.label}
+                Bonus ({bonus.extraTasks} above target)
               </Text>
               <Text size="sm" weight="semibold">
-                {formatMoneyCompact(line.amount)}
+                {formatMoneyCompact(bonus.bonus)}
               </Text>
             </View>
-          ))}
-          <Separator />
-          <View className="flex-row items-center justify-between">
-            <Text weight="bold" className="text-strong">
-              Total earned
-            </Text>
-            <Text variant="price" size="price">
-              {formatMoneyCompact(week.summary.total)}
-            </Text>
-          </View>
-        </Card>
+            <Separator />
+            <View className="flex-row items-center justify-between">
+              <Text weight="bold" className="text-strong">
+                Projected total
+              </Text>
+              <Text variant="price" size="price">
+                {formatMoneyCompact(
+                  (base?.monthly_base_amount ?? 0) + bonus.bonus,
+                )}
+              </Text>
+            </View>
+          </Card>
+        ) : null}
       </View>
     </Screen>
   );
