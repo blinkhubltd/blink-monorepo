@@ -9,7 +9,8 @@
     "./validators": "./convex/validators.ts"
   },
   "scripts": {
-    "dev": "convex dev",
+    "dev": "convex dev --tail-logs disable",
+    "dev:logs": "convex dev --tail-logs always",
     "deploy": "convex deploy",
     "check-types": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"

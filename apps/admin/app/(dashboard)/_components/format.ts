@@ -87,3 +87,38 @@ export const SERIES = {
 } as const;
 
 export const AXIS_TICK = { fontSize: 11, fill: "var(--muted-foreground)" };
+
+/**
+ * "45 min" / "4.2 hrs" / "1.8 days" — never "252 min".
+ *
+ * A dashboard that prints a raw millisecond or minute count makes the reader do
+ * the division, and they will do it wrong at a glance.
+ */
+export function humanDuration(ms: number | null): string {
+  if (ms === null || !Number.isFinite(ms)) return "—";
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = ms / 3_600_000;
+  if (hours < 48) return `${hours.toFixed(1)} hrs`;
+  return `${(hours / 24).toFixed(1)} days`;
+}
+
+/** "1.2M" / "84k" / "950" — for counts on axes and tiles. */
+export function compactNumber(value: number): string {
+  const safe = Number.isFinite(value) ? value : 0;
+  const abs = Math.abs(safe);
+  const sign = safe < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 10_000) return `${sign}${Math.round(abs / 1_000)}k`;
+  return `${sign}${Math.round(abs).toLocaleString("en-KE")}`;
+}
+
+/** Plain count with thousands separators. */
+export function count(value: number): string {
+  return (Number.isFinite(value) ? value : 0).toLocaleString("en-KE");
+}
+
+/** "62%" — or an em dash when the rate is genuinely undefined. */
+export function percent(value: number | null): string {
+  return value === null || !Number.isFinite(value) ? "—" : `${Math.round(value)}%`;
+}

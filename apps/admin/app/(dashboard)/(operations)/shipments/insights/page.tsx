@@ -1,271 +1,225 @@
 "use client";
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeftIcon as ArrowLeft,
-  CancelCircleIcon as XCircle,
-  CheckmarkCircle02Icon as CheckCircle,
-  Clock01Icon as Clock,
-  TimerIcon as Timer,
-  TruckDeliveryIcon as Truck,
-} from "@hugeicons/core-free-icons";
-import React, { useState } from "react";
 import { useQuery } from "convex/react";
+import {
+  Alert02Icon,
+  CheckmarkCircle02Icon,
+  Clock01Icon,
+  TimerIcon,
+  TruckDeliveryIcon,
+} from "@hugeicons/core-free-icons";
 import { api } from "@repo/backend";
-import { useAuth } from "@/lib/auth/AuthContext";
-import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
-import { TimeRangeSelector } from "@/components/insights/TimeRangeSelector";
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
-import { OrderStatusChart } from "@/components/insights/InsightsCharts";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Badge } from "@repo/ui/components/ui/badge";
-import { formatDate } from "@/lib/date-utils";
 
-function formatDuration(ms: number): string {
-  if (ms <= 0) return "—";
-  const hours = Math.floor(ms / (1000 * 60 * 60));
-  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-  if (hours > 24) {
-    const days = Math.floor(hours / 24);
-    return `${days}d ${hours % 24}h`;
-  }
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-}
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/ui/card";
+import {
+  ChartSkeleton,
+  DonutChart,
+  SeriesChart,
+} from "../../../_components/charts";
+import {
+  count,
+  humanDuration,
+  percent,
+  SERIES,
+} from "../../../_components/format";
+import {
+  FactRow,
+  InsightsHeader,
+  useInsightRange,
+  useInsightScope,
+} from "../../../_components/insights-shell";
+import { StatCard, StatCardSkeleton } from "../../../_components/stat-card";
+import { StatusBreakdown } from "../../../_components/status-breakdown";
 
+/**
+ * Shipments: outcomes, and how long delivery takes.
+ *
+ * Three corrections to the old page, all of them about what the numbers meant:
+ *
+ *  - Success rate was `delivered / all shipments`, so anything still out with a
+ *    rider counted as a failure and a busy day looked like a bad one. It is now
+ *    delivered over FINISHED, and null rather than zero when nothing has
+ *    finished — the old version showed "0.0%" on a hub's first morning.
+ *
+ *  - "Avg delivery" was a mean over `updated_at - _creationTime`. It is now two
+ *    separate medians, because the customer's wait and the rider's transit are
+ *    different questions and a mean hides the typical case behind one outlier.
+ *
+ *  - The daily figures were a scrolling table of dates. Created against
+ *    delivered is a chart: the thing worth seeing is created outrunning
+ *    delivered day after day, which is a backlog forming, and no table shows
+ *    that.
+ */
 export default function ShipmentsInsightsPage() {
-  const [timeRange, setTimeRange] = useState<string>("thisMonth");
-  const { currentUser } = useAuth();
-  const { isAdminUser, isLoading: permsLoading } = useCurrentUserPermissions();
-  const router = useRouter();
-
-  if (!permsLoading && !isAdminUser) {
-    router.replace("/insights");
-    return null;
-  }
-
-  const assignedVendorIds = currentUser?.manager_details?.vendor_id ?? [];
-  const isRestrictedManager = assignedVendorIds.length > 0;
-
-  const insights = useQuery(api.data.insights.getDetailedShipmentsInsights, {
-    timeRange: timeRange as any,
-    vendorIds: isRestrictedManager ? (assignedVendorIds as any) : undefined,
+  const [range, setRange] = useInsightRange();
+  const scope = useInsightScope();
+  const data = useQuery(api.data.insights_domain.getShipmentsInsights, {
+    timeRange: range,
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center gap-3 mb-2">
-            <Link
-              href="/insights"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <HugeiconsIcon icon={ArrowLeft} className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Shipments Insights
-              </h1>
-              <p className="text-muted-foreground">
-                Delivery performance and tracking analytics
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <InsightsHeader
+        title="Shipments"
+        description="Delivery outcomes, and how long fulfilment takes."
+        noun="shipments"
+        scope={scope}
+        range={range}
+        onRangeChange={setRange}
+      />
 
-      <div className="container mx-auto px-6 py-8 space-y-6">
-        <div className="flex flex-wrap gap-4 items-center">
-          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-        </div>
+      {!data ? (
+        <ShipmentsInsightsSkeleton />
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <StatCard
+              label="Shipments"
+              value={count(data.totalShipments)}
+              icon={TruckDeliveryIcon}
+              hint={`${count(data.inFlight)} still out with a rider`}
+            />
+            <StatCard
+              label="Delivered"
+              value={count(data.delivered)}
+              icon={CheckmarkCircle02Icon}
+              hint={
+                data.successRate === null
+                  ? "Nothing has finished yet"
+                  : `${data.successRate}% of finished deliveries`
+              }
+            />
+            <StatCard
+              label="Failed"
+              value={count(data.failed)}
+              icon={Alert02Icon}
+              inverse
+              hint={data.failed === 0 ? "None this period" : "Worth a look"}
+            />
+            <StatCard
+              label="Customer wait"
+              value={humanDuration(data.medianFulfilmentMs)}
+              icon={Clock01Icon}
+              // Named as a median in the hint, because a median and a mean
+              // answer different questions and the reader should know which.
+              hint="Median, order placed to delivered"
+            />
+            <StatCard
+              label="Rider transit"
+              value={humanDuration(data.medianTransitMs)}
+              icon={TimerIcon}
+              hint="Median, shipment created to delivered"
+            />
+          </section>
 
-        {insights && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Total
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {insights.totalShipments.toLocaleString()}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={Truck} className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Delivered
-                      </p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {insights.totalDelivered.toLocaleString()}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={CheckCircle} className="w-8 h-8 text-green-200" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Failed
-                      </p>
-                      <p className="text-2xl font-bold text-red-600">
-                        {insights.totalFailed.toLocaleString()}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={XCircle} className="w-8 h-8 text-red-200" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Success Rate
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {insights.successRate.toFixed(1)}%
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={Clock} className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Avg Delivery
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {formatDuration(insights.avgDeliveryTimeMs)}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={Timer} className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <FactRow
+            facts={[
+              { label: "Success rate", value: percent(data.successRate) },
+              { label: "In flight", value: count(data.inFlight) },
+              {
+                // The one figure here that is a data-integrity problem rather
+                // than a measurement: an order in the period that never got a
+                // shipment record at all.
+                label: "Orders with no shipment",
+                value: count(data.withoutShipment),
+              },
+            ]}
+          />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">
-                    Status Distribution
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="h-80 p-0">
-                  <OrderStatusChart data={insights.statusDistribution} />
-                </CardContent>
-              </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Created against delivered</CardTitle>
+              <CardDescription>
+                When the created line runs above delivered for several days, a
+                backlog is forming
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/*
+                Both series are shipment counts, so a shared axis is honest here
+                — which is exactly why the orders page uses a reference line
+                instead, where one series is money.
+              */}
+              <SeriesChart
+                data={data.trend}
+                series={[
+                  { key: "created", label: "Created", color: SERIES.primary },
+                  {
+                    key: "delivered",
+                    label: "Delivered",
+                    color: SERIES.success,
+                  },
+                ]}
+              />
+            </CardContent>
+          </Card>
 
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">Status Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-3">
-                    {Object.entries(insights.statusDistribution)
-                      .sort(([, a], [, b]) => (b as number) - (a as number))
-                      .map(([status, count]) => {
-                        const total = insights.totalShipments;
-                        const pct =
-                          total > 0
-                            ? (((count as number) / total) * 100).toFixed(1)
-                            : "0";
-                        return (
-                          <div
-                            key={status}
-                            className="flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {status}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="w-24 bg-muted rounded-full h-2">
-                                <div
-                                  className="bg-primary rounded-full h-2"
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-medium tabular-nums w-16 text-right">
-                                {count as number} ({pct}%)
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Where shipments are</CardTitle>
+                <CardDescription>
+                  Every shipment in the period by state
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <StatusBreakdown
+                  counts={Object.fromEntries(
+                    data.statusDistribution.map((s) => [s.status, s.count]),
+                  )}
+                />
+              </CardContent>
+            </Card>
 
-            {/* Daily Trend */}
-            {insights.dailyTrend.length > 0 && (
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">
-                    Daily Shipment Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="max-h-64 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 sticky top-0">
-                        <tr>
-                          <th className="text-left px-4 py-2 font-medium text-muted-foreground">
-                            Date
-                          </th>
-                          <th className="text-right px-4 py-2 font-medium text-muted-foreground">
-                            Created
-                          </th>
-                          <th className="text-right px-4 py-2 font-medium text-muted-foreground">
-                            Delivered
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {insights.dailyTrend.map((d: any) => (
-                          <tr key={d.date} className="hover:bg-muted/30">
-                            <td className="px-4 py-2">{formatDate(d.date)}</td>
-                            <td className="px-4 py-2 text-right tabular-nums">
-                              {d.created}
-                            </td>
-                            <td className="px-4 py-2 text-right tabular-nums text-green-600 font-medium">
-                              {d.delivered}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
+            <Card>
+              <CardHeader>
+                <CardTitle>Outcome mix</CardTitle>
+                <CardDescription>
+                  Five states, so a ring reads — the old page drew the same data
+                  twice, once as a pie and once as a bar list
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DonutChart
+                  data={data.statusDistribution.map((entry) => ({
+                    name: entry.status,
+                    value: entry.count,
+                    color:
+                      entry.status === "Delivered"
+                        ? "var(--chart-4)"
+                        : entry.status === "Failed Delivery"
+                          ? "var(--chart-5)"
+                          : undefined,
+                  }))}
+                />
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
 
-        {!insights && (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary" />
-          </div>
-        )}
-      </div>
+function ShipmentsInsightsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </section>
+      <Card>
+        <CardContent className="pt-6">
+          <ChartSkeleton />
+        </CardContent>
+      </Card>
     </div>
   );
 }
