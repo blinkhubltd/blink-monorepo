@@ -1,241 +1,284 @@
 "use client";
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeftIcon as ArrowLeft,
-  BriefcaseDollarIcon as Briefcase,
-  PackageIcon as Package,
-  ShoppingCartIcon as ShoppingCart,
-  Store01Icon as Store,
-} from "@hugeicons/core-free-icons";
-import React, { useState } from "react";
 import { useQuery } from "convex/react";
+import {
+  BriefcaseDollarIcon,
+  Coins01Icon,
+  PackageIcon,
+  Store01Icon,
+} from "@hugeicons/core-free-icons";
 import { api } from "@repo/backend";
-import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
-import { formatKES } from "@/lib/utils";
-import { TimeRangeSelector } from "@/components/insights/TimeRangeSelector";
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import { Badge } from "@repo/ui/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@repo/ui/components/ui/table";
+import {
+  ChartSkeleton,
+  DonutChart,
+  RankedBars,
+} from "../../../_components/charts";
+import { compactKES, count, fullKES } from "../../../_components/format";
+import {
+  FactRow,
+  InsightsHeader,
+  useInsightRange,
+  useInsightScope,
+} from "../../../_components/insights-shell";
+import { StatCard, StatCardSkeleton } from "../../../_components/stat-card";
+import { RevenueTable } from "../../../_components/revenue-table";
 
+/**
+ * Industries: which lines of business the volume sits in.
+ *
+ * ── The scoping decision here was the awkward one ─────────────────────────
+ *
+ * An industry is a platform-level grouping and the point of the page is
+ * comparing them, so there is no version of this page that is simply "filtered"
+ * for a vendor manager.
+ *
+ * What the query does instead: a restricted caller sees only the industries their
+ * own vendors sit in, and the orders and revenue counted into those rows come
+ * from their own vendors ONLY. So a row reads "your contribution to Pharmacy",
+ * never "Pharmacy" — the other vendors sharing that industry are invisible,
+ * which is the entire requirement.
+ *
+ * The old page called `getDetailedIndustriesInsights`, which had no vendor
+ * parameter, so a vendor manager saw every industry's revenue including their
+ * direct competitors'.
+ */
 export default function IndustriesInsightsPage() {
-  const [timeRange, setTimeRange] = useState<string>("thisMonth");
-  const { isAdminUser, isLoading: permsLoading } = useCurrentUserPermissions();
-  const router = useRouter();
-
-  if (!permsLoading && !isAdminUser) {
-    router.replace("/insights");
-    return null;
-  }
-
-  const insights = useQuery(api.data.insights.getDetailedIndustriesInsights, {
-    timeRange: timeRange as any,
+  const [range, setRange] = useInsightRange();
+  const scope = useInsightScope();
+  const data = useQuery(api.data.insights_domain.getIndustriesInsights, {
+    timeRange: range,
   });
 
+  const restricted = scope?.restricted ?? false;
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center gap-3 mb-2">
-            <Link
-              href="/insights"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <HugeiconsIcon icon={ArrowLeft} className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Industries Insights
-              </h1>
-              <p className="text-muted-foreground">
-                Performance analytics across all industries
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <InsightsHeader
+        title="Industries"
+        description={
+          restricted
+            ? "Your contribution to the industries your hubs trade in."
+            : "How each line of business is performing."
+        }
+        noun="figures"
+        scope={scope}
+        range={range}
+        onRangeChange={setRange}
+      />
 
-      <div className="container mx-auto px-6 py-8 space-y-6">
-        <div className="flex flex-wrap gap-4 items-center">
-          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-        </div>
+      {!data ? (
+        <IndustriesInsightsSkeleton />
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Industries"
+              value={count(data.totalIndustries)}
+              icon={BriefcaseDollarIcon}
+              hint={`${count(data.activeIndustries)} active`}
+            />
+            <StatCard
+              label="Vendors"
+              value={count(data.totalVendors)}
+              icon={Store01Icon}
+              hint={restricted ? "Assigned to you" : "Across the platform"}
+            />
+            <StatCard
+              label="Revenue"
+              value={compactKES(data.totalRevenue)}
+              icon={Coins01Icon}
+              hint="Paid and not cancelled"
+            />
+            <StatCard
+              label="Orders"
+              value={count(data.totalOrders)}
+              icon={PackageIcon}
+              hint="In the selected period"
+            />
+          </section>
 
-        {insights && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Total Industries
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {insights.totalIndustries}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={Briefcase} className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Active Industries
-                      </p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {insights.activeIndustries}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={Store} className="w-8 h-8 text-green-200" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Total Revenue
-                      </p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {formatKES(insights.totalRevenue)}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={ShoppingCart} className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <FactRow
+            facts={[
+              { label: "Total revenue", value: fullKES(data.totalRevenue) },
+              {
+                label: "Average per order",
+                value:
+                  data.totalOrders > 0
+                    ? compactKES(data.totalRevenue / data.totalOrders)
+                    : "—",
+              },
+            ]}
+          />
 
-            {/* Industry Details Table */}
-            <Card className="shadow-sm">
-              <CardHeader className="border-b pb-3">
-                <CardTitle className="text-base">
-                  Industry Performance
-                </CardTitle>
+          {data.industries.length === 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>No industry data</CardTitle>
+                <CardDescription>
+                  {restricted
+                    ? "None of your vendors has an industry set, so there is nothing to group by."
+                    : "No vendor has an industry set, so there is nothing to group by."}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="pt-4">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="text-left px-4 py-3 font-medium text-muted-foreground">
-                          Industry
-                        </th>
-                        <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                          Status
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                          Vendors
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                          Products
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                          Orders
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                          Revenue
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {insights.industries.map((ind: { name: string; status: string; vendors: number; products: number; orders: number; revenue: number }, i: number) => (
-                        <tr key={i} className="hover:bg-muted/30">
-                          <td className="px-4 py-3 font-medium">{ind.name}</td>
-                          <td className="px-4 py-3 text-center">
+            </Card>
+          ) : (
+            <>
+              <section className="grid gap-4 lg:grid-cols-3">
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle>Revenue by industry</CardTitle>
+                    <CardDescription>
+                      {/*
+                        The old page drew this as hand-rolled percentage bars
+                        with a hardcoded yellow. Same reading, on the theme.
+                      */}
+                      Where the money came from in this period
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <RankedBars
+                      money
+                      data={data.industries.map((entry) => ({
+                        name: entry.name,
+                        value: entry.revenue,
+                      }))}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Share of orders</CardTitle>
+                    <CardDescription>
+                      By volume rather than value — the two disagree when one
+                      industry sells cheap items in bulk
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <DonutChart
+                      data={data.industries.map((entry) => ({
+                        name: entry.name,
+                        value: entry.orders,
+                      }))}
+                    />
+                  </CardContent>
+                </Card>
+              </section>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Industry detail</CardTitle>
+                  <CardDescription>
+                    {restricted
+                      ? "Vendors and products counted are your own; revenue is your own vendors' only"
+                      : "Vendors, catalogue size, and trading in the period"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="px-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Industry</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Vendors</TableHead>
+                        <TableHead className="text-right">Products</TableHead>
+                        <TableHead className="text-right">Orders</TableHead>
+                        <TableHead className="text-right">Revenue</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.industries.map((entry) => (
+                        <TableRow key={entry.id}>
+                          <TableCell className="font-medium">
+                            {entry.name}
+                          </TableCell>
+                          <TableCell>
                             <Badge
                               variant={
-                                ind.status === "Active"
+                                entry.status === "Active"
                                   ? "default"
                                   : "secondary"
                               }
-                              className="text-xs"
                             >
-                              {ind.status}
+                              {entry.status}
                             </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
-                            {ind.vendors}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
-                            {ind.products}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">
-                            {ind.orders}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums text-green-600 font-medium">
-                            {formatKES(ind.revenue)}
-                          </td>
-                        </tr>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {count(entry.vendors)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {count(entry.products)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {count(entry.orders)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {compactKES(entry.revenue)}
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Revenue Share */}
-            {insights.industries.length > 0 && (
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">
-                    Revenue Share by Industry
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-3">
-                    {insights.industries.map((ind: { name: string; status: string; vendors: number; products: number; orders: number; revenue: number }, i: number) => {
-                      const totalRev = insights.industries.reduce(
-                        (s: number, i: { revenue: number }) => s + i.revenue,
-                        0,
-                      );
-                      const pct =
-                        totalRev > 0
-                          ? ((ind.revenue / totalRev) * 100).toFixed(1)
-                          : "0";
-                      return (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-sm font-medium w-32 truncate">
-                            {ind.name}
-                          </span>
-                          <div className="flex items-center gap-3 flex-1 ml-4">
-                            <div className="flex-1 bg-muted rounded-full h-3">
-                              <div
-                                className="bg-yellow-500 rounded-full h-3 transition-all"
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="text-sm font-medium tabular-nums w-24 text-right">
-                              {formatKES(ind.revenue)}
-                            </span>
-                            <span className="text-xs text-muted-foreground w-12 text-right">
-                              {pct}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
-            )}
-          </>
-        )}
+            </>
+          )}
 
-        {!insights && (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary" />
-          </div>
-        )}
-      </div>
+          {/*
+            Vendor rows. For a caller with a single vendor the industry row and
+            the vendor row are the same number said twice, so this only appears
+            when there is more than one to compare.
+          */}
+          {data.vendors.length > 1 ? (
+            <RevenueTable
+              title="By vendor"
+              description="The same period, cut by hub"
+              rows={data.vendors}
+            />
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+function IndustriesInsightsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </section>
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardContent className="pt-6">
+            <ChartSkeleton />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <ChartSkeleton />
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

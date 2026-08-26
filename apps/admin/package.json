@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.6",
@@ -15,11 +16,6 @@
     "@hookform/resolvers": "^5.2.1",
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.6",
-    "@nivo/bar": "^0.99.0",
-    "@nivo/bump": "^0.99.0",
-    "@nivo/core": "^0.99.0",
-    "@nivo/line": "^0.99.0",
-    "@nivo/pie": "^0.99.0",
     "@react-google-maps/api": "^2.20.7",
     "@repo/backend": "workspace:*",
     "@repo/lib": "workspace:*",
@@ -49,6 +45,7 @@
     "@types/react": "~19.2.18",
     "@types/react-dom": "~19.2.5",
     "tailwindcss": "^4.3.3",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "vitest": "^3.2.4"
   }
 }

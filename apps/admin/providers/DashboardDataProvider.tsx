@@ -4,6 +4,38 @@ import React, { createContext, useContext, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 
+/**
+ * The base lists every dashboard page reads.
+ *
+ * ── Six queries removed ───────────────────────────────────────────────────
+ *
+ * This provider used to run `getSalesAnalytics`, `getRiderPerformance`,
+ * `getProductPerformance`, `getOrderStatusDistribution`, `getRevenueByCategory`
+ * and `getTotalBlinkRevenue` on top of the lists below. None of them takes a
+ * vendor argument, so every page in the app — not just the insights ones —
+ * fetched platform-wide revenue for whoever was signed in, including a vendor
+ * manager who is not allowed to see it.
+ *
+ * They were also, by the time the insights pages moved to scoped queries, read
+ * by nobody: their only consumers were the old insights page and
+ * `VendorInsights`. So this is six unindexed full-table aggregations per page
+ * load, for data nothing rendered.
+ *
+ * Insight figures now come from `data/insights_dashboard` and
+ * `data/insights_domain`, which resolve the vendor scope server-side. Nothing
+ * aggregated belongs in this provider: a value cached app-wide cannot carry the
+ * period a page asked for, which is how the old dashboard ended up showing
+ * "this month" and "all time" side by side.
+ *
+ * ── Still outstanding ─────────────────────────────────────────────────────
+ *
+ * The lists below are themselves unscoped and unbounded — `getAllProducts`,
+ * `getOrders`, `getAllCustomers` and the rest fetch entire tables for every
+ * page, and a vendor manager receives every vendor's products. Fixing that is a
+ * per-page change (each consumer needs a filtered or paginated query instead of
+ * a shared blob), not something this provider can do, so it is tracked
+ * separately rather than half-done here.
+ */
 type DashboardDataContextValue = {
   products: any[];
   categories: any[];
@@ -15,25 +47,11 @@ type DashboardDataContextValue = {
   pickers: any[];
   availableRiders: any[];
   schedules: any[];
-  // Insights data
-  salesAnalytics: any;
-  riderPerformance: any[];
-  productPerformance: any[];
-  orderStatusDistribution: Record<string, number>;
-  revenueByCategory: Array<{ category: string; revenue: number }>;
-  totalBlinkRevenue:
-    | {
-        totalRevenue: number;
-        orderCount: number;
-        averageCommissionPerOrder: number;
-      }
-    | null
-    | undefined;
   isLoaded: boolean;
 };
 
 const DashboardDataContext = createContext<DashboardDataContextValue | null>(
-  null
+  null,
 );
 
 export default function DashboardDataProvider({
@@ -41,7 +59,6 @@ export default function DashboardDataProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // Base data queries
   const products = useQuery(api.data.products.getAllProducts) ?? [];
   const categories = useQuery(api.data.categories.getAllCategories) ?? [];
   const orders = useQuery(api.data.orders.getOrders) ?? [];
@@ -52,17 +69,6 @@ export default function DashboardDataProvider({
   const pickers = useQuery(api.user.users.getAllPickers) ?? [];
   const availableRiders = useQuery(api.data.shipments.getAvailableRiders) ?? [];
   const schedules = useQuery(api.data.schedules.getAllSchedules) ?? [];
-
-  const salesAnalytics = useQuery(api.data.insights.getSalesAnalytics, {});
-  const riderPerformance =
-    useQuery(api.data.insights.getRiderPerformance, { timeRange: "thisYear" }) ?? [];
-  const productPerformance =
-    useQuery(api.data.insights.getProductPerformance, { limit: 10 }) ?? [];
-  const orderStatusDistribution =
-    useQuery(api.data.insights.getOrderStatusDistribution, {}) ?? {};
-  const revenueByCategory =
-    useQuery(api.data.insights.getRevenueByCategory, {}) ?? [];
-  const totalBlinkRevenue = useQuery(api.data.insights.getTotalBlinkRevenue, {});
 
   const isLoaded = useMemo(() => {
     return (
@@ -75,13 +81,7 @@ export default function DashboardDataProvider({
       shipments !== null &&
       pickers !== null &&
       availableRiders !== null &&
-      schedules !== null &&
-      salesAnalytics !== null &&
-      riderPerformance !== null &&
-      productPerformance !== null &&
-      orderStatusDistribution !== null &&
-      revenueByCategory !== null &&
-      totalBlinkRevenue !== null
+      schedules !== null
     );
   }, [
     products,
@@ -94,12 +94,6 @@ export default function DashboardDataProvider({
     pickers,
     availableRiders,
     schedules,
-    salesAnalytics,
-    riderPerformance,
-    productPerformance,
-    orderStatusDistribution,
-    revenueByCategory,
-    totalBlinkRevenue,
   ]);
 
   const value = useMemo(
@@ -114,14 +108,6 @@ export default function DashboardDataProvider({
       pickers,
       availableRiders,
       schedules,
-
-      salesAnalytics,
-      riderPerformance,
-      productPerformance,
-      orderStatusDistribution,
-      revenueByCategory,
-      totalBlinkRevenue,
-
       isLoaded,
     }),
     [
@@ -135,15 +121,8 @@ export default function DashboardDataProvider({
       pickers,
       availableRiders,
       schedules,
-
-      salesAnalytics,
-      riderPerformance,
-      productPerformance,
-      orderStatusDistribution,
-      revenueByCategory,
-      totalBlinkRevenue,
       isLoaded,
-    ]
+    ],
   );
 
   return (
@@ -157,7 +136,7 @@ export function useDashboardData() {
   const ctx = useContext(DashboardDataContext);
   if (!ctx) {
     throw new Error(
-      "useDashboardData must be used within DashboardDataProvider"
+      "useDashboardData must be used within DashboardDataProvider",
     );
   }
   return ctx;

@@ -29,6 +29,8 @@ import type * as data_incentives from "../data/incentives.js";
 import type * as data_industry from "../data/industry.js";
 import type * as data_insights from "../data/insights.js";
 import type * as data_insights_dashboard from "../data/insights_dashboard.js";
+import type * as data_insights_domain from "../data/insights_domain.js";
+import type * as data_insights_scope from "../data/insights_scope.js";
 import type * as data_legal_acceptances from "../data/legal_acceptances.js";
 import type * as data_marketing from "../data/marketing.js";
 import type * as data_notifications from "../data/notifications.js";
@@ -107,6 +109,8 @@ declare const fullApi: ApiFromModules<{
   "data/industry": typeof data_industry;
   "data/insights": typeof data_insights;
   "data/insights_dashboard": typeof data_insights_dashboard;
+  "data/insights_domain": typeof data_insights_domain;
+  "data/insights_scope": typeof data_insights_scope;
   "data/legal_acceptances": typeof data_legal_acceptances;
   "data/marketing": typeof data_marketing;
   "data/notifications": typeof data_notifications;
