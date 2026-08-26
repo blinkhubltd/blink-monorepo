@@ -14,6 +14,7 @@ import {
   validateRolePresets,
 } from "../lib/role_presets";
 import { buildSearchText } from "./roles";
+import { computeUserSearchText } from "./users";
 
 /**
  * First-run setup: seed the roles, and give the first person to ask the keys.
@@ -149,6 +150,120 @@ async function ensureRoles(ctx: MutationCtx): Promise<{
   return { created, existing, superAdminRoleId };
 }
 
+/**
+ * The caller's user row, created from the Clerk identity if it does not exist.
+ *
+ * ── Why setup provisions its own user ─────────────────────────────────────
+ *
+ * Normally the Clerk webhook creates users. But setup CANNOT depend on that: a
+ * fresh deployment has a webhook that has never fired, may have the wrong URL,
+ * and cannot be tested until someone can sign in — which is what setup is for.
+ * Blocking first-run setup on an unrelated integration means a misconfigured
+ * webhook locks the platform permanently, and the only diagnostic is a screen
+ * telling you to fix a webhook you cannot yet verify.
+ *
+ * Creating the row here is safe because it comes from `ctx.auth.getUserIdentity()`
+ * — claims Convex has already verified against the Clerk JWKS. The caller cannot
+ * provision anyone but themselves, and cannot choose their own clerkId.
+ *
+ * The row is deliberately built to match what `upsertUser` produces, so a later
+ * webhook delivery patches this row rather than creating a second one: same
+ * clerkId, same searchText derivation, same empty phone and address.
+ */
+async function resolveOrCreateCaller(
+  ctx: MutationCtx,
+): Promise<Doc<"users">> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new ConvexError("Sign in before claiming the super admin role.");
+  }
+
+  const existing = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+    .unique();
+  if (existing) return existing;
+
+  // `email` is required on the users table, and the JWT only carries it if the
+  // Clerk template includes the claim. Naming the fix beats "email is missing".
+  const email = identity.email?.trim().toLowerCase();
+  if (!email) {
+    throw new ConvexError(
+      "Your Clerk session token carries no email claim, so no user record can " +
+        "be created. In the Clerk dashboard open JWT Templates, edit the " +
+        '"convex" template, and add {"email": "{{user.primary_email_address}}"}. ' +
+        "Then sign out, sign in again, and retry.",
+    );
+  }
+
+  // An existing row under this email with a DIFFERENT clerkId means the same
+  // person signed up twice, or the Clerk instance was recreated. Adopt the row
+  // rather than inserting a duplicate.
+  //
+  // This is not a nicety: `getCurrentUser`, `upsertUser` and others look users up
+  // with `by_email(...).unique()`, which THROWS when it finds two. Inserting a
+  // second row under the same address would break sign-in for that person
+  // everywhere, and the error would point at those queries rather than here.
+  let byEmail = await ctx.db
+    .query("users")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+
+  if (!byEmail) {
+    // The index is exact, so a row stored as "Charles@..." is invisible to a
+    // lookup for "charles@...". A bounded scan catches that. Justified because
+    // this runs once per deployment, on a table that is empty or nearly so, and
+    // the alternative is the duplicate-email corruption described above.
+    const candidates = await ctx.db.query("users").take(2000);
+    byEmail =
+      candidates.find((u) => (u.email ?? "").trim().toLowerCase() === email) ??
+      null;
+  }
+
+  const given = identity.givenName?.trim() ?? "";
+  const family = identity.familyName?.trim() ?? "";
+  const fullName = identity.name?.trim() ?? "";
+  const parts = fullName.split(" ").filter(Boolean);
+  const firstName = given || parts[0] || "";
+  const lastName = family || parts.slice(1).join(" ") || "";
+
+  if (byEmail) {
+    await ctx.db.patch(byEmail._id, {
+      clerkId: identity.subject,
+      updated_at: Date.now(),
+    });
+    const adopted = await ctx.db.get(byEmail._id);
+    if (!adopted) throw new ConvexError("Could not read the adopted user row.");
+    return adopted;
+  }
+
+  const id = await ctx.db.insert("users", {
+    clerkId: identity.subject,
+    email,
+    name: fullName,
+    first_name: firstName,
+    last_name: lastName,
+    image: identity.pictureUrl ?? "",
+    phone: "",
+    searchText: computeUserSearchText({
+      name: fullName,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      phone: "",
+    }),
+    // Same defaults as upsertUser, so a webhook delivery later patches rather
+    // than conflicts.
+    status: "Inactive",
+    address: { address: "", lat: 0, lng: 0 },
+    updated_at: Date.now(),
+  });
+
+  const created = await ctx.db.get(id);
+  if (!created) throw new ConvexError("Could not read the created user row.");
+  return created;
+}
+
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
@@ -182,9 +297,21 @@ export const getSetupStatus = query({
       ? await ctx.db.get(caller.role_id)
       : null;
 
+    // A count, not a list. "Is anything here at all" separates a webhook that
+    // has never fired from one that fired for other people but not this caller.
+    const anyUser = await ctx.db.query("users").take(1);
+
     return {
       rolesSeeded: roles.length > 0,
       roleCount: roles.length,
+      /** Whether ANY user row exists. False means the webhook has never landed. */
+      anyUsersExist: anyUser.length > 0,
+      /**
+       * The email on the caller's session token. Null means the Clerk JWT
+       * template omits the claim, which is the one case setup cannot work
+       * around — the users table requires an email.
+       */
+      identityEmail: identity?.email ?? null,
       /** True once a user holds a wildcard role. The claim is refused after this. */
       claimed: claimed !== null,
       /** Whether an email allowlist is configured, so the UI can say so. */
@@ -230,20 +357,10 @@ export const claimSuperAdmin = mutation({
       );
     }
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) {
-      // The Clerk webhook has not run, or is misconfigured. Naming the cause
-      // matters: the alternative is a "not found" that reads as a bug in setup.
-      throw new ConvexError(
-        "Your Clerk account has no record in Convex yet. Check that the Clerk " +
-          "webhook points at /api/v1/webhooks/clerk and resend the user.created " +
-          "event, then try again.",
-      );
-    }
+    // Create the row from the verified Clerk identity if the webhook has not
+    // produced one. Setup must not depend on the webhook — see
+    // resolveOrCreateCaller.
+    const user = await resolveOrCreateCaller(ctx);
 
     // Optional hard lock. With this set the window is closed entirely rather
     // than merely first-come.

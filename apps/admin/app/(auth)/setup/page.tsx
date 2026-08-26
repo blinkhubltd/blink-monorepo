@@ -127,34 +127,36 @@ export default function SetupPage() {
     );
   }
 
-  // Signed in with Clerk but no Convex row: the webhook has not fired. A
-  // different problem from having no role, and a different fix — so it gets its
-  // own screen rather than a generic failure.
-  if (!status.hasConvexUser) {
+  // The one case setup cannot work around: the users table requires an email,
+  // and the session token carries none. Nothing here can invent one, so this is
+  // the only genuinely blocking screen.
+  if (!status.identityEmail) {
     return (
       <AuthShell>
         <Panel
           tone="error"
           icon={Alert02Icon}
-          title="Your account has not synced"
-          description="You are signed in with Clerk, but no matching record exists in Convex — which means the Clerk webhook has not reached this deployment."
+          title="Your session token has no email"
+          description="Convex verifies your Clerk token, but the token carries no email claim — and a user record cannot be created without one."
         >
           <div className="text-muted-foreground space-y-2 text-sm">
-            <p>In the Clerk dashboard, under Webhooks:</p>
+            <p>In the Clerk dashboard:</p>
             <ol className="list-decimal space-y-1 pl-5">
               <li>
-                Point the endpoint at{" "}
+                Open <strong>JWT Templates</strong> and edit the{" "}
                 <code className="bg-muted rounded px-1 py-0.5 text-xs">
-                  /api/v1/webhooks/clerk
+                  convex
                 </code>{" "}
-                on this deployment.
+                template.
               </li>
               <li>
-                Subscribe to <code className="text-xs">user.created</code>,{" "}
-                <code className="text-xs">user.updated</code> and{" "}
-                <code className="text-xs">user.deleted</code>.
+                Add{" "}
+                <code className="bg-muted rounded px-1 py-0.5 text-xs">
+                  {'{"email": "{{user.primary_email_address}}"}'}
+                </code>
+                .
               </li>
-              <li>Resend the failed delivery for your account.</li>
+              <li>Sign out and back in, so a new token is issued.</li>
             </ol>
           </div>
           <Button
@@ -190,8 +192,39 @@ export default function SetupPage() {
               <strong>Picker</strong>. Customer becomes the default, so new
               signups get it automatically.
             </Bullet>
-            <Bullet>Assign Super Admin to you, and mark you active.</Bullet>
+            <Bullet>
+              Assign Super Admin to <strong>{status.identityEmail}</strong>, and
+              mark the account active.
+            </Bullet>
+            {!status.hasConvexUser ? (
+              <Bullet>
+                Create your user record from your signed-in Clerk identity —
+                the Clerk webhook has not delivered it, and setup does not wait
+                on the webhook.
+              </Bullet>
+            ) : null}
           </ul>
+
+          {/*
+            The webhook still matters for EVERYONE ELSE: setup provisions only
+            the caller, so without it no other user ever appears in Convex. Said
+            as a warning rather than a blocker, since it no longer stops setup.
+          */}
+          {!status.anyUsersExist ? (
+            <div className="border-warning bg-warning/5 space-y-1.5 rounded-lg border p-3">
+              <p className="text-xs font-semibold">
+                The Clerk webhook has never delivered
+              </p>
+              <p className="text-muted-foreground text-xs">
+                No user records exist at all. Setup will create yours, but every
+                other signup needs the webhook: point it at{" "}
+                <code className="text-xs">/api/v1/webhooks/clerk</code> and
+                subscribe to <code className="text-xs">user.created</code>,{" "}
+                <code className="text-xs">user.updated</code> and{" "}
+                <code className="text-xs">user.deleted</code>.
+              </p>
+            </div>
+          ) : null}
 
           {status.rolesSeeded ? (
             <p className="text-muted-foreground text-xs">
