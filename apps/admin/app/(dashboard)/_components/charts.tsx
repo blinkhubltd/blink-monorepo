@@ -377,3 +377,143 @@ export function RankedBars({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Generic multi-series trend
+// ---------------------------------------------------------------------------
+
+export interface SeriesSpec {
+  /** Key in each data row. */
+  key: string;
+  /** Legend and tooltip label. */
+  label: string;
+  color: string;
+  /** Dashed and unfilled — for a reference series read against the first. */
+  reference?: boolean;
+}
+
+/**
+ * Two or more count series over time.
+ *
+ * Separate from TrendChart, which is revenue-and-orders on two axes. This one
+ * shares a single axis, which is only correct when the series are the same KIND
+ * of quantity — shipments created against shipments delivered, say. Putting
+ * different units on one axis is how a chart comes to imply a comparison that
+ * is not there.
+ */
+export function SeriesChart({
+  data,
+  series,
+  money = false,
+  height = CHART_HEIGHT,
+}: {
+  data: Record<string, string | number>[];
+  series: SeriesSpec[];
+  money?: boolean;
+  height?: number;
+}) {
+  if (data.length === 0) {
+    return <EmptyChart message="Nothing recorded in this period." />;
+  }
+
+  // One point is not a trend, and a two-point line implies one. Say the figure
+  // instead of drawing a shape that misleads.
+  if (data.length === 1) {
+    const only = data[0]!;
+    return (
+      <div
+        className="flex flex-col items-center justify-center gap-1"
+        style={{ height }}
+      >
+        <div className="flex flex-wrap items-baseline justify-center gap-x-4">
+          {series.map((s) => (
+            <p key={s.key} className="text-xl font-bold tabular-nums">
+              {money
+                ? fullKES(Number(only[s.key] ?? 0))
+                : Number(only[s.key] ?? 0).toLocaleString("en-KE")}
+              <span className="text-muted-foreground ml-1 text-xs font-normal">
+                {s.label.toLowerCase()}
+              </span>
+            </p>
+          ))}
+        </div>
+        <p className="text-muted-foreground text-sm">
+          {shortDate(String(only.date ?? ""))} — one day of data, so there is no
+          trend to plot yet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height }} className="w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <defs>
+            {series
+              .filter((s) => !s.reference)
+              .map((s) => (
+                <linearGradient
+                  key={s.key}
+                  id={`series-${s.key}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor={s.color} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={s.color} stopOpacity={0.02} />
+                </linearGradient>
+              ))}
+          </defs>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            vertical={false}
+            stroke="var(--border)"
+          />
+          <XAxis
+            dataKey="date"
+            tickFormatter={shortDate}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            minTickGap={24}
+          />
+          <YAxis
+            tickFormatter={money ? compactKES : undefined}
+            tick={AXIS_TICK}
+            tickLine={false}
+            axisLine={false}
+            width={money ? 64 : 40}
+            allowDecimals={false}
+          />
+          <Tooltip content={<ChartTooltip money={money} labelFormatter={shortDate} />} />
+          <Legend
+            verticalAlign="top"
+            align="right"
+            height={28}
+            iconType="plainline"
+            iconSize={12}
+            formatter={(value) => (
+              <span className="text-muted-foreground text-xs">{value}</span>
+            )}
+          />
+          {series.map((s) => (
+            <Area
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.label}
+              stroke={s.color}
+              strokeWidth={s.reference ? 1.5 : 2}
+              strokeDasharray={s.reference ? "4 3" : undefined}
+              fill={s.reference ? "transparent" : `url(#series-${s.key})`}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
+            />
+          ))}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

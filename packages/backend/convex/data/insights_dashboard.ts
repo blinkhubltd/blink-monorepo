@@ -1,122 +1,29 @@
-import { v } from "convex/values";
-import { query, type QueryCtx } from "../_generated/server";
+import { query } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
-import { getAuthUser } from "../auth.helpers";
 import {
   dayKey,
   dayKeysInPeriod,
   resolvePeriod,
-  timeRanges,
-  type Period,
 } from "../lib/time_range";
+import {
+  isRealised,
+  ordersInPeriod,
+  resolveScope,
+  sumRevenue,
+  TimeRange,
+} from "./insights_scope";
 
 /**
- * Insights for the operations dashboard, scoped to what the caller may see.
+ * The three dashboards on /insights: sales, operations, performance.
  *
- * ── Why this module exists ────────────────────────────────────────────────
+ * Scope comes from `./insights_scope`, never from an argument. See that module
+ * for why, and `./insights_domain.ts` for the per-domain pages.
  *
- * `data/insights.ts` takes the vendor scope as a CLIENT ARGUMENT and
- * authenticates nobody — `grep -c getAuthUser data/insights.ts` returns 0. Two
- * consequences:
- *
- *  1. Most of its queries have no vendor parameter at all, so a vendor manager
- *     calling `getTotalBlinkRevenue`, `getRevenueByCategory`,
- *     `getOrderStatusDistribution` or `getRiderPerformance` sees the WHOLE
- *     platform. The existing insights page does exactly that today.
- *
- *  2. Where a `vendorId` argument does exist it is advisory. Nothing stops a
- *     vendor manager passing a competitor's id.
- *
- * So scope here is never accepted from the client. It is derived from the
- * caller's own `manager_details.vendor_id`, server-side, on every query. A
- * business owner (no manager assignment) sees the platform; a vendor manager
- * sees exactly their vendors and cannot ask for anything else.
- *
- * ── Read volume ──────────────────────────────────────────────────────────
- *
- * Every read is bounded by the period, through `orders.by_order_date` — or by
- * `orders.by_vendor_order_date` when scoped, so a vendor manager's query touches
- * only their own rows. insights.ts does unindexed full-table scans (the plan
- * counted 33) and Convex's 16k-document read limit is a hard throw rather than a
- * slowdown, so bounding matters: this is the page every user opens.
+ * Every read is bounded by the period. `insights.ts` does unindexed full-table
+ * scans (the plan counted 33) and Convex's 16k-document read limit is a hard
+ * throw rather than a slowdown, so bounding matters most on the page every user
+ * opens.
  */
-
-const TimeRange = v.union(...timeRanges.map((t) => v.literal(t)));
-
-// ---------------------------------------------------------------------------
-// Scope
-// ---------------------------------------------------------------------------
-
-interface Scope {
-  /** Null means the whole platform. */
-  vendorIds: Id<"vendors">[] | null;
-  restricted: boolean;
-}
-
-/**
- * What this caller is allowed to see.
- *
- * A non-empty `manager_details.vendor_id` is what makes someone a vendor
- * manager — the same signal the existing pages use, but read here once instead
- * of being re-derived in every page. That duplication is a security problem, not
- * just repetition: a new page that forgets it shows a vendor manager everything.
- */
-async function resolveScope(ctx: QueryCtx): Promise<Scope> {
-  const { user } = await getAuthUser(ctx);
-  const doc = await ctx.db.get(user._id);
-  const assigned = doc?.manager_details?.vendor_id ?? [];
-  return assigned.length > 0
-    ? { vendorIds: assigned, restricted: true }
-    : { vendorIds: null, restricted: false };
-}
-
-/**
- * Orders in the period the caller may see.
- *
- * Scoped callers query per vendor on the composite index, so the read is bounded
- * by their own rows rather than filtered down from the platform's.
- */
-async function ordersInPeriod(
-  ctx: QueryCtx,
-  scope: Scope,
-  period: Period,
-): Promise<Doc<"orders">[]> {
-  if (scope.vendorIds === null) {
-    return await ctx.db
-      .query("orders")
-      .withIndex("by_order_date", (q) =>
-        q.gte("order_date", period.start).lte("order_date", period.end),
-      )
-      .collect();
-  }
-
-  const perVendor = await Promise.all(
-    scope.vendorIds.map((vendorId) =>
-      ctx.db
-        .query("orders")
-        .withIndex("by_vendor_order_date", (q) =>
-          q
-            .eq("vendor_id", vendorId)
-            .gte("order_date", period.start)
-            .lte("order_date", period.end),
-        )
-        .collect(),
-    ),
-  );
-  return perVendor.flat();
-}
-
-/** Revenue counts only orders that were actually paid for. */
-function isRealised(order: Doc<"orders">): boolean {
-  return order.payment_status === "Paid" && order.order_status !== "Cancelled";
-}
-
-function sumRevenue(orders: Doc<"orders">[]): number {
-  return orders.reduce(
-    (total, o) => (isRealised(o) ? total + (o.total_amount ?? 0) : total),
-    0,
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Scope, exposed

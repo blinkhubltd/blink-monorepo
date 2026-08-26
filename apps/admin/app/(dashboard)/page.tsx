@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -21,15 +20,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@repo/ui/components/ui/select";
 import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
-import { compactKES, fullKES } from "./_components/format";
+import { compactKES, count, fullKES } from "./_components/format";
 import { StatCard, StatCardSkeleton } from "./_components/stat-card";
 import {
   RevenueChart,
@@ -39,52 +31,52 @@ import {
   StatusBreakdown,
   StatusBreakdownSkeleton,
 } from "./_components/status-breakdown";
-
-/**
- * The windows `insights.getSalesAnalytics` accepts, in the order a manager
- * reaches for them.
- */
-const RANGES = [
-  { value: "today", label: "Today" },
-  { value: "thisWeek", label: "This week" },
-  { value: "thisMonth", label: "This month" },
-  { value: "lastMonth", label: "Last month" },
-] as const;
-
-type Range = (typeof RANGES)[number]["value"];
+import {
+  InsightsHeader,
+  useInsightRange,
+  useInsightScope,
+} from "./_components/insights-shell";
 
 /**
  * The overview.
  *
- * This route previously held nothing but a redirect to /insights, so the landing
- * page was a flash of a spinner and a jump. It is now the summary a manager
- * actually opens the dashboard for: what came in, how it compares to last
- * period, the shape of the trend, and what is stuck.
+ * ── Two fixes since this was written ──────────────────────────────────────
  *
- * Deliberately built from two queries rather than six. insights.ts does
- * unindexed full-table scans — the plan counted 33 — so every widget added here
- * costs a full pass over orders. `getGrowthMetrics` and `getSalesAnalytics`
- * between them answer the questions above; a third query would have to earn it.
+ * It called `insights.getGrowthMetrics` and `insights.getSalesAnalytics`.
+ * `getGrowthMetrics` takes NO vendor argument, so the first thing a vendor
+ * manager saw on signing in was the platform's revenue. It now calls the scoped
+ * queries, which resolve the caller's vendors server-side.
+ *
+ * That also removes a caveat this file used to carry: the KPI row compared
+ * against a fixed previous month from `getGrowthMetrics` while the chart below
+ * followed the period selector, so two figures on one screen described different
+ * windows and the code had to explain it. `getSalesInsights` returns the previous
+ * window for whatever period was asked for, so the whole page now moves
+ * together.
  */
 export default function OverviewPage() {
-  const [range, setRange] = useState<Range>("thisMonth");
-  const { isLoading: permissionsLoading, isAdminUser, can } =
-    useCurrentUserPermissions();
+  const [range, setRange] = useInsightRange();
+  const scope = useInsightScope();
+  const {
+    isLoading: permissionsLoading,
+    isAdminUser,
+    can,
+  } = useCurrentUserPermissions();
 
   const canSeeInsights = isAdminUser || can("insights:READ");
 
-  const growth = useQuery(
-    api.data.insights.getGrowthMetrics,
-    canSeeInsights ? {} : "skip",
-  );
   const sales = useQuery(
-    api.data.insights.getSalesAnalytics,
+    api.data.insights_dashboard.getSalesInsights,
+    canSeeInsights ? { timeRange: range } : "skip",
+  );
+  const operations = useQuery(
+    api.data.insights_dashboard.getOperationsInsights,
     canSeeInsights ? { timeRange: range } : "skip",
   );
 
   // Someone with no insights permission still lands here — the rail sends every
-  // signed-in user to "/". Showing an empty dashboard would read as broken, so
-  // say plainly that there is nothing for them rather than nothing at all.
+  // signed-in user to "/". An empty dashboard would read as broken, so say
+  // plainly that there is nothing for them.
   if (!permissionsLoading && !canSeeInsights) {
     return (
       <Card className="mx-auto max-w-md">
@@ -99,81 +91,71 @@ export default function OverviewPage() {
     );
   }
 
-  const loading = permissionsLoading || growth === undefined || sales === undefined;
+  const loading = permissionsLoading || !sales || !operations;
+  const previous = sales?.previous.available ? sales.previous : null;
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
-          <p className="text-muted-foreground text-sm">
-            How the platform is trading, and what needs attention.
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex-1">
+          <InsightsHeader
+            title="Overview"
+            description={
+              scope?.restricted
+                ? "How your hubs are trading, and what needs attention."
+                : "How the platform is trading, and what needs attention."
+            }
+            noun="figures"
+            scope={scope}
+            range={range}
+            onRangeChange={setRange}
+          />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Select
-            value={range}
-            onValueChange={(v) => setRange(v as Range)}
-          >
-            <SelectTrigger className="w-[150px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RANGES.map((r) => (
-                <SelectItem key={r.value} value={r.value}>
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button asChild variant="outline">
-            <Link href="/insights">
-              Full insights
-              <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
-            </Link>
-          </Button>
-        </div>
-      </header>
+        <Button asChild variant="outline">
+          <Link href="/insights">
+            Full insights
+            <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
+          </Link>
+        </Button>
+      </div>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
         ) : (
           <>
-            {/*
-              The KPI row compares against the PREVIOUS MONTH, from
-              getGrowthMetrics — which is a fixed window and does not follow the
-              selector above. Labelled "this month" so the two are not confused;
-              the selector drives the chart and the status mix below.
-            */}
             <StatCard
-              label="Revenue this month"
-              value={compactKES(growth.revenue.current)}
+              label="Revenue"
+              value={compactKES(sales.revenue)}
               icon={Coins01Icon}
-              current={growth.revenue.current}
-              previous={growth.revenue.previous}
+              current={sales.revenue}
+              previous={previous?.revenue}
+              hint={previous ? undefined : "No prior period to compare"}
             />
             <StatCard
-              label="Orders this month"
-              value={growth.orders.current.toLocaleString("en-KE")}
+              label="Paid orders"
+              value={count(sales.orders)}
               icon={TaskDone01Icon}
-              current={growth.orders.current}
-              previous={growth.orders.previous}
+              current={sales.orders}
+              previous={previous?.orders}
+              hint={previous ? undefined : "No prior period to compare"}
             />
             <StatCard
-              label="Avg order value"
-              value={compactKES(growth.averageOrderValue.current)}
+              label="Average basket"
+              value={compactKES(sales.basket)}
               icon={CreditCardIcon}
-              current={growth.averageOrderValue.current}
-              previous={growth.averageOrderValue.previous}
+              current={sales.basket}
+              previous={previous?.basket}
+              hint={previous ? undefined : "No prior period to compare"}
             />
             <StatCard
-              label={`Sales · ${RANGES.find((r) => r.value === range)?.label.toLowerCase()}`}
-              value={compactKES(sales.totalSales)}
+              label="Open orders"
+              value={count(operations.openOrders)}
               icon={ChartBarLineIcon}
-              hint={`${sales.totalOrders.toLocaleString("en-KE")} orders`}
+              // Fewer open orders is better, so a fall must not read as a decline.
+              inverse
+              hint={`${count(operations.inFlight)} out with a rider`}
             />
           </>
         )}
@@ -186,20 +168,22 @@ export default function OverviewPage() {
             <CardDescription>
               {loading
                 ? "Loading…"
-                : `${fullKES(sales.totalSales)} across ${sales.totalOrders.toLocaleString("en-KE")} orders`}
+                : `${fullKES(sales.revenue)} across ${count(sales.orders)} paid orders`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <RevenueChartSkeleton />
             ) : (
+              // Already chronological and gap-filled by the query, so no sort
+              // here — the old version had to sort because getSalesAnalytics
+              // returned object-insertion order, which could zig-zag backwards
+              // through time.
               <RevenueChart
-                // salesTrend comes back keyed by date in object order, which is
-                // insertion order rather than chronological — so a chart drawn
-                // straight from it can zig-zag backwards through time.
-                data={[...sales.salesTrend].sort((a, b) =>
-                  a.date.localeCompare(b.date),
-                )}
+                data={sales.trend.map((point) => ({
+                  date: point.date,
+                  amount: point.revenue,
+                }))}
               />
             )}
           </CardContent>
@@ -214,7 +198,11 @@ export default function OverviewPage() {
             {loading ? (
               <StatusBreakdownSkeleton />
             ) : (
-              <StatusBreakdown counts={sales.statusCounts} />
+              <StatusBreakdown
+                counts={Object.fromEntries(
+                  operations.orderStatus.map((s) => [s.status, s.count]),
+                )}
+              />
             )}
           </CardContent>
         </Card>

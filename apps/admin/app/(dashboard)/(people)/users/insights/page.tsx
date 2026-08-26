@@ -1,268 +1,291 @@
 "use client";
 
-import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  ArrowLeftIcon as ArrowLeft,
-  CrownIcon as Crown,
-  UserAdd01Icon as UserPlus,
-  UserGroupIcon as Users,
-} from "@hugeicons/core-free-icons";
-import React, { useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "@repo/backend";
-import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
-import { formatKES } from "@/lib/utils";
-import { TimeRangeSelector } from "@/components/insights/TimeRangeSelector";
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
 import {
-  OrderStatusChart,
-  SalesTrendChart,
-} from "@/components/insights/InsightsCharts";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Badge } from "@repo/ui/components/ui/badge";
+  ShoppingBasket01Icon,
+  UserAdd01Icon,
+  UserGroupIcon,
+  UserMultiple02Icon,
+} from "@hugeicons/core-free-icons";
+import { api } from "@repo/backend";
 
-export default function UsersInsightsPage() {
-  const [timeRange, setTimeRange] = useState<string>("thisMonth");
-  const { isAdminUser, isLoading: permsLoading } = useCurrentUserPermissions();
-  const router = useRouter();
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@repo/ui/components/ui/table";
+import {
+  ChartSkeleton,
+  DonutChart,
+  SeriesChart,
+} from "../../../_components/charts";
+import { compactKES, count, fullKES, SERIES } from "../../../_components/format";
+import {
+  FactRow,
+  InsightsHeader,
+  useInsightRange,
+  useInsightScope,
+} from "../../../_components/insights-shell";
+import { StatCard, StatCardSkeleton } from "../../../_components/stat-card";
 
-  if (!permsLoading && !isAdminUser) {
-    router.replace("/insights");
-    return null;
-  }
-
-  const insights = useQuery(api.data.insights.getDetailedUsersInsights, {
-    timeRange: timeRange as any,
+/**
+ * Customers.
+ *
+ * ── Why this is no longer "Users insights" ────────────────────────────────
+ *
+ * `getDetailedUsersInsights` had no vendor parameter at all, so it returned the
+ * platform's entire user list and its role distribution to anyone who opened the
+ * page. For a vendor manager that is a staff directory, not a business insight —
+ * they have no claim on how many riders the platform employs.
+ *
+ * So the page splits. The platform block — total users, role split — renders only
+ * for an unrestricted caller, because the query returns `platform: null` for
+ * everyone else. What every caller gets is the customers who actually bought
+ * from them, derived from their own orders, where "new" means new TO THEM.
+ *
+ * The URL stays /users/insights so existing links keep working.
+ */
+export default function CustomersInsightsPage() {
+  const [range, setRange] = useInsightRange();
+  const scope = useInsightScope();
+  const data = useQuery(api.data.insights_domain.getCustomersInsights, {
+    timeRange: range,
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center gap-3 mb-2">
-            <Link
-              href="/insights"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <HugeiconsIcon icon={ArrowLeft} className="w-5 h-5" />
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Users Insights
-              </h1>
-              <p className="text-muted-foreground">
-                User analytics and growth metrics
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <InsightsHeader
+        title="Customers"
+        description="Who is buying, how often, and how much they spend."
+        noun="customers"
+        scope={scope}
+        range={range}
+        onRangeChange={setRange}
+      />
 
-      <div className="container mx-auto px-6 py-8 space-y-6">
-        <div className="flex flex-wrap gap-4 items-center">
-          <TimeRangeSelector value={timeRange} onChange={setTimeRange} />
-        </div>
+      {!data ? (
+        <CustomersInsightsSkeleton />
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="Buying customers"
+              value={count(data.buyingCustomers)}
+              icon={UserGroupIcon}
+              hint="Placed at least one paid order"
+            />
+            <StatCard
+              label="New"
+              value={count(data.newCustomers)}
+              icon={UserAdd01Icon}
+              hint={
+                scope?.restricted
+                  ? "First order with you in this period"
+                  : "First order in this period"
+              }
+            />
+            <StatCard
+              label="Returning"
+              value={count(data.returningCustomers)}
+              icon={UserMultiple02Icon}
+              hint={
+                data.buyingCustomers > 0
+                  ? `${Math.round(
+                      (data.returningCustomers / data.buyingCustomers) * 100,
+                    )}% of buyers had ordered before`
+                  : "Nobody bought in this period"
+              }
+            />
+            <StatCard
+              label="Spend per customer"
+              value={compactKES(data.averageCustomerValue)}
+              icon={ShoppingBasket01Icon}
+              // Per CUSTOMER, not per order — the two differ exactly when
+              // customers order more than once, which is the thing this page is
+              // trying to show.
+              hint={`${data.ordersPerCustomer.toFixed(1)} orders each on average`}
+            />
+          </section>
 
-        {insights && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <FactRow
+            facts={[
+              {
+                label: "Total from these customers",
+                value: fullKES(
+                  data.averageCustomerValue * data.buyingCustomers,
+                ),
+              },
+              ...(data.platform
+                ? [
+                    {
+                      label: "Registered users",
+                      value: count(data.platform.totalUsers),
+                    },
+                    {
+                      label: "New signups",
+                      value: count(data.platform.newUsers),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Customers buying each day</CardTitle>
+              <CardDescription>
+                {/*
+                  Distinct buyers, not order count. One customer placing five
+                  orders is one person, and a chart that counts orders here would
+                  make a single wholesale buyer look like a busy day.
+                */}
+                Distinct buyers per day, so one customer ordering five times
+                counts once
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SeriesChart
+                data={data.activeByDay}
+                series={[
+                  {
+                    key: "customers",
+                    label: "Customers",
+                    color: SERIES.primary,
+                  },
+                ]}
+              />
+            </CardContent>
+          </Card>
+
+          <section className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Top customers by spend</CardTitle>
+                <CardDescription>
+                  {scope?.restricted
+                    ? "Spend with your vendors in this period"
+                    : "Spend across the platform in this period"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-0">
+                {data.topCustomers.length === 0 ? (
+                  <p className="text-muted-foreground px-6 py-8 text-center text-sm">
+                    Nobody bought in this period.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Customer</TableHead>
+                        <TableHead className="text-right">Orders</TableHead>
+                        <TableHead className="text-right">Spent</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.topCustomers.map((customer) => (
+                        <TableRow key={customer.id}>
+                          <TableCell className="max-w-[240px]">
+                            <p className="truncate font-medium">
+                              {customer.name}
+                            </p>
+                            {customer.email ? (
+                              <p className="text-muted-foreground truncate text-xs">
+                                {customer.email}
+                              </p>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {count(customer.orders)}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {compactKES(customer.spent)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/*
+              Platform only. A restricted caller gets `platform: null` from the
+              server, so this cannot render for them even by mistake — the
+              absence is enforced by the payload, not by a conditional here.
+            */}
+            {data.platform ? (
               <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Total Users
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {insights.totalUsers.toLocaleString()}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={Users} className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
+                <CardHeader>
+                  <CardTitle>Everyone on the platform</CardTitle>
+                  <CardDescription>
+                    All registered accounts by role, customers included
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DonutChart
+                    data={data.platform.byRole.map((entry) => ({
+                      name: entry.role,
+                      value: entry.count,
+                    }))}
+                  />
                 </CardContent>
               </Card>
+            ) : (
               <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        New Users
-                      </p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {insights.newUsersCount.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        In selected period
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={UserPlus} className="w-8 h-8 text-green-200" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Roles
-                      </p>
-                      <p className="text-2xl font-bold">
-                        {Object.keys(insights.byRole).length}
-                      </p>
-                    </div>
-                    <HugeiconsIcon icon={Crown} className="w-8 h-8 text-muted-foreground/30" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Role Distribution */}
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">Users by Role</CardTitle>
+                <CardHeader>
+                  <CardTitle>Repeat purchase</CardTitle>
+                  <CardDescription>
+                    New against returning buyers in this period
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="h-80 p-0">
-                  <OrderStatusChart data={insights.byRole} />
-                </CardContent>
-              </Card>
-
-              {/* Role Breakdown */}
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">Role Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-3">
-                    {Object.entries(insights.byRole)
-                      .sort(([, a], [, b]) => (b as number) - (a as number))
-                      .map(([role, count]) => {
-                        const pct =
-                          insights.totalUsers > 0
-                            ? (
-                                ((count as number) / insights.totalUsers) *
-                                100
-                              ).toFixed(1)
-                            : "0";
-                        return (
-                          <div
-                            key={role}
-                            className="flex items-center justify-between"
-                          >
-                            <Badge variant="outline">{role}</Badge>
-                            <div className="flex items-center gap-3">
-                              <div className="w-24 bg-muted rounded-full h-2">
-                                <div
-                                  className="bg-primary rounded-full h-2"
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-medium tabular-nums w-20 text-right">
-                                {count as number} ({pct}%)
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Signup Trend */}
-            {insights.dailySignups.length > 0 && (
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">
-                    User Signups Trend
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="h-80 p-0">
-                  <SalesTrendChart
-                    data={{
-                      salesTrend: insights.dailySignups.map(
-                        (d: { date: string; count: number }) => ({
-                          date: d.date,
-                          amount: d.count,
-                        }),
-                      ),
-                    }}
+                <CardContent>
+                  <DonutChart
+                    data={[
+                      {
+                        name: "Returning",
+                        value: data.returningCustomers,
+                        color: "var(--chart-4)",
+                      },
+                      {
+                        name: "New",
+                        value: data.newCustomers,
+                        color: "var(--chart-1)",
+                      },
+                    ]}
                   />
                 </CardContent>
               </Card>
             )}
+          </section>
+        </>
+      )}
+    </div>
+  );
+}
 
-            {/* Top Customers */}
-            {insights.topCustomers.length > 0 && (
-              <Card className="shadow-sm">
-                <CardHeader className="border-b pb-3">
-                  <CardTitle className="text-base">
-                    Top Customers by Spending
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="max-h-64 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/50 sticky top-0">
-                        <tr>
-                          <th className="text-left px-4 py-2 font-medium text-muted-foreground">
-                            #
-                          </th>
-                          <th className="text-left px-4 py-2 font-medium text-muted-foreground">
-                            Customer
-                          </th>
-                          <th className="text-right px-4 py-2 font-medium text-muted-foreground">
-                            Orders
-                          </th>
-                          <th className="text-right px-4 py-2 font-medium text-muted-foreground">
-                            Spent
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {insights.topCustomers.map(
-                          (
-                            c: {
-                              name: string;
-                              email: string;
-                              orders: number;
-                              spent: number;
-                            },
-                            i: number,
-                          ) => (
-                            <tr key={i} className="hover:bg-muted/30">
-                              <td className="px-4 py-2 font-medium">{i + 1}</td>
-                              <td className="px-4 py-2">
-                                <p className="font-medium">{c.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {c.email}
-                                </p>
-                              </td>
-                              <td className="px-4 py-2 text-right tabular-nums">
-                                {c.orders}
-                              </td>
-                              <td className="px-4 py-2 text-right tabular-nums text-green-600 font-medium">
-                                {formatKES(c.spent)}
-                              </td>
-                            </tr>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
-
-        {!insights && (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary" />
-          </div>
-        )}
-      </div>
+function CustomersInsightsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </section>
+      <Card>
+        <CardContent className="pt-6">
+          <ChartSkeleton />
+        </CardContent>
+      </Card>
     </div>
   );
 }
