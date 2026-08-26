@@ -4,7 +4,11 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSignIn } from "@clerk/nextjs";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
-import type { SignInFirstFactor, SignInSecondFactor } from "@clerk/types";
+import type {
+  AttemptSecondFactorParams,
+  SignInFirstFactor,
+  SignInSecondFactor,
+} from "@clerk/types";
 
 /**
  * The sign-in flow, driven by what the Clerk instance actually offers.
@@ -49,6 +53,21 @@ import type { SignInFirstFactor, SignInSecondFactor } from "@clerk/types";
  *
  * "Forgot password?" appears only where a password is genuinely on offer —
  * resetting one the user does not have is a dead end.
+ *
+ * ── Second factors, including the emailed one ────────────────────────────
+ *
+ * Clerk supports an emailed code as MFA, not only as a first factor:
+ * `PrepareSecondFactorParams` is
+ * `PhoneCodeSecondFactorConfig | EmailCodeSecondFactorConfig | EmailLinkConfig`.
+ * Missing that case is what produced "requires email_code, which this screen
+ * does not support yet" on an account whose second factor was exactly that.
+ *
+ * The rule that follows: anything DELIVERED must be prepared before its input is
+ * shown. Rendering the boxes without calling `prepareSecondFactor` is worse than
+ * a crash — no message ever arrives, and it looks like codes are being sent and
+ * lost rather than never requested. TOTP and backup codes are the exception,
+ * because they come from the user's own device; `resendable` on the prompt is
+ * what keeps the resend button off those two.
  */
 
 type Step =
@@ -64,16 +83,35 @@ interface FactorPrompt {
   helper: string;
   /** Six-box OTP, versus a plain text input for backup codes. */
   otp: boolean;
+  /**
+   * Whether the code is DELIVERED and can therefore be sent again. TOTP and
+   * backup codes come from the user's own device, so offering to resend one is
+   * an offer that cannot be honoured.
+   */
+  resendable: boolean;
 }
 
 function describeSecondFactor(strategy: string): FactorPrompt {
   switch (strategy) {
+    case "email_code":
+      // Clerk supports an emailed code as MFA — `PrepareSecondFactorParams`
+      // includes `EmailCodeSecondFactorConfig`. Missing this case is what
+      // produced "requires email_code, which this screen does not support yet"
+      // on an account whose second factor is exactly that.
+      return {
+        strategy,
+        title: "Check your email",
+        helper: "Enter the 6-digit code we just sent you.",
+        otp: true,
+        resendable: true,
+      };
     case "phone_code":
       return {
         strategy,
         title: "Check your phone",
         helper: "Enter the 6-digit code we sent by SMS.",
         otp: true,
+        resendable: true,
       };
     case "backup_code":
       return {
@@ -81,6 +119,7 @@ function describeSecondFactor(strategy: string): FactorPrompt {
         title: "Enter a backup code",
         helper: "Use one of the recovery codes you saved.",
         otp: false,
+        resendable: false,
       };
     case "totp":
       return {
@@ -88,6 +127,7 @@ function describeSecondFactor(strategy: string): FactorPrompt {
         title: "Authenticator code",
         helper: "Open your authenticator app for the current 6-digit code.",
         otp: true,
+        resendable: false,
       };
     default:
       // Named rather than guessed. An unrecognised strategy is a configuration
@@ -98,6 +138,7 @@ function describeSecondFactor(strategy: string): FactorPrompt {
         title: "Additional verification needed",
         helper: `This account requires "${strategy}", which this screen does not support yet.`,
         otp: false,
+        resendable: false,
       };
   }
 }
@@ -179,6 +220,7 @@ export function useSignInFlow(redirectTo: string = "/") {
         title: "Check your email",
         helper: `We sent a 6-digit code to ${email.trim()}.`,
         otp: true,
+        resendable: true,
       });
       setCode("");
       setStep("emailCode");
@@ -220,13 +262,22 @@ export function useSignInFlow(redirectTo: string = "/") {
         setPrompt(described);
         setCode("");
 
-        // TOTP and backup codes already exist on the user's device; only SMS
-        // has to be sent.
-        if (first.strategy === "phone_code" && signIn) {
-          await signIn.prepareSecondFactor({
-            strategy: "phone_code",
-            phoneNumberId: first.phoneNumberId,
-          });
+        // TOTP and backup codes already exist on the user's device. Anything
+        // DELIVERED has to be requested first — and forgetting that is worse
+        // than a crash: the input renders, no message ever arrives, and it looks
+        // like the code is being sent and lost.
+        if (signIn) {
+          if (first.strategy === "phone_code") {
+            await signIn.prepareSecondFactor({
+              strategy: "phone_code",
+              phoneNumberId: first.phoneNumberId,
+            });
+          } else if (first.strategy === "email_code") {
+            await signIn.prepareSecondFactor({
+              strategy: "email_code",
+              emailAddressId: first.emailAddressId,
+            });
+          }
         }
 
         setStep("secondFactor");
@@ -412,6 +463,43 @@ export function useSignInFlow(redirectTo: string = "/") {
     }
   }, [isLoaded, signIn, sendEmailCode]);
 
+  /** Send the second-factor code again, where it is one that gets delivered. */
+  const resendSecondFactor = useCallback(async () => {
+    if (!isLoaded || !signIn || !prompt) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const factors = (signIn.supportedSecondFactors ??
+        []) as SignInSecondFactor[];
+      const factor = factors.find((f) => f.strategy === prompt.strategy);
+      if (!factor) {
+        setError("Could not resend — start again from your email address.");
+        return;
+      }
+      if (factor.strategy === "phone_code") {
+        await signIn.prepareSecondFactor({
+          strategy: "phone_code",
+          phoneNumberId: factor.phoneNumberId,
+        });
+      } else if (factor.strategy === "email_code") {
+        await signIn.prepareSecondFactor({
+          strategy: "email_code",
+          emailAddressId: factor.emailAddressId,
+        });
+      } else {
+        // TOTP and backup codes are not sent, so there is nothing to resend.
+        setError("This code comes from your device, so it cannot be resent.");
+        return;
+      }
+      setCode("");
+      setNotice("Sent again. Codes can take a moment to arrive.");
+    } catch (err) {
+      setError(messageFor(err, "Could not resend the code."));
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoaded, signIn, prompt]);
+
   const submitSecondFactor = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -421,10 +509,14 @@ export function useSignInFlow(redirectTo: string = "/") {
       setError(null);
 
       try {
+        // Every supported second factor is { strategy, code }, so one shape
+        // covers them — but the strategy is passed THROUGH rather than cast to
+        // "totp". The old cast satisfied the compiler while sending the wrong
+        // strategy name to Clerk for anything that was not TOTP.
         const attempt = await signIn.attemptSecondFactor({
-          strategy: prompt.strategy as "totp",
+          strategy: prompt.strategy,
           code: code.trim(),
-        });
+        } as AttemptSecondFactorParams);
         if (attempt.status === "complete") {
           await finish(attempt.createdSessionId);
           return;
@@ -521,6 +613,7 @@ export function useSignInFlow(redirectTo: string = "/") {
     submitPassword,
     submitEmailCode,
     submitSecondFactor,
+    resendSecondFactor,
     resendEmailCode,
     requestReset,
     submitReset,

@@ -308,7 +308,34 @@ function SignInForm() {
             >
               {flow.loading ? "Verifying…" : "Verify"}
             </Button>
-            <BackButton onClick={flow.restart} />
+
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={flow.restart}
+              >
+                <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
+                Start again
+              </Button>
+              {/*
+                Only where the code is actually delivered. A TOTP or backup code
+                comes from the user's own device, so a resend button there is an
+                offer that cannot be honoured.
+              */}
+              {flow.prompt.resendable ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={flow.resendSecondFactor}
+                  disabled={flow.loading}
+                >
+                  Resend code
+                </Button>
+              ) : null}
+            </div>
           </form>
         </>
       ) : null}
