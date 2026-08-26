@@ -2,7 +2,9 @@ import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 
 // ── Helpers ────────────────────────────────────────────────────
-function buildSearchText(name: string, description?: string): string {
+// Exported so `bootstrap.ts` seeds roles with the same search text the roles
+// form produces. A seeded role that is missing it is invisible to role search.
+export function buildSearchText(name: string, description?: string): string {
   return [name, description ?? ""].join(" ").replace(/\s+/g, " ").trim();
 }
 

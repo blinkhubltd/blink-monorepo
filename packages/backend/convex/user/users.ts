@@ -17,7 +17,9 @@ import {
 } from "../lib/roles";
 import { getAccountCompletion } from "../lib/account_completion";
 
-const computeUserSearchText = (user: {
+// Exported so bootstrap.ts builds the same search text when it self-provisions
+// a user, rather than inserting a row that role search cannot find.
+export const computeUserSearchText = (user: {
   name?: string;
   first_name?: string;
   last_name?: string;
