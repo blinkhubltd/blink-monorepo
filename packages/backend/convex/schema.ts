@@ -108,6 +108,11 @@ export default defineSchema({
     .index("by_user_status", ["user_id", "order_status"])
     .index("by_assigned_picker", ["assigned_picker_id"])
     .index("by_assigned_picker_status", ["assigned_picker_id", "order_status"])
+    // Composite so a vendor-scoped dashboard query is indexed on BOTH the vendor
+    // and the period. by_vendor alone would read every order that vendor has
+    // ever had and filter by date in memory, which is the read pattern Convex's
+    // 16k limit punishes.
+    .index("by_vendor_order_date", ["vendor_id", "order_date"])
     .index("by_is_clearance", ["is_clearance"])
     .searchIndex("search_text", {
       searchField: "searchText",
