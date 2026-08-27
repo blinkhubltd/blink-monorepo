@@ -6,6 +6,7 @@ import {
   type MutationCtx,
 } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
+import { assertPermission } from "../auth.helpers";
 import {
   lowercaseRecordStatus,
 } from "../validators";
@@ -61,6 +62,7 @@ const computeCategorySearchText = (category: {
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    await assertPermission(ctx, "categories:CREATE");
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -173,6 +175,7 @@ export const createCategory = mutation({
     sort_order: v.number(),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "categories:CREATE");
     const now = Date.now();
     await assertPlacement(ctx, args.parent_category_id);
 
@@ -292,6 +295,7 @@ export const getCategories = query({
 export const backfillCategoriesSearchText = mutation({
   args: {},
   handler: async (ctx) => {
+    await assertPermission(ctx, "categories:UPDATE");
     const categories = await ctx.db.query("categories").collect();
     let updatedCount = 0;
 
@@ -376,6 +380,7 @@ export const updateCategory = mutation({
     sort_order: v.number(),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "categories:UPDATE");
     const { id, ...updates } = args;
     const now = Date.now();
 
@@ -416,6 +421,7 @@ export const updateCategory = mutation({
 export const deleteCategory = mutation({
   args: { id: v.id("categories") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "categories:DELETE");
     // Disable delete if category has child category or products
 
     const children = await ctx.db
@@ -456,6 +462,7 @@ export const bulkCreateCategories = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "categories:CREATE");
     const now = Date.now();
     const results: { success: number; failed: number; errors: string[] } = {
       success: 0,

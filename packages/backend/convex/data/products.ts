@@ -15,6 +15,7 @@ import {
 import { haversineMeters } from "../lib/geo";
 import { checkVendorSchedule } from "../lib/schedule";
 import { productPlacementError } from "../lib/category_tree";
+import { assertPermission } from "../auth.helpers";
 
 /**
  * A product must hang off a LEVEL-3 category, never a level-1 or level-2 one.
@@ -668,6 +669,7 @@ export const getProducts = query({
 export const backfillProductsSearchText = mutation({
   args: {},
   handler: async (ctx) => {
+    await assertPermission(ctx, "products:UPDATE");
     const products = await ctx.db.query("products").collect();
     let updatedCount = 0;
 
@@ -919,6 +921,7 @@ export const getProductsForCategoryTreePaginated = query({
 export const createProduct = mutation({
   args: ProductsValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:CREATE");
     const now = Date.now();
 
     await assertProductCategory(ctx, args.category_id);
@@ -1064,6 +1067,7 @@ export const getProductsByVendor = query({
 export const updateProduct = mutation({
   args: ProductsUpdateValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:UPDATE");
     const { id, ...updates } = args;
     const now = Date.now();
 
@@ -1121,6 +1125,7 @@ export const updateProductQuantity = mutation({
     quantity: v.number(),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:UPDATE");
     const now = Date.now();
     const product = await ctx.db.get(args.id);
     if (!product) {
@@ -1140,6 +1145,7 @@ export const updateSingleProductStatus = mutation({
     status: v.union(...productStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:UPDATE");
     const now = Date.now();
     const product = await ctx.db.get(args.productId);
     if (!product) {
@@ -1159,6 +1165,7 @@ export const bulkUpdateProductStatus = mutation({
     status: v.union(...productStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:UPDATE");
     const results = [];
     for (const id of args.productIds) {
       const result = await ctx.db.patch(id, { status: args.status });
@@ -1363,6 +1370,7 @@ export const bulkCreateProducts = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:CREATE");
     const now = Date.now();
     const results: { success: number; failed: number; errors: string[] } = {
       success: 0,
@@ -1521,6 +1529,7 @@ export const addProductImages = mutation({
     storage_ids: v.array(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:UPDATE");
     if (args.storage_ids.length === 0) return;
     const product = await ctx.db.get(args.product_id);
     if (!product) throw new Error("Product not found");
