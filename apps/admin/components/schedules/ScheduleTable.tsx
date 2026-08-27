@@ -54,37 +54,40 @@ import {
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import { toast } from "sonner";
-import { getConvexErrorMessage } from "@/lib/utils";
+import { cn, getConvexErrorMessage } from "@/lib/utils";
 import { useDashboardData } from "@/providers/DashboardDataProvider";
 import type { ScheduleWithDetails, DayOfWeek } from "./types";
 import { Id } from "@repo/backend/dataModel";
 import { formatTimeOfDay } from "@/lib/date-utils";
+import {
+  DAYS_OF_WEEK,
+  formatMinutes,
+  shiftMinutes,
+  summariseSchedule,
+} from "./schedule-metrics";
 
 interface ScheduleTableProps {
   onEditSchedule?: (schedule: ScheduleWithDetails) => void;
 }
 
-// Color schemes for days and roles
-const dayColors: Record<DayOfWeek, string> = {
-  Monday: "bg-red-100 text-red-800 border-red-200",
-  Tuesday: "bg-orange-100 text-orange-800 border-orange-200",
-  Wednesday: "bg-amber-100 text-amber-800 border-amber-200",
-  Thursday: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  Friday: "bg-lime-100 text-lime-800 border-lime-200",
-  Saturday: "bg-blue-100 text-blue-800 border-blue-200",
-  Sunday: "bg-purple-100 text-purple-800 border-purple-200",
-};
-
-const roleColors: Record<string, string> = {
-  rider: "bg-blue-400 text-yellow-400 border-yellow-400",
-  picker: "bg-blue-600 text-white border-blue-700",
-  "hub manager": "bg-gray-800 text-yellow-300 border-yellow-300",
-};
-
-const getRoleBadgeClass = (role?: string) =>
-  role
-    ? roleColors[role.trim().toLowerCase()] || "bg-gray-100 text-gray-800"
-    : "bg-gray-100 text-gray-800";
+/**
+ * Role badges use the shared Badge variants rather than hand-mixed colours.
+ *
+ * The previous map was `bg-blue-400 text-yellow-400` for riders and
+ * `bg-gray-800 text-yellow-300` for hub managers — blue is not in the Blink
+ * palette at all, yellow-on-blue-400 is about 1.6:1 contrast, and every value
+ * was a light-mode literal that bypassed the theme.
+ *
+ * Day chips are no longer coloured per weekday either: seven arbitrary hues
+ * carried no information, and the only thing worth distinguishing is worked
+ * versus not worked.
+ */
+function roleVariant(role: string | undefined) {
+  const normalised = role?.trim().toLowerCase();
+  if (normalised === "rider") return "default" as const;
+  if (normalised === "picker") return "secondary" as const;
+  return "outline" as const;
+}
 
 export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
   const { schedules, vendors } = useDashboardData();
@@ -94,16 +97,6 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
   const [selectedRole, setSelectedRole] = useState<string>("all");
 
   const deleteSchedule = useMutation(api.data.schedules.deleteSchedule);
-
-  const daysOfWeek: DayOfWeek[] = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ];
 
   const filteredSchedules = useMemo(() => {
     if (!schedules) return [];
@@ -149,74 +142,41 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
     return Array.from(roles) as string[];
   };
 
-  const renderWeeklySchedule = (weeklySchedule: any) => {
-    return (
-      <div className="flex flex-wrap gap-1">
-        {daysOfWeek.map((day) => {
-          const daySchedule = weeklySchedule?.[day];
-          if (!daySchedule?.enabled) {
-            return (
-              <Badge
-                key={day}
-                variant="outline"
-                className="bg-gray-100 text-gray-400 border-gray-300 text-xs"
-              >
-                {day.slice(0, 3)}
-              </Badge>
-            );
-          }
-          return (
-            <Badge
-              key={day}
-              variant="outline"
-              className={`${dayColors[day]} text-xs`}
-              title={`${formatTimeOfDay(daySchedule.startTime)} - ${formatTimeOfDay(daySchedule.endTime)}`}
-            >
-              {day.slice(0, 3)}
-            </Badge>
-          );
-        })}
-      </div>
-    );
-  };
+  const renderWeeklySchedule = (weeklySchedule: any) => (
+    <div className="flex flex-wrap gap-1">
+      {DAYS_OF_WEEK.map((day) => {
+        const entry = weeklySchedule?.[day];
+        const span = shiftMinutes(entry);
+        const worked = Boolean(entry?.enabled);
+        const broken = worked && span === null;
 
-  const getWorkingDaysCount = (weeklySchedule: any) => {
-    if (!weeklySchedule) return 0;
-    return Object.values(weeklySchedule).filter((day: any) => day?.enabled)
-      .length;
-  };
-
-  const getTotalWeeklyHours = (weeklySchedule: any) => {
-    if (!weeklySchedule) return 0;
-
-    let totalHours = 0;
-    Object.values(weeklySchedule).forEach((day: any) => {
-      if (day?.enabled && day.startTime && day.endTime) {
-        try {
-          const [startHours, startMinutes] = day.startTime
-            .split(":")
-            .map(Number);
-          const [endHours, endMinutes] = day.endTime.split(":").map(Number);
-          const startMinuteTotal = startHours * 60 + startMinutes;
-          const endMinuteTotal = endHours * 60 + endMinutes;
-          const durationHours = (endMinuteTotal - startMinuteTotal) / 60;
-          totalHours += durationHours;
-        } catch {
-          // Skip invalid time formats
-        }
-      }
-    });
-
-    return totalHours;
-  };
+        return (
+          <Badge
+            key={day}
+            variant={broken ? "destructive" : worked ? "secondary" : "outline"}
+            className={cn("text-xs", !worked && "text-muted-foreground/60")}
+            title={
+              broken
+                ? `${day}: times could not be read`
+                : worked
+                  ? `${day}: ${formatTimeOfDay(entry.startTime)}–${formatTimeOfDay(entry.endTime)} (${formatMinutes(span ?? 0)})`
+                  : `${day}: not working`
+            }
+          >
+            {day.slice(0, 3)}
+          </Badge>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <Card className="border border-gray-200 shadow-sm">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-900">
-            <HugeiconsIcon icon={Search} className="h-5 w-5 text-gray-600" />
+          <CardTitle className="flex items-center gap-2 text-base">
+            <HugeiconsIcon icon={Search} className="text-muted-foreground size-4" />
             Filters
           </CardTitle>
         </CardHeader>
@@ -224,23 +184,23 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="space-y-2">
-              <Label className="text-black font-medium">Search</Label>
+              <Label>Search</Label>
               <div className="relative">
-                <HugeiconsIcon icon={Search} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <HugeiconsIcon icon={Search} className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                 <Input
                   placeholder="Search staff..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 border-gray-300 focus:border-gray-500 focus:ring-gray-500"
+                  className="pl-9"
                 />
               </div>
             </div>
 
             {/* Vendor Filter */}
             <div className="space-y-2">
-              <Label className="text-black font-medium">Vendor</Label>
+              <Label>Vendor</Label>
               <Select value={selectedVendor} onValueChange={setSelectedVendor}>
-                <SelectTrigger className="border-gray-300 focus:border-gray-500 focus:ring-gray-500">
+                <SelectTrigger>
                   <SelectValue placeholder="All vendors" />
                 </SelectTrigger>
                 <SelectContent>
@@ -257,20 +217,17 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
 
             {/* Role Filter */}
             <div className="space-y-2">
-              <Label className="text-black font-medium">Role</Label>
+              <Label>Role</Label>
               <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger className="border-gray-300 focus:border-gray-500 focus:ring-gray-500">
+                <SelectTrigger>
                   <SelectValue placeholder="All roles" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
                   {getUniqueRoles().map((role) => (
                     <SelectItem key={role} value={role!}>
-                      <Badge
-                        variant="outline"
-                        className={getRoleBadgeClass(role)}
-                      >
-                        {role?.replace("_", " ")}
+                      <Badge variant={roleVariant(role)}>
+                        {role?.replace(/_/g, " ")}
                       </Badge>
                     </SelectItem>
                   ))}
@@ -280,9 +237,9 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
 
             {/* Results Count */}
             <div className="space-y-2">
-              <Label className="text-black font-medium">Results</Label>
-              <div className="flex items-center h-10 px-3 border-2 border-gray-200 rounded-md">
-                <span className="text-sm text-black font-medium">
+              <Label>Results</Label>
+              <div className="bg-muted/40 flex h-9 items-center rounded-md border px-3">
+                <span className="text-sm font-medium tabular-nums">
                   {filteredSchedules.length} schedule
                   {filteredSchedules.length !== 1 ? "s" : ""}
                 </span>
@@ -293,21 +250,21 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
       </Card>
 
       {/* Schedule Table */}
-      <Card className="border-2 border-gray-200 shadow-lg">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-black">
-            <HugeiconsIcon icon={Calendar} className="h-5 w-5 text-gray-900" />
+          <CardTitle className="flex items-center gap-2 text-base">
+            <HugeiconsIcon icon={Calendar} className="text-muted-foreground size-4" />
             Staff Schedules ({filteredSchedules.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           {filteredSchedules.length === 0 ? (
             <div className="text-center py-12">
-              <HugeiconsIcon icon={Calendar} className="mx-auto h-16 w-16 text-gray-900" />
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">
+              <HugeiconsIcon icon={Calendar} className="text-muted-foreground/40 mx-auto size-12" />
+              <h3 className="mt-4 text-base font-semibold">
                 No schedules found
               </h3>
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="text-muted-foreground mt-1 text-sm">
                 No schedules match your current filters.
               </p>
             </div>
@@ -315,78 +272,70 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200">
-                    <TableHead className="text-black font-semibold">
+                  <TableRow>
+                    <TableHead>
                       Staff Member
                     </TableHead>
-                    <TableHead className="text-black font-semibold">
+                    <TableHead>
                       Role
                     </TableHead>
-                    <TableHead className="text-black font-semibold">
+                    <TableHead>
                       Vendor
                     </TableHead>
-                    <TableHead className="text-black font-semibold">
+                    <TableHead>
                       Weekly Schedule
                     </TableHead>
-                    <TableHead className="text-black font-semibold">
+                    <TableHead>
                       Working Days
                     </TableHead>
-                    <TableHead className="text-black font-semibold">
+                    <TableHead>
                       Total Hours/Week
                     </TableHead>
-                    <TableHead className="text-right text-black font-semibold">
+                    <TableHead className="text-right">
                       Actions
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredSchedules.map((schedule: ScheduleWithDetails) => {
-                    const workingDays = getWorkingDaysCount(
-                      schedule.weeklySchedule,
-                    );
-                    const totalHours = getTotalWeeklyHours(
-                      schedule.weeklySchedule,
-                    );
+                    const summary = summariseSchedule(schedule);
 
                     return (
                       <TableRow
                         key={schedule._id}
-                        className="border-gray-100 hover:bg-gray-50/50"
+                        
                       >
                         <TableCell>
                           <div className="flex items-center space-x-3">
-                            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center shadow-md">
-                              <HugeiconsIcon icon={User} className="h-5 w-5 text-black" />
+                            <div className="bg-muted grid size-9 shrink-0 place-items-center rounded-full">
+                              <HugeiconsIcon icon={User} className="text-muted-foreground size-4" />
                             </div>
                             <div>
-                              <div className="font-medium text-black">
+                              <div className="font-medium">
                                 {schedule.user?.name || "Unknown"}
                               </div>
-                              <div className="text-sm text-gray-600">
+                              <div className="text-muted-foreground text-sm">
                                 {schedule.user?.email}
                               </div>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={getRoleBadgeClass(schedule.user?.role)}
-                          >
-                            {schedule.user?.role?.replace("_", " ")}
+                          <Badge variant={roleVariant(schedule.user?.role)}>
+                            {schedule.user?.role?.replace(/_/g, " ") ?? "No role"}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
                             {schedule.vendor ? (
                               <>
-                                <HugeiconsIcon icon={Building} className="h-4 w-4 text-gray-900" />
-                                <span className="text-sm text-black font-medium">
+                                <HugeiconsIcon icon={Building} className="text-muted-foreground size-4" />
+                                <span className="text-sm font-medium tabular-nums">
                                   {schedule.vendor.name}
                                 </span>
                               </>
                             ) : (
-                              <span className="text-sm text-gray-500 italic">
+                              <span className="text-muted-foreground text-sm italic">
                                 No vendor
                               </span>
                             )}
@@ -397,16 +346,35 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <HugeiconsIcon icon={CheckCircle} className="h-4 w-4 text-green-500" />
-                            <span className="text-sm font-medium text-black">
-                              {workingDays}/7 days
+                            <span className="text-sm font-medium tabular-nums">
+                              {summary.workingDays}/7
                             </span>
+                            {summary.overnightDays.length > 0 ? (
+                              <span
+                                className="text-muted-foreground text-xs"
+                                title={`Crosses midnight: ${summary.overnightDays.join(", ")}`}
+                              >
+                                overnight
+                              </span>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="text-gray-800">
-                            {totalHours.toFixed(1)}h
-                          </Badge>
+                          {/* Malformed days are named rather than folded into
+                              the total as zero, which is what the old
+                              try/catch did. */}
+                          {summary.malformedDays.length > 0 ? (
+                            <Badge
+                              variant="destructive"
+                              title={`Unreadable times on ${summary.malformedDays.join(", ")}`}
+                            >
+                              Check times
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="tabular-nums">
+                              {formatMinutes(summary.minutes)}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
@@ -414,7 +382,7 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="text-black hover:bg-gray-100"
+                                
                               >
                                 <HugeiconsIcon icon={MoreVertical} className="h-4 w-4" />
                               </Button>
@@ -423,9 +391,9 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
                               {onEditSchedule && (
                                 <DropdownMenuItem
                                   onClick={() => onEditSchedule(schedule)}
-                                  className="hover:bg-gray-50"
+                                  
                                 >
-                                  <HugeiconsIcon icon={Edit} className="h-4 w-4 mr-2 text-blue-600" />
+                                  <HugeiconsIcon icon={Edit} className="size-4" />
                                   Edit
                                 </DropdownMenuItem>
                               )}
@@ -433,35 +401,35 @@ export function ScheduleTable({ onEditSchedule }: ScheduleTableProps) {
                                 <AlertDialogTrigger asChild>
                                   <DropdownMenuItem
                                     onSelect={(e) => e.preventDefault()}
-                                    className="hover:bg-red-50 focus:bg-red-50"
+                                    className="text-destructive focus:text-destructive"
                                   >
-                                    <HugeiconsIcon icon={Trash2} className="h-4 w-4 mr-2 text-red-600" />
-                                    <span className="text-red-600">Delete</span>
+                                    <HugeiconsIcon icon={Trash2} className="size-4" />
+                                    <span>Delete</span>
                                   </DropdownMenuItem>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent className="border-2 border-gray-200">
+                                <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle className="text-black">
+                                    <AlertDialogTitle>
                                       Delete Schedule
                                     </AlertDialogTitle>
                                     <AlertDialogDescription>
                                       Are you sure you want to delete the
                                       schedule for{" "}
-                                      <strong className="text-black">
+                                      <strong className="text-foreground">
                                         {schedule.user?.name}
                                       </strong>
                                       ? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel className="border-gray-300 text-black hover:bg-gray-50">
+                                    <AlertDialogCancel>
                                       Cancel
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() =>
                                         handleDeleteSchedule(schedule._id)
                                       }
-                                      className="bg-red-600 hover:bg-red-700 text-white"
+                                      
                                     >
                                       Delete
                                     </AlertDialogAction>
