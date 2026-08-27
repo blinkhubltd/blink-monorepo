@@ -16,6 +16,7 @@ import {
   SYSTEM_ROLES,
 } from "../lib/roles";
 import { getAccountCompletion } from "../lib/account_completion";
+import { assertPermission, assertStaffOrPermission } from "../auth.helpers";
 
 // Exported so bootstrap.ts builds the same search text when it self-provisions
 // a user, rather than inserting a row that role search cannot find.
@@ -984,7 +985,25 @@ export const getAllUsersForManagement = query({
 });
 
 /** @deprecated Use assignRoleToUser instead */
-export const updateUserRole = mutation({
+/**
+ * Nine role-assigning mutations, found while sweeping for other `isStaff`-shaped
+ * auth gaps after fixing `data/prescription_rejection_reasons.ts` and
+ * `getAllStaff`/`getVendorStaff`/`bulkAssignRole` above. ALL NINE had zero
+ * authorization — not even `ctx.auth.getUserIdentity()` — despite every one of
+ * them patching `role_id` on an arbitrary user. An unauthenticated caller who
+ * knew a user id and the Super Admin role id could grant it to anyone.
+ *
+ * Split per the migration plan's own playbook (Phase B1a): the three with a
+ * live caller (`assignRoleToUser`, `assignRiderWithDetails`,
+ * `assignPickerWithDetails`, all called from components/users/*Dialog.tsx) are
+ * gated with `assertPermission(ctx, "users:UPDATE")`. The five with NO caller
+ * anywhere in this monorepo (`updateUserRole`, `assignGeneralManager`,
+ * `removeManagerRole`, `assignHubManagerWithVendor`,
+ * `assignVendorContactWithVendor`) become `internalMutation` — a client cannot
+ * reach a function it never had a reason to call, so there is nothing to gate.
+ */
+
+export const updateUserRole = internalMutation({
   args: {
     userId: v.id("users"),
     role: v.union(
@@ -1018,7 +1037,8 @@ export const updateUserRole = mutation({
   },
 });
 
-/** Assign a dynamic role (from the roles table) to a user. */
+/** Assign a dynamic role (from the roles table) to a user. Called from
+ * components/users/RoleAssignmentDialog.tsx. */
 export const assignRoleToUser = mutation({
   args: {
     userId: v.id("users"),
@@ -1033,6 +1053,7 @@ export const assignRoleToUser = mutation({
     rider_vehicle_plate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "users:UPDATE");
     const user = await ctx.db.get(args.userId);
     if (!user) throw new Error("User not found");
 
@@ -1083,7 +1104,7 @@ export const assignRoleToUser = mutation({
   },
 });
 
-export const assignGeneralManager = mutation({
+export const assignGeneralManager = internalMutation({
   args: {
     userId: v.id("users"),
   },
@@ -1106,6 +1127,7 @@ export const assignGeneralManager = mutation({
   },
 });
 
+/** Called from components/users/RiderDetailsDialog.tsx. */
 export const assignRiderWithDetails = mutation({
   args: {
     userId: v.id("users"),
@@ -1115,6 +1137,7 @@ export const assignRiderWithDetails = mutation({
     status: v.union(...riderStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "users:UPDATE");
     const user = await ctx.db.get(args.userId);
     if (!user) {
       throw new Error("User not found");
@@ -1145,6 +1168,7 @@ export const assignRiderWithDetails = mutation({
   },
 });
 
+/** Called from components/users/PickerDetailsDialog.tsx. */
 export const assignPickerWithDetails = mutation({
   args: {
     userId: v.id("users"),
@@ -1152,6 +1176,7 @@ export const assignPickerWithDetails = mutation({
     status: v.union(...pickerStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "users:UPDATE");
     const user = await ctx.db.get(args.userId);
     if (!user) {
       throw new Error("User not found");
@@ -1196,7 +1221,7 @@ export const assignPickerWithDetails = mutation({
   },
 });
 
-export const removeManagerRole = mutation({
+export const removeManagerRole = internalMutation({
   args: {
     userId: v.id("users"),
     newRoleId: v.id("roles"),
@@ -1227,7 +1252,7 @@ export const removeManagerRole = mutation({
   },
 });
 
-export const assignHubManagerWithVendor = mutation({
+export const assignHubManagerWithVendor = internalMutation({
   args: {
     userId: v.id("users"),
     vendorId: v.id("vendors"),
@@ -1283,7 +1308,7 @@ export const assignHubManagerWithVendor = mutation({
   },
 });
 
-export const assignVendorContactWithVendor = mutation({
+export const assignVendorContactWithVendor = internalMutation({
   args: {
     userId: v.id("users"),
     vendorId: v.id("vendors"),
@@ -1445,12 +1470,20 @@ export const updateUserImage = mutation({
   },
 });
 
+/**
+ * Every staff member: name, email, phone, role. Had NO auth check at all —
+ * `ctx.auth.getUserIdentity()` was never called, so an unauthenticated request
+ * to the deployment URL returned the full staff directory. Found while sweeping
+ * for other `isStaff`-shaped gates after fixing
+ * `data/prescription_rejection_reasons.ts`; unrelated bug, same file, same pass.
+ */
 export const getAllStaff = query({
   args: {
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    await assertStaffOrPermission(ctx, "staff:READ");
     const limit = Math.max(1, Math.min(200, args.limit));
 
     const pageResult = await ctx.db
@@ -1483,12 +1516,14 @@ export const getAllStaff = query({
   },
 });
 
+/** Riders/pickers/managers for a vendor, by role name. Same missing-auth bug. */
 export const getVendorStaff = query({
   args: {
     vendorId: v.optional(v.id("vendors")),
     roleName: v.string(),
   },
   handler: async (ctx, args) => {
+    await assertStaffOrPermission(ctx, "staff:READ");
     const roleId = await getRoleIdByName(ctx, args.roleName);
     if (!roleId) return [];
 
@@ -1511,12 +1546,23 @@ export const getVendorStaff = query({
   },
 });
 
+/**
+ * Reassign a role to a batch of users.
+ *
+ * The most severe of the three: this had no auth check whatsoever, not even a
+ * signed-in requirement, and it grants ROLES. An unauthenticated request naming
+ * a wildcard role's id and any user's id — including the caller's own, once
+ * self-registered via `/setup`'s webhook path — would have made them Super
+ * Admin. Gated on `users:UPDATE`, matching the /users page this is called from
+ * (components/users/UsersTable.tsx).
+ */
 export const bulkAssignRole = mutation({
   args: {
     userIds: v.array(v.id("users")),
     roleId: v.id("roles"),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "users:UPDATE");
     const role = await ctx.db.get(args.roleId);
     if (!role) throw new Error("Role not found");
 

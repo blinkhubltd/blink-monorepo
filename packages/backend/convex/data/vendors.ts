@@ -6,7 +6,8 @@ import {
   VendorsValidator,
   recordStatus,
 } from "../validators";
-import { getAuthUser } from "../auth.helpers";
+import { assertPermission, getAuthUser } from "../auth.helpers";
+import { readVendorServiceRadiusLimit } from "./platform_settings";
 
 export const getVendors = query({
   args: {
@@ -255,12 +256,20 @@ export const getVendorById = query({
   },
 });
 
+/**
+ * `updateVendorStatus`, `addVendor` and `updateVendor` had NO auth check at
+ * all until this pass — found while sweeping for other `isStaff`-shaped auth
+ * gaps. Gated on `vendors:CREATE`/`vendors:UPDATE`, matching the resource the
+ * /vendors page's permission is already declared under.
+ */
 export const updateVendorStatus = mutation({
   args: {
     vendorId: v.id("vendors"),
     status: v.union(...recordStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "vendors:UPDATE");
+
     await ctx.db.patch(args.vendorId, {
       status: args.status,
     });
@@ -270,7 +279,22 @@ export const updateVendorStatus = mutation({
 export const addVendor = mutation({
   args: VendorsValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "vendors:CREATE");
+
     const now = Date.now();
+
+    // The platform-wide ceiling, set on /settings. A vendor already past it
+    // (because the ceiling was lowered after they were created) is left alone
+    // — this only stops NEW vendors and edits from crossing it, matching what
+    // the settings page's confirmation dialog promises: lowering the limit
+    // warns about existing vendors, it does not touch them.
+    const radiusLimit = await readVendorServiceRadiusLimit(ctx);
+    if (args.service_radius > radiusLimit) {
+      throw new ConvexError(
+        `Service radius cannot exceed the platform limit of ${radiusLimit.toLocaleString()} m. ` +
+          "Raise the limit on Settings first if this vendor genuinely needs more.",
+      );
+    }
 
     if (args.service_center) {
       const distance = haversineMeters(
@@ -302,8 +326,26 @@ export const addVendor = mutation({
 export const updateVendor = mutation({
   args: VendorsUpdateValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "vendors:UPDATE");
+
     const { id, ...updates } = args;
     const now = Date.now();
+
+    // Only checked when service_radius is actually part of THIS edit — a save
+    // that touches other fields must not start failing because some earlier,
+    // already-accepted radius on the vendor now happens to exceed a limit that
+    // has since been lowered. That vendor is grandfathered, per the comment on
+    // addVendor above; re-validating an untouched field on every unrelated save
+    // would silently un-grandfather it.
+    if (updates.service_radius !== undefined) {
+      const radiusLimit = await readVendorServiceRadiusLimit(ctx);
+      if (updates.service_radius > radiusLimit) {
+        throw new ConvexError(
+          `Service radius cannot exceed the platform limit of ${radiusLimit.toLocaleString()} m. ` +
+            "Raise the limit on Settings first if this vendor genuinely needs more.",
+        );
+      }
+    }
 
     if (updates.service_center) {
       const vendor = await ctx.db.get(args.id);

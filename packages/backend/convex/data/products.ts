@@ -1,5 +1,10 @@
 import { Id } from "../_generated/dataModel";
-import { mutation, query, internalMutation } from "../_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+  type MutationCtx,
+} from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import {
   ProductsUpdateValidator,
@@ -9,6 +14,31 @@ import {
 } from "../validators";
 import { haversineMeters } from "../lib/geo";
 import { checkVendorSchedule } from "../lib/schedule";
+import { productPlacementError } from "../lib/category_tree";
+
+/**
+ * A product must hang off a LEVEL-3 category, never a level-1 or level-2 one.
+ *
+ * Both mutations previously checked only that the category existed. That let a
+ * product attach anywhere in the tree, and the admin's cascading picker made it
+ * easy to do by accident: it committed a selection as soon as the chosen
+ * category had no children, so a childless level-2 category was accepted
+ * exactly like a proper level-3 one.
+ *
+ * The consequence is quiet. `getProductsForCategoryTreePaginated` walks DOWN
+ * from a category to collect its descendants' products, so a product parked on a
+ * level-1 category is reachable from that category but invisible in every
+ * level-3 listing a customer actually browses — it is not missing, just
+ * unreachable, which is much harder to notice.
+ */
+async function assertProductCategory(
+  ctx: MutationCtx,
+  categoryId: Id<"categories">,
+) {
+  const categories = await ctx.db.query("categories").collect();
+  const problem = productPlacementError(categories, categoryId);
+  if (problem) throw new ConvexError(problem);
+}
 
 const computeProductSearchText = (product: {
   name?: string;
@@ -891,10 +921,7 @@ export const createProduct = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    const category = await ctx.db.get(args.category_id);
-    if (!category) {
-      throw new Error("Category not found");
-    }
+    await assertProductCategory(ctx, args.category_id);
 
     const existingProduct = await ctx.db
       .query("products")
@@ -1067,11 +1094,12 @@ export const updateProduct = mutation({
       }
     }
 
+    // Only when the category is part of THIS edit. Re-validating an untouched
+    // category on every unrelated save (a price change, a stock adjustment)
+    // would make existing misplaced products — legal when created, since
+    // nothing checked — unsaveable for any reason at all.
     if (updates.category_id) {
-      const category = await ctx.db.get(updates.category_id);
-      if (!category) {
-        throw new Error("Category not found");
-      }
+      await assertProductCategory(ctx, updates.category_id);
     }
 
     const nextSearchText = computeProductSearchText({

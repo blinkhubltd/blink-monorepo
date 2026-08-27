@@ -1,9 +1,51 @@
 import { Id, Doc } from "../_generated/dataModel";
-import { mutation, query } from "../_generated/server";
+import {
+  internalQuery,
+  mutation,
+  query,
+  type MutationCtx,
+} from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import {
   lowercaseRecordStatus,
 } from "../validators";
+import {
+  assertCategoryPlacement,
+  breadcrumbOf,
+  CATEGORY_MAX_DEPTH,
+  CategoryTreeError,
+  depthOf,
+  indexById,
+  LEVEL_LABELS,
+  productCategoryOptions,
+} from "../lib/category_tree";
+
+/**
+ * The three-level rule, enforced.
+ *
+ * `createCategory` and `updateCategory` previously checked only that a chosen
+ * parent EXISTED, so nothing stopped a fourth or fifth level, a category being
+ * made its own parent, or a category being re-parented under its own
+ * descendant — the last of which silently detaches an entire branch from the
+ * root with no error and nothing visibly wrong in the form.
+ *
+ * The rules themselves live in `lib/category_tree.ts` so they are testable
+ * without a database; these mutations just run them and translate the result
+ * into a ConvexError the admin UI already knows how to surface.
+ */
+async function assertPlacement(
+  ctx: MutationCtx,
+  parentId: Id<"categories"> | undefined,
+  movingId?: Id<"categories">,
+): Promise<number> {
+  const all = await ctx.db.query("categories").collect();
+  try {
+    return assertCategoryPlacement(all, parentId, movingId);
+  } catch (err) {
+    if (err instanceof CategoryTreeError) throw new ConvexError(err.message);
+    throw err;
+  }
+}
 
 const computeCategorySearchText = (category: {
   name?: string;
@@ -132,12 +174,7 @@ export const createCategory = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    if (args.parent_category_id) {
-      const parent = await ctx.db.get(args.parent_category_id);
-      if (!parent) {
-        throw new Error("Parent category not found");
-      }
-    }
+    await assertPlacement(ctx, args.parent_category_id);
 
     const existingCategory = await ctx.db
       .query("categories")
@@ -358,12 +395,10 @@ export const updateCategory = mutation({
       }
     }
 
-    if (updates.parent_category_id) {
-      const parent = await ctx.db.get(updates.parent_category_id);
-      if (!parent) {
-        throw new Error("Parent category not found");
-      }
-    }
+    // `movingId` is passed here and not on create — it is what makes the
+    // self-parent and descendant-parent checks possible, both of which are
+    // update-only failures.
+    await assertPlacement(ctx, updates.parent_category_id, id);
 
     const nextSearchText = computeCategorySearchText({
       ...existingCategory,
@@ -430,13 +465,20 @@ export const bulkCreateCategories = mutation({
 
     for (const category of args.categories) {
       try {
-        // Validate parent exists if specified
+        // Same three-level rule as createCategory, but reported per row: an
+        // import of fifty categories must not be aborted wholesale because one
+        // of them names too deep a parent. Re-read inside the loop because
+        // earlier iterations insert rows that later ones may legitimately
+        // parent onto.
         if (category.parent_category_id) {
-          const parent = await ctx.db.get(category.parent_category_id);
-          if (!parent) {
+          try {
+            await assertPlacement(ctx, category.parent_category_id);
+          } catch (err) {
             results.failed++;
             results.errors.push(
-              `"${category.name}": Parent category not found`,
+              `"${category.name}": ${
+                err instanceof ConvexError ? String(err.data) : "invalid parent"
+              }`,
             );
             continue;
           }
@@ -472,5 +514,139 @@ export const bulkCreateCategories = mutation({
     }
 
     return results;
+  },
+});
+
+// ── Hierarchy, for the forms ─────────────────────────────────────────────────
+
+/**
+ * Every category with its depth and breadcrumb resolved server-side.
+ *
+ * The admin previously did this in the browser: `lib/category-utils.ts` and
+ * `useCascadingCategories` each walked the parent chain themselves, with no
+ * cycle guard — a circular chain (reachable through `updateCategory` before
+ * this change) hung the tab rather than the function. Resolving it once here
+ * means the category form, the product form and the tables all agree, and the
+ * walk is guarded in exactly one place.
+ */
+export const getCategoryTree = query({
+  args: {
+    /** Omit for every category; "active" for the pickers. */
+    status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
+  },
+  handler: async (ctx, args) => {
+    const all = await ctx.db.query("categories").collect();
+
+    // Depth is computed over ALL categories, then filtered — otherwise an
+    // inactive parent makes its active child look like a root, and a level-3
+    // category would be offered to products as level 1.
+    const byId = indexById(all);
+
+    const visible = args.status
+      ? all.filter((c) => c.status === args.status)
+      : all;
+
+    return visible
+      .map((c) => ({
+        _id: c._id,
+        name: c.name,
+        slug: c.slug,
+        status: c.status,
+        parent_category_id: c.parent_category_id,
+        sort_order: c.sort_order,
+        depth: depthOf(byId, c._id),
+        breadcrumb: breadcrumbOf(byId, c._id),
+      }))
+      .sort((a, b) => {
+        // Grouped by branch, then by the admin's own ordering within a parent.
+        const byBranch = (a.breadcrumb ?? a.name).localeCompare(
+          b.breadcrumb ?? b.name,
+        );
+        return byBranch !== 0 ? byBranch : a.sort_order - b.sort_order;
+      });
+  },
+});
+
+/**
+ * The only categories a product may be attached to: level 3.
+ *
+ * Labelled with the full breadcrumb, because a third-level name is unique only
+ * within its parent — "Festive Bread" could sit under two different branches
+ * and a bare name in the picker would be genuinely ambiguous.
+ */
+export const getProductCategoryOptions = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("categories").collect();
+    // Depth over all categories, options filtered to active — same reason as
+    // getCategoryTree above.
+    const active = new Set(
+      all.filter((c) => c.status === "active").map((c) => c._id),
+    );
+    return productCategoryOptions(all).filter((o) => active.has(o.value as Id<"categories">));
+  },
+});
+
+/**
+ * Categories and products that violate the three-level rule.
+ *
+ * Nothing enforced it before, so a live database may already contain any of
+ * these — and each one was legal when created but will now fail on its next
+ * save, which reaches an admin as a mysterious mid-edit rejection. Run this
+ * before trusting the new guards:
+ *
+ *   npx convex run data/categories:auditHierarchy
+ */
+export const auditHierarchy = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const categories = await ctx.db.query("categories").collect();
+    const byId = indexById(categories);
+
+    const tooDeep: { _id: Id<"categories">; name: string; depth: number }[] = [];
+    const broken: { _id: Id<"categories">; name: string }[] = [];
+
+    for (const category of categories) {
+      const depth = depthOf(byId, category._id);
+      if (depth === null) {
+        broken.push({ _id: category._id, name: category.name });
+      } else if (depth > CATEGORY_MAX_DEPTH) {
+        tooDeep.push({ _id: category._id, name: category.name, depth });
+      }
+    }
+
+    const products = await ctx.db.query("products").collect();
+    const misplaced: {
+      _id: Id<"products">;
+      name: string;
+      category_name: string;
+      depth: number | null;
+    }[] = [];
+
+    for (const product of products) {
+      const depth = depthOf(byId, product.category_id);
+      if (depth !== CATEGORY_MAX_DEPTH) {
+        misplaced.push({
+          _id: product._id,
+          name: product.name,
+          category_name: byId.get(product.category_id)?.name ?? "(missing)",
+          depth,
+        });
+      }
+    }
+
+    return {
+      maxDepth: CATEGORY_MAX_DEPTH,
+      levelLabels: LEVEL_LABELS,
+      categories: {
+        total: categories.length,
+        tooDeep,
+        brokenOrCircular: broken,
+      },
+      products: {
+        total: products.length,
+        misplaced,
+      },
+    };
   },
 });

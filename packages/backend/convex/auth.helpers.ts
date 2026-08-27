@@ -7,6 +7,7 @@ import {
 } from "@repo/lib/utils";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { isSuperAdminPermissions } from "./lib/role_presets";
 
 /**
  * The single auth surface for every Convex function.
@@ -158,6 +159,30 @@ export async function hasPermission(
   const authed = await getAuthUserOrNull(ctx);
   if (!authed) return false;
   return isAllowed(authed.roleName, authed.permissions, permission);
+}
+
+/**
+ * Assert the caller holds the wildcard permission — nothing less.
+ *
+ * For actions with no corresponding entry in `permissionResources`, so there is
+ * no `Permission` string `assertPermission` could check. Platform settings is
+ * the case that motivated this: it is deliberately not a "module" in the
+ * permission vocabulary (see `apps/admin/lib/navigation.ts`'s
+ * `ADMIN_ONLY_LINKS` comment), so the only thing to gate it on is holding `"*"`
+ * itself.
+ *
+ * No shadow mode. Everything else here can soft-fail into a logged denial while
+ * the shadow log is validated, because the roles it protects already existed
+ * with real permissions on them. Nothing did that for the wildcard — it did not
+ * exist as a concept before this session's bootstrap work — so there is no
+ * "existing behaviour" a shadow-mode escape hatch would be preserving.
+ */
+export async function assertSuperAdmin(
+  ctx: QueryCtx | MutationCtx,
+): Promise<AuthedUser> {
+  const authed = await getAuthUser(ctx);
+  if (isSuperAdminPermissions(authed.permissions)) return authed;
+  throw new ConvexError("Forbidden: super admin required");
 }
 
 /**
