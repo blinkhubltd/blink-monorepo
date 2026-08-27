@@ -55,26 +55,23 @@ const daysOfWeek: DayOfWeek[] = [
   "Sunday",
 ];
 
-// Color schemes for days and roles
-const dayColors: Record<DayOfWeek, string> = {
-  Monday: "bg-red-50 text-red-800 border-red-200",
-  Tuesday: "bg-orange-50 text-orange-800 border-orange-200",
-  Wednesday: "bg-amber-50 text-amber-800 border-amber-200",
-  Thursday: "bg-lime-50 text-lime-800 border-lime-200",
-  Friday: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  Saturday: "bg-blue-50 text-blue-800 border-blue-200",
-  Sunday: "bg-purple-50 text-purple-800 border-purple-200",
-};
-
-const roleColors: Record<string, string> = {
-  rider: "bg-black text-yellow-400 border-yellow-400",
-  picker: "bg-blue-600 text-white border-blue-700",
-  "hub manager": "bg-gray-800 text-yellow-300 border-yellow-300",
-};
-
-const getRoleBadgeClass = (role: string) =>
-  roleColors[role.trim().toLowerCase()] ||
-  "bg-gray-100 text-gray-800 border-gray-300";
+/**
+ * Role badges use the shared Badge variants; days are not colour-coded.
+ *
+ * What this replaces: a seven-hue per-weekday map (Monday red, Tuesday orange,
+ * Wednesday amber…) and role colours mixing `bg-blue-600` with
+ * `text-yellow-400`. The day hues carried no information — a day is either
+ * worked or not, and which weekday it is, is already written on it. The role
+ * colours were not Blink palette values and several pairings fell under 2:1
+ * contrast. Every value was a light-mode literal, so both palettes broke in
+ * dark mode.
+ */
+function roleVariant(role: string | undefined) {
+  const normalised = role?.trim().toLowerCase();
+  if (normalised === "rider") return "default" as const;
+  if (normalised === "picker") return "secondary" as const;
+  return "outline" as const;
+}
 
 export function ScheduleForm({
   onSuccess,
@@ -333,10 +330,10 @@ export function ScheduleForm({
   return (
     <div className="space-y-6 max-h-[80vh] overflow-y-auto">
       {/* Mode Selection */}
-      <Card className="border border-gray-200 shadow-sm">
+      <Card className="border border-border shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-900">
-            <HugeiconsIcon icon={Users} className="h-5 w-5 text-gray-600" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <HugeiconsIcon icon={Users} className="h-5 w-5 text-muted-foreground" />
             Schedule Type
           </CardTitle>
         </CardHeader>
@@ -347,8 +344,8 @@ export function ScheduleForm({
               onClick={() => setMode("individual")}
               className={
                 mode === "individual"
-                  ? "bg-black text-yellow-400 hover:bg-gray-800"
-                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  ? "bg-primary text-primary-foreground hover:bg-primary"
+                  : "border-border text-foreground hover:bg-muted/40"
               }
             >
               <HugeiconsIcon icon={Zap} className="h-4 w-4 mr-2" />
@@ -359,8 +356,8 @@ export function ScheduleForm({
               onClick={() => setMode("bulk")}
               className={
                 mode === "bulk"
-                  ? "bg-black text-yellow-400 hover:bg-gray-800"
-                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  ? "bg-primary text-primary-foreground hover:bg-primary"
+                  : "border-border text-foreground hover:bg-muted/40"
               }
             >
               <HugeiconsIcon icon={Users} className="h-4 w-4 mr-2" />
@@ -371,10 +368,10 @@ export function ScheduleForm({
       </Card>
 
       {/* Staff Selection */}
-      <Card className="border border-gray-200 shadow-sm">
+      <Card className="border border-border shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-900">
-            <HugeiconsIcon icon={Building} className="h-5 w-5 text-gray-600" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <HugeiconsIcon icon={Building} className="h-5 w-5 text-muted-foreground" />
             {mode === "individual"
               ? "Select Staff Member"
               : "Select Staff Members"}
@@ -385,14 +382,14 @@ export function ScheduleForm({
             <>
               {/* Vendor Selection */}
               <div className="space-y-2">
-                <Label className="text-black font-medium">
+                <Label className="text-foreground font-medium">
                   Vendor (Optional)
                 </Label>
                 <Select
                   value={selectedVendor}
                   onValueChange={setSelectedVendor}
                 >
-                  <SelectTrigger className="border-gray-300 focus:border-gray-500 focus:ring-gray-500">
+                  <SelectTrigger className="border-border focus:border-border focus:ring-gray-500">
                     <SelectValue placeholder="Select vendor" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[300px]">
@@ -408,9 +405,9 @@ export function ScheduleForm({
 
               {/* Role Selection */}
               <div className="space-y-2">
-                <Label className="text-black font-medium">Role</Label>
+                <Label className="text-foreground font-medium">Role</Label>
                 <Select value={selectedRole} onValueChange={setSelectedRole}>
-                  <SelectTrigger className="border-gray-300 focus:border-gray-500 focus:ring-gray-500">
+                  <SelectTrigger className="border-border focus:border-border focus:ring-gray-500">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[300px]">
@@ -419,10 +416,7 @@ export function ScheduleForm({
                     </SelectItem>
                     {staffRoles.map((role) => (
                       <SelectItem key={role} value={role}>
-                        <Badge
-                          variant="outline"
-                          className={getRoleBadgeClass(role)}
-                        >
+                        <Badge variant={roleVariant(role)}>
                           {role.replace("_", " ")}
                         </Badge>
                       </SelectItem>
@@ -434,9 +428,9 @@ export function ScheduleForm({
               {/* User Selection */}
               {vendorStaff && (
                 <div className="space-y-2">
-                  <Label className="text-black font-medium">Staff Member</Label>
+                  <Label className="text-foreground font-medium">Staff Member</Label>
                   <Select value={selectedUser} onValueChange={setSelectedUser}>
-                    <SelectTrigger className="border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500">
+                    <SelectTrigger className="border-primary focus:border-primary focus:ring-yellow-500">
                       <SelectValue placeholder="Select staff member" />
                     </SelectTrigger>
                     <SelectContent className="min-w-[400px]">
@@ -447,7 +441,7 @@ export function ScheduleForm({
                         <SelectItem key={user._id} value={user._id}>
                           <div className="flex items-center justify-between w-full">
                             <span>{user.name}</span>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-sm text-muted-foreground">
                               {user.email}
                             </span>
                           </div>
@@ -462,9 +456,9 @@ export function ScheduleForm({
             <>
               {/* Bulk Vendor Selection */}
               <div className="space-y-2">
-                <Label className="text-black font-medium">Vendor</Label>
+                <Label className="text-foreground font-medium">Vendor</Label>
                 <Select value={bulkVendor} onValueChange={setBulkVendor}>
-                  <SelectTrigger className="border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500">
+                  <SelectTrigger className="border-primary focus:border-primary focus:ring-yellow-500">
                     <SelectValue placeholder="Select vendor" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[300px]">
@@ -482,9 +476,9 @@ export function ScheduleForm({
 
               {/* Bulk Role Selection */}
               <div className="space-y-2">
-                <Label className="text-black font-medium">Role</Label>
+                <Label className="text-foreground font-medium">Role</Label>
                 <Select value={bulkRole} onValueChange={setBulkRole}>
-                  <SelectTrigger className="border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500">
+                  <SelectTrigger className="border-primary focus:border-primary focus:ring-yellow-500">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[300px]">
@@ -493,10 +487,7 @@ export function ScheduleForm({
                     </SelectItem>
                     {staffRoles.map((role: any) => (
                       <SelectItem key={role} value={role}>
-                        <Badge
-                          variant="outline"
-                          className={getRoleBadgeClass(role)}
-                        >
+                        <Badge variant={roleVariant(role)}>
                           {role.replace("_", " ")}
                         </Badge>
                       </SelectItem>
@@ -509,7 +500,7 @@ export function ScheduleForm({
               {bulkVendorStaff && (
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <Label className="text-black font-medium">
+                    <Label className="text-foreground font-medium">
                       Staff Members
                     </Label>
                     <div className="flex gap-2">
@@ -517,7 +508,7 @@ export function ScheduleForm({
                         size="sm"
                         variant="outline"
                         onClick={selectAllStaff}
-                        className="border-yellow-300 text-black hover:bg-yellow-50"
+                        className="border-primary text-foreground hover:bg-primary/10"
                       >
                         Select All
                       </Button>
@@ -525,17 +516,17 @@ export function ScheduleForm({
                         size="sm"
                         variant="outline"
                         onClick={deselectAllStaff}
-                        className="border-red-300 text-red-600 hover:bg-red-50"
+                        className="text-destructive hover:bg-destructive/5"
                       >
                         Deselect All
                       </Button>
                     </div>
                   </div>
-                  <div className="border border-gray-200 rounded-lg p-4 max-h-40 overflow-y-auto bg-gray-50">
+                  <div className="border border-border rounded-lg p-4 max-h-40 overflow-y-auto bg-muted/40">
                     {bulkVendorStaff.map((user: any) => (
                       <div
                         key={user._id}
-                        className="flex items-center space-x-3 py-2 border-b border-yellow-100 last:border-b-0"
+                        className="flex items-center space-x-3 py-2 border-b last:border-b-0"
                       >
                         <Checkbox
                           id={user._id}
@@ -548,17 +539,17 @@ export function ScheduleForm({
                           htmlFor={user._id}
                           className="flex-1 cursor-pointer flex justify-between items-center"
                         >
-                          <span className="text-black font-medium">
+                          <span className="text-foreground font-medium">
                             {user.name}
                           </span>
-                          <span className="text-sm text-gray-600">
+                          <span className="text-sm text-muted-foreground">
                             {user.email}
                           </span>
                         </Label>
                       </div>
                     ))}
                   </div>
-                  <div className="text-sm text-gray-600 p-2 rounded">
+                  <div className="text-sm text-muted-foreground p-2 rounded">
                     {selectedStaff.length} of {bulkVendorStaff.length} staff
                     selected
                   </div>
@@ -570,10 +561,10 @@ export function ScheduleForm({
       </Card>
 
       {/* Time Range Option */}
-      <Card className="border border-gray-200 shadow-sm">
+      <Card className="border border-border shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-900">
-            <HugeiconsIcon icon={Calendar} className="h-5 w-5 text-gray-600" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <HugeiconsIcon icon={Calendar} className="h-5 w-5 text-muted-foreground" />
             Quick Schedule Setup
           </CardTitle>
         </CardHeader>
@@ -584,15 +575,15 @@ export function ScheduleForm({
               checked={useTimeRange}
               onCheckedChange={(checked) => setUseTimeRange(checked === true)}
             />
-            <Label htmlFor="useTimeRange" className="text-black font-medium">
+            <Label htmlFor="useTimeRange" className="text-foreground font-medium">
               Set same schedule for a range of days
             </Label>
           </div>
 
           {useTimeRange && (
-            <div className="flex flex-col md:grid-cols-4 gap-4 p-2 border-2 border-gray-100 rounded-lg">
+            <div className="flex flex-col md:grid-cols-4 gap-4 rounded-lg border p-2">
               <div className="space-y-2">
-                <Label className="text-black font-medium">Start Day</Label>
+                <Label className="text-foreground font-medium">Start Day</Label>
                 <Select
                   value={dayRange.start}
                   onValueChange={(value) =>
@@ -602,7 +593,7 @@ export function ScheduleForm({
                     }))
                   }
                 >
-                  <SelectTrigger className="border-gray-300 focus:border-gray-500">
+                  <SelectTrigger className="border-border focus:border-border">
                     <SelectValue placeholder="Start day" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[150px]">
@@ -611,7 +602,7 @@ export function ScheduleForm({
                     </SelectItem>
                     {daysOfWeek.map((day) => (
                       <SelectItem key={day} value={day}>
-                        <Badge variant="outline" className={dayColors[day]}>
+                        <Badge variant="secondary">
                           {day}
                         </Badge>
                       </SelectItem>
@@ -620,7 +611,7 @@ export function ScheduleForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-black font-medium">End Day</Label>
+                <Label className="text-foreground font-medium">End Day</Label>
                 <Select
                   value={dayRange.end}
                   onValueChange={(value) =>
@@ -630,7 +621,7 @@ export function ScheduleForm({
                     }))
                   }
                 >
-                  <SelectTrigger className="border-gray-300 focus:border-gray-500">
+                  <SelectTrigger className="border-border focus:border-border">
                     <SelectValue placeholder="End day" />
                   </SelectTrigger>
                   <SelectContent className="min-w-[150px]">
@@ -639,7 +630,7 @@ export function ScheduleForm({
                     </SelectItem>
                     {daysOfWeek.map((day) => (
                       <SelectItem key={day} value={day}>
-                        <Badge variant="outline" className={dayColors[day]}>
+                        <Badge variant="secondary">
                           {day}
                         </Badge>
                       </SelectItem>
@@ -648,21 +639,21 @@ export function ScheduleForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-black font-medium">Start Time</Label>
+                <Label className="text-foreground font-medium">Start Time</Label>
                 <Input
                   type="time"
                   value={commonStartTime}
                   onChange={(e) => setCommonStartTime(e.target.value)}
-                  className="border-gray-300 focus:border-gray-500 focus:ring-gray-500"
+                  className="border-border focus:border-border focus:ring-gray-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-black font-medium">End Time</Label>
+                <Label className="text-foreground font-medium">End Time</Label>
                 <Input
                   type="time"
                   value={commonEndTime}
                   onChange={(e) => setCommonEndTime(e.target.value)}
-                  className="border-gray-300 focus:border-gray-500 focus:ring-gray-500"
+                  className="border-border focus:border-border focus:ring-gray-500"
                 />
               </div>
             </div>
@@ -671,10 +662,10 @@ export function ScheduleForm({
       </Card>
 
       {/* Individual Day Schedules */}
-      <Card className="border border-gray-200 shadow-sm">
+      <Card className="border border-border shadow-sm">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-900">
-            <HugeiconsIcon icon={Clock} className="h-5 w-5 text-gray-600" />
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <HugeiconsIcon icon={Clock} className="h-5 w-5 text-muted-foreground" />
             Weekly Schedule
           </CardTitle>
         </CardHeader>
@@ -682,7 +673,7 @@ export function ScheduleForm({
           {daysOfWeek.map((day) => (
             <div
               key={day}
-              className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg bg-gray-50"
+              className="flex items-center space-x-4 p-4 border border-border rounded-lg bg-muted/40"
             >
               <Checkbox
                 id={day}
@@ -692,16 +683,13 @@ export function ScheduleForm({
                 }
               />
               <div className="min-w-[120px]">
-                <Badge
-                  variant="outline"
-                  className={`${dayColors[day]} text-sm px-3 py-1`}
-                >
+                <Badge variant="secondary" className="px-3 py-1 text-sm">
                   {day}
                 </Badge>
               </div>
               <div className="flex space-x-3 flex-1 items-center">
                 <div className="flex flex-col space-y-1">
-                  <Label className="text-xs text-gray-600">Start Time</Label>
+                  <Label className="text-xs text-muted-foreground">Start Time</Label>
                   <Input
                     type="time"
                     value={scheduleData[day]?.startTime ?? ""}
@@ -709,12 +697,12 @@ export function ScheduleForm({
                       handleDayScheduleChange(day, "startTime", e.target.value)
                     }
                     disabled={!scheduleData[day]?.enabled}
-                    className="w-32 border-gray-300 focus:border-gray-500 focus:ring-gray-500"
+                    className="w-32 border-border focus:border-border focus:ring-gray-500"
                   />
                 </div>
-                <span className="self-center text-gray-500 mt-4">to</span>
+                <span className="self-center text-muted-foreground mt-4">to</span>
                 <div className="flex flex-col space-y-1">
-                  <Label className="text-xs text-gray-600">End Time</Label>
+                  <Label className="text-xs text-muted-foreground">End Time</Label>
                   <Input
                     type="time"
                     value={scheduleData[day]?.endTime ?? ""}
@@ -722,7 +710,7 @@ export function ScheduleForm({
                       handleDayScheduleChange(day, "endTime", e.target.value)
                     }
                     disabled={!scheduleData[day]?.enabled}
-                    className="w-32 border-gray-300 focus:border-gray-400 focus:ring-gray-500"
+                    className="w-32 border-border focus:border-border focus:ring-gray-500"
                   />
                 </div>
               </div>
@@ -731,7 +719,7 @@ export function ScheduleForm({
                 scheduleData[day]?.endTime && (
                   <Badge
                     variant="secondary"
-                    className="bg-yellow-100 text-yellow-800 border-yellow-300"
+                    className="bg-primary/10 border-primary"
                   >
                     {scheduleData[day]?.startTime} -{" "}
                     {scheduleData[day]?.endTime}
@@ -748,7 +736,7 @@ export function ScheduleForm({
           <Button
             variant="outline"
             onClick={onCancel}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="border-border text-foreground hover:bg-muted/40"
           >
             Cancel
           </Button>
@@ -756,7 +744,7 @@ export function ScheduleForm({
         <Button
           onClick={handleSubmit}
           disabled={isLoading}
-          className="bg-black text-yellow-400 hover:bg-gray-800 border-gray-400"
+          className="bg-primary text-primary-foreground hover:bg-primary border-border"
         >
           {isLoading ? "Creating..." : "Create Schedule"}
         </Button>

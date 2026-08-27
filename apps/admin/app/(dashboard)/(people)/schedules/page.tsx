@@ -1,16 +1,16 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  BuildingIcon as Building,
-  Calendar03Icon as Calendar,
-  Clock01Icon as Clock,
-  Grid2X2Icon as Grid3x3,
-  PlusSignIcon as Plus,
-  TableIcon as Table,
-  UserGroupIcon as Users,
+  Alert02Icon,
+  Calendar03Icon,
+  Clock01Icon,
+  Grid2X2Icon,
+  PlusSignIcon,
+  UserGroupIcon,
 } from "@hugeicons/core-free-icons";
-import React, { useState } from "react";
+
 import { Button } from "@repo/ui/components/ui/button";
 import {
   Card,
@@ -22,301 +22,227 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@repo/ui/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@repo/ui/components/ui/tabs";
+import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import {
   ScheduleForm,
   ScheduleTable,
   ScheduleOverview,
   type ScheduleWithDetails,
 } from "@/components/schedules";
+import { computeScheduleStats } from "@/components/schedules/schedule-metrics";
 import { useDashboardData } from "@/providers/DashboardDataProvider";
+import { StatCard, StatCardSkeleton } from "../../_components/stat-card";
+import { count } from "../../_components/format";
 
+/**
+ * Staff schedules.
+ *
+ * ── What changed ──────────────────────────────────────────────────────────
+ *
+ * A "Quick Actions" card is gone. It had four buttons: two ("Add Individual
+ * Schedule", "Bulk Schedule Setup") called the same handler and opened the same
+ * single-person dialog, so the second promised a capability that does not exist;
+ * one duplicated the tab immediately below it; and "Generate Time Reports" had
+ * no handler at all. A row of buttons where half do nothing they claim is worse
+ * than no row.
+ *
+ * The stat row now uses the shared `StatCard`, which carries the `inverse` flag
+ * — so "schedules with no shifts" being high reads as a problem rather than as
+ * growth. The old cards were hand-rolled with `text-black` and `text-gray-600`,
+ * hardcoded so they neither followed the brand nor worked in dark mode, and the
+ * weekly-hours figure they showed was computed by arithmetic that went negative
+ * on night shifts (see `components/schedules/schedule-metrics.ts`).
+ *
+ * `p-6` on the page is gone: the dashboard shell already applies padding, so it
+ * was doubled here.
+ */
 export default function SchedulesPage() {
   const { schedules, vendors, isLoaded } = useDashboardData();
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [editingSchedule, setEditingSchedule] =
-    useState<ScheduleWithDetails | null>(null);
-  const [activeTab, setActiveTab] = useState("table");
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<ScheduleWithDetails | null>(null);
+  const [tab, setTab] = useState("table");
 
-  // Calculate some stats
-  const totalSchedules = schedules?.length || 0;
-  const uniqueStaff = new Set(
-    schedules?.map((s: ScheduleWithDetails) => s.userId)
-  ).size;
-  const vendorsWithSchedules = new Set(
-    schedules
-      ?.filter((s: ScheduleWithDetails) => s.vendorId)
-      .map((s: ScheduleWithDetails) => s.vendorId)
-  ).size;
-
-  // Calculate average working hours per week
-  const averageWeeklyHours = React.useMemo(() => {
-    if (!schedules || schedules.length === 0) return 0;
-
-    let totalHours = 0;
-    let staffCount = 0;
-
-    schedules.forEach((schedule: ScheduleWithDetails) => {
-      if (schedule.weeklySchedule) {
-        let weeklyHours = 0;
-        Object.values(schedule.weeklySchedule).forEach((day: any) => {
-          if (day?.enabled && day.startTime && day.endTime) {
-            try {
-              const [startHours, startMinutes] = day.startTime
-                .split(":")
-                .map(Number);
-              const [endHours, endMinutes] = day.endTime.split(":").map(Number);
-              const startMinuteTotal = startHours * 60 + startMinutes;
-              const endMinuteTotal = endHours * 60 + endMinutes;
-              const durationHours = (endMinuteTotal - startMinuteTotal) / 60;
-              weeklyHours += durationHours;
-            } catch (error) {
-              // Skip invalid time formats
-            }
-          }
-        });
-        if (weeklyHours > 0) {
-          totalHours += weeklyHours;
-          staffCount++;
-        }
-      }
-    });
-
-    return staffCount > 0 ? totalHours / staffCount : 0;
-  }, [schedules]);
-
-  const handleCreateSuccess = () => {
-    setShowCreateDialog(false);
-  };
-
-  const handleEditSchedule = (schedule: ScheduleWithDetails) => {
-    setEditingSchedule(schedule);
-  };
-
-  const handleEditSuccess = () => {
-    setEditingSchedule(null);
-  };
+  const stats = useMemo(
+    () => computeScheduleStats((schedules ?? []) as ScheduleWithDetails[]),
+    [schedules],
+  );
 
   if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading schedules...</p>
-        </div>
-      </div>
-    );
+    return <SchedulesSkeleton />;
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-black">
-            Staff Schedules
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Manage working schedules for riders, pickers, and hub managers
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <h1 className="text-2xl font-bold tracking-tight">Staff schedules</h1>
+          <p className="text-muted-foreground text-sm">
+            Recurring weekly hours for riders, pickers and hub managers. These
+            are templates, not dated shifts — they repeat every week until
+            changed.
           </p>
         </div>
-        <Button
-          onClick={() => setShowCreateDialog(true)}
-          className="bg-black hover:bg-gray-800 text-yellow-400 border-black"
-        >
-          <HugeiconsIcon icon={Plus} className="h-4 w-4 mr-2" />
-          Create Schedule
+        <Button onClick={() => setCreating(true)}>
+          <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
+          New schedule
         </Button>
-      </div>
+      </header>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border border-gray-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-900">
-              Total Schedules
-            </CardTitle>
-            <HugeiconsIcon icon={Calendar} className="h-4 w-4 text-gray-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-black">
-              {totalSchedules}
-            </div>
-            <p className="text-xs text-gray-600">Across all staff members</p>
-          </CardContent>
-        </Card>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Schedules"
+          value={count(stats.total)}
+          icon={Calendar03Icon}
+          hint={`${count(stats.staff)} ${stats.staff === 1 ? "person" : "people"} rostered`}
+        />
+        <StatCard
+          label="Hubs covered"
+          value={count(stats.vendors)}
+          icon={UserGroupIcon}
+          hint={`of ${count(vendors?.length ?? 0)} total`}
+        />
+        <StatCard
+          label="Average week"
+          value={
+            stats.total === 0
+              ? "—"
+              : `${stats.averageWeeklyHours.toFixed(1)} hrs`
+          }
+          icon={Clock01Icon}
+          // Said explicitly: the denominator is every schedule, so an unrostered
+          // person pulls this down. The old version quietly excluded them, which
+          // made the number look better than the roster was.
+          hint="Across every schedule, including empty ones"
+        />
+        <StatCard
+          label="No shifts set"
+          value={count(stats.emptySchedules)}
+          icon={Alert02Icon}
+          // Fewer is better, so a fall must not be coloured as a decline.
+          inverse
+          hint={
+            stats.emptySchedules === 0
+              ? "Every schedule has hours"
+              : "Created but never filled in"
+          }
+        />
+      </section>
 
-        <Card className="border border-gray-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-900">
-              Staff with Schedules
-            </CardTitle>
-            <HugeiconsIcon icon={Users} className="h-4 w-4 text-gray-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-black">{uniqueStaff}</div>
-            <p className="text-xs text-gray-600">Individual staff members</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-gray-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-900">
-              Active Vendors
-            </CardTitle>
-            <HugeiconsIcon icon={Building} className="h-4 w-4 text-gray-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-black">
-              {vendorsWithSchedules}
-            </div>
-            <p className="text-xs text-gray-600">
-              Of {vendors?.length || 0} total vendors
+      {/*
+        Only when it applies. A malformed time is invisible everywhere else —
+        the previous code caught the parse error and skipped the day, so those
+        hours simply vanished from every total with nothing said.
+      */}
+      {stats.malformedSchedules > 0 ? (
+        <div className="border-destructive/40 bg-destructive/5 flex items-start gap-2 rounded-lg border p-3">
+          <HugeiconsIcon
+            icon={Alert02Icon}
+            className="text-destructive mt-0.5 size-4 shrink-0"
+          />
+          <div className="space-y-0.5 text-sm">
+            <p className="font-medium">
+              {stats.malformedSchedules}{" "}
+              {stats.malformedSchedules === 1 ? "schedule has" : "schedules have"}{" "}
+              a day with unreadable times
             </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-gray-200">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-900">
-              Avg Weekly Hours
-            </CardTitle>
-            <HugeiconsIcon icon={Clock} className="h-4 w-4 text-gray-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              {averageWeeklyHours.toFixed(1)}
-            </div>
-            <p className="text-xs text-gray-600">Hours per staff member</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card className="border border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-gray-900">Quick Actions</CardTitle>
-          <CardDescription className="text-gray-600">
-            Common schedule management tasks
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateDialog(true)}
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              <HugeiconsIcon icon={Plus} className="h-4 w-4 mr-2" />
-              Add Individual Schedule
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateDialog(true)}
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              <HugeiconsIcon icon={Users} className="h-4 w-4 mr-2" />
-              Bulk Schedule Setup
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setActiveTab("overview")}
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              <HugeiconsIcon icon={Grid3x3} className="h-4 w-4 mr-2" />
-              View Weekly Overview
-            </Button>
-            <Button
-              variant="outline"
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              <HugeiconsIcon icon={Clock} className="h-4 w-4 mr-2" />
-              Generate Time Reports
-            </Button>
+            <p className="text-muted-foreground">
+              Those days are excluded from every total above. Open the schedule
+              and re-enter the affected day.
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      ) : null}
 
-      {/* Main Content with Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-6"
-      >
-        <TabsList className="grid w-full grid-cols-2 bg-gray-100 border border-gray-200">
-          <TabsTrigger
-            value="table"
-            className="data-[state=active]:bg-white data-[state=active]:text-gray-900 text-gray-600"
-          >
-            <HugeiconsIcon icon={Table} className="h-4 w-4 mr-2" />
-            Schedule Table
-          </TabsTrigger>
-          <TabsTrigger
-            value="overview"
-            className="data-[state=active]:bg-white data-[state=active]:text-gray-900 text-gray-600"
-          >
-            <HugeiconsIcon icon={Grid3x3} className="h-4 w-4 mr-2" />
-            Weekly Overview
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="table">All schedules</TabsTrigger>
+          <TabsTrigger value="overview">
+            <HugeiconsIcon icon={Grid2X2Icon} className="size-4" />
+            Weekly cover
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="table" className="space-y-6">
-          <ScheduleTable onEditSchedule={handleEditSchedule} />
+        <TabsContent value="table" className="mt-4">
+          <ScheduleTable onEditSchedule={setEditing} />
         </TabsContent>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="mt-4">
           <ScheduleOverview />
         </TabsContent>
       </Tabs>
 
-      {/* Create Schedule Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="w-full max-h-[95vh] overflow-y-auto border border-gray-200">
-          <DialogHeader className="-m-6 p-6 mb-4 border-b border-gray-100">
-            <DialogTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <HugeiconsIcon icon={Calendar} className="h-6 w-6 text-gray-800" />
-              Create New Schedule
-            </DialogTitle>
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>New schedule</DialogTitle>
+            <DialogDescription>
+              Pick a staff member, then set the hours for each day they work.
+            </DialogDescription>
           </DialogHeader>
-          <div className="px-2">
-            <ScheduleForm
-              onSuccess={handleCreateSuccess}
-              onCancel={() => setShowCreateDialog(false)}
-            />
-          </div>
+          <ScheduleForm
+            onSuccess={() => setCreating(false)}
+            onCancel={() => setCreating(false)}
+          />
         </DialogContent>
       </Dialog>
 
-      {/* Edit Schedule Dialog */}
-      <Dialog
-        open={!!editingSchedule}
-        onOpenChange={() => setEditingSchedule(null)}
-      >
-        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto border border-gray-200">
-          <DialogHeader className="-m-6 p-6 mb-4 border-b border-gray-100">
-            <DialogTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <HugeiconsIcon icon={Calendar} className="h-6 w-6 text-yellow-600" />
-              Edit Schedule
-            </DialogTitle>
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit schedule</DialogTitle>
+            <DialogDescription>
+              {editing?.user?.name
+                ? `Weekly hours for ${editing.user.name}.`
+                : "Weekly hours for this staff member."}
+            </DialogDescription>
           </DialogHeader>
-          <div className="px-2">
-            {editingSchedule && (
-              <ScheduleForm
-                initialData={{
-                  userId: editingSchedule.userId,
-                  vendorId: editingSchedule.vendorId,
-                  weeklySchedule: editingSchedule.weeklySchedule,
-                }}
-                onSuccess={handleEditSuccess}
-                onCancel={() => setEditingSchedule(null)}
-              />
-            )}
-          </div>
+          {editing ? (
+            <ScheduleForm
+              initialData={{
+                userId: editing.userId,
+                vendorId: editing.vendorId,
+                weeklySchedule: editing.weeklySchedule,
+              }}
+              onSuccess={() => setEditing(null)}
+              onCancel={() => setEditing(null)}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function SchedulesSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-4 w-96" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-40" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
     </div>
   );
 }
