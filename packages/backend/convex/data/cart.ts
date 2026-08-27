@@ -1,9 +1,22 @@
-import { mutation, query } from "../_generated/server";
-import { v } from "convex/values";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "../_generated/server";
+import { v, ConvexError } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { AddToCartValidator } from "../validators";
 import { getUserByClerkId } from "../auth.helpers";
 import { checkVendorSchedule } from "../lib/schedule";
 
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const createCartItem = mutation({
   args: { user_id: v.id("users"), item: AddToCartValidator },
   handler: async (ctx, args) => {
@@ -77,6 +90,13 @@ export const createCartItem = mutation({
   },
 });
 
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartItems = query({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -153,6 +173,13 @@ export const getCartItems = query({
 });
 
 // Update cart item quantity
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const updateCartItemQuantity = mutation({
   args: {
     user_id: v.id("users"),
@@ -200,6 +227,13 @@ export const updateCartItemQuantity = mutation({
 });
 
 // Remove item from cart
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const removeCartItem = mutation({
   args: {
     user_id: v.id("users"),
@@ -229,6 +263,13 @@ export const removeCartItem = mutation({
 });
 
 // Clear entire cart
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const clearCart = mutation({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -251,6 +292,13 @@ export const clearCart = mutation({
 });
 
 // Get cart count (total number of items)
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartCount = query({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -273,6 +321,13 @@ export const getCartCount = query({
 });
 
 // Check if product is in cart
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const isProductInCart = query({
   args: {
     user_id: v.id("users"),
@@ -298,6 +353,13 @@ export const isProductInCart = query({
 });
 
 // Merge cart (useful for guest to user cart migration)
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const mergeCart = mutation({
   args: {
     user_id: v.id("users"),
@@ -360,6 +422,13 @@ export const mergeCart = mutation({
 
 // Get cart summary (for checkout)
 // Clerk ID wrapper for createCartItem
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const createCartItemByClerkId = mutation({
   args: {
     clerkId: v.string(),
@@ -440,6 +509,13 @@ export const createCartItemByClerkId = mutation({
 });
 
 // Clerk ID wrapper for getCartItems
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartItemsByClerkId = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -509,6 +585,13 @@ export const getCartItemsByClerkId = query({
 });
 
 // Paginated version for cart items
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartItemsByClerkIdPaginated = query({
   args: {
     clerkId: v.string(),
@@ -600,6 +683,13 @@ export const getCartItemsByClerkIdPaginated = query({
   },
 });
 
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartSummary = query({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -663,6 +753,13 @@ export const getCartSummary = query({
 });
 
 // Clerk ID wrapper for getCartCount
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartCountByClerkId = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -691,6 +788,13 @@ export const getCartCountByClerkId = query({
 });
 
 // Clerk ID wrapper for clearCart
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const clearCartByClerkId = mutation({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -708,6 +812,13 @@ export const clearCartByClerkId = mutation({
 });
 
 // Clerk ID wrapper for updateCartItemQuantity
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const updateCartItemQuantityByClerkId = mutation({
   args: {
     clerkId: v.string(),
@@ -766,6 +877,13 @@ export const updateCartItemQuantityByClerkId = mutation({
 });
 
 // Clerk ID wrapper for removeCartItem
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const removeCartItemByClerkId = mutation({
   args: {
     clerkId: v.string(),
@@ -801,6 +919,13 @@ export const removeCartItemByClerkId = mutation({
 });
 
 // Get cart items in format for stock reservation
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartItemsForStockReservation = query({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -822,6 +947,13 @@ export const getCartItemsForStockReservation = query({
 });
 
 // Clerk ID wrapper for getCartItemsForStockReservation
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const getCartItemsForStockReservationByClerkId = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -850,6 +982,13 @@ export const getCartItemsForStockReservationByClerkId = query({
 });
 
 // Validate cart items against vendor schedules
+/**
+ * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
+ * rather than deriving identity from `ctx.auth.getUserIdentity()`, so any client
+ * can read or mutate any customer's basket. apps/shop uses the auth-derived API
+ * at the bottom of this file instead. Retained only until the standalone
+ * blink-ecommerce app is retired.
+ */
 export const validateCartSchedule = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -962,5 +1101,185 @@ export const validateCartSchedule = query({
         message: "Failed to validate vendor schedules",
       };
     }
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth-derived cart API — what apps/shop uses.
+//
+// Everything above takes the caller's identity as an ARGUMENT: either a
+// `user_id` or a `clerkId` passed straight to `getUserByClerkId`. Convex
+// exposes these publicly, so any client can read or mutate ANY customer's
+// basket by supplying somebody else's id. That is an IDOR, and the shape of the
+// argument list is what invites it.
+//
+// The functions below derive identity from `ctx.auth.getUserIdentity()` and take
+// no actor argument at all. `clerkId` is not accepted-and-ignored, because an
+// ignored parameter invites a future change to start honouring it.
+//
+// The older functions stay only until the standalone blink-ecommerce app
+// retires, and are tagged @deprecated where they are declared.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The signed-in caller's user row, or null when signed out. */
+async function callerUser(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+  return await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+    .first();
+}
+
+/**
+ * The caller's own basket.
+ *
+ * Returns an empty basket rather than throwing when signed out, so the shop's
+ * single CartProvider can call it unconditionally: browsing is legal for guests
+ * and a throw here would surface as a broken screen rather than an empty
+ * basket.
+ */
+export const getMyCart = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await callerUser(ctx);
+    if (!user) return { products: [] as { product: Id<"products">; quantity: number }[] };
+
+    const cart = await ctx.db
+      .query("cart")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+
+    return { products: cart?.products ?? [] };
+  },
+});
+
+/**
+ * Set one line to an absolute quantity. Zero removes it.
+ *
+ * Absolute rather than a delta on purpose: a stepper that sends "+1" twice
+ * because of a double tap adds two, whereas an absolute set is idempotent and
+ * the UI already knows the number it wants.
+ */
+export const setMyCartLine = mutation({
+  args: { productId: v.id("products"), quantity: v.number() },
+  handler: async (ctx, args) => {
+    const user = await callerUser(ctx);
+    if (!user) throw new ConvexError("Unauthorized");
+
+    const quantity = Math.max(0, Math.floor(args.quantity));
+
+    // Never let the basket exceed what the shop has, and never let an inactive
+    // product in. Checked here rather than only in the client so the cart and
+    // the order cannot disagree.
+    const product = await ctx.db.get(args.productId);
+    if (!product) throw new ConvexError("Product not found");
+    if (quantity > 0 && product.status !== "Active") {
+      throw new ConvexError("This product is not available");
+    }
+    const capped = Math.min(quantity, product.quantity);
+
+    const cart = await ctx.db
+      .query("cart")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+
+    if (!cart) {
+      if (capped === 0) return { ok: true };
+      await ctx.db.insert("cart", {
+        user_id: user._id,
+        products: [{ product: args.productId, quantity: capped }],
+        updated_at: Date.now(),
+      });
+      return { ok: true };
+    }
+
+    const others = cart.products.filter((p) => p.product !== args.productId);
+    const products =
+      capped === 0
+        ? others
+        : [...others, { product: args.productId, quantity: capped }];
+
+    await ctx.db.patch(cart._id, { products, updated_at: Date.now() });
+    return { ok: true };
+  },
+});
+
+export const clearMyCart = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await callerUser(ctx);
+    if (!user) throw new ConvexError("Unauthorized");
+
+    const cart = await ctx.db
+      .query("cart")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+
+    if (cart) await ctx.db.patch(cart._id, { products: [], updated_at: Date.now() });
+    return { ok: true };
+  },
+});
+
+/**
+ * Fold a guest basket into the caller's own on sign-in.
+ *
+ * Takes the LARGER quantity per product rather than summing. Summing is the
+ * intuitive choice and the wrong one: someone who put two of something in the
+ * basket on their phone, signed in, and had two already saved did not ask for
+ * four. Taking the maximum preserves intent in the common case and never
+ * inflates an order.
+ *
+ * Idempotent by construction, which matters because a Clerk token refresh can
+ * re-trigger the client's sign-in effect.
+ */
+export const mergeIntoMyCart = mutation({
+  args: {
+    items: v.array(
+      v.object({ product: v.id("products"), quantity: v.number() }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const user = await callerUser(ctx);
+    if (!user) throw new ConvexError("Unauthorized");
+
+    const cart = await ctx.db
+      .query("cart")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+
+    const merged = new Map<string, number>();
+    for (const line of cart?.products ?? []) {
+      merged.set(line.product, line.quantity);
+    }
+    for (const line of args.items) {
+      const quantity = Math.max(0, Math.floor(line.quantity));
+      if (quantity === 0) continue;
+      merged.set(line.product, Math.max(merged.get(line.product) ?? 0, quantity));
+    }
+
+    // Drop anything that is no longer sellable, and cap to available stock.
+    // A guest basket can be days old.
+    const products: { product: Id<"products">; quantity: number }[] = [];
+    for (const [productId, quantity] of merged) {
+      const product = await ctx.db.get(productId as Id<"products">);
+      if (!product || product.status !== "Active" || product.quantity <= 0) continue;
+      products.push({
+        product: productId as Id<"products">,
+        quantity: Math.min(quantity, product.quantity),
+      });
+    }
+
+    if (cart) {
+      await ctx.db.patch(cart._id, { products, updated_at: Date.now() });
+    } else if (products.length > 0) {
+      await ctx.db.insert("cart", {
+        user_id: user._id,
+        products,
+        updated_at: Date.now(),
+      });
+    }
+
+    return { ok: true, lines: products.length };
   },
 });

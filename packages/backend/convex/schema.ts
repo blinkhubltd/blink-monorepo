@@ -57,6 +57,15 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_sku", ["sku"])
     .index("by_category", ["category_id"])
+    // Composite, for the customer catalogue. "Active products in this category"
+    // was previously unservable by any index: the closest read was
+    // withIndex("by_status").filter(category_id), which walks EVERY Active
+    // product on the platform and discards almost all of them. That is fine at
+    // 500 products and throws at 16k, and the shop's category query fans out
+    // over every depth-3 leaf under the browsed node, so the multiplier makes
+    // an unindexed read indefensible. Order matters: category first, because
+    // the query always pins a category and only then narrows to Active.
+    .index("by_category_status", ["category_id", "status"])
     .index("by_item_number", ["item_number"])
     .index("by_item_number_vendor", ["item_number", "vendor_id"])
     .index("by_item_number_status", ["item_number", "status"])

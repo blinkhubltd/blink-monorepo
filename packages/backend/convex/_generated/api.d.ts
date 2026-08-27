@@ -15,6 +15,7 @@ import type * as data_agent_payment_requests from "../data/agent_payment_request
 import type * as data_agent_zones from "../data/agent_zones.js";
 import type * as data_banners from "../data/banners.js";
 import type * as data_cart from "../data/cart.js";
+import type * as data_catalog from "../data/catalog.js";
 import type * as data_categories from "../data/categories.js";
 import type * as data_clearance_batching from "../data/clearance_batching.js";
 import type * as data_clearance_cart from "../data/clearance_cart.js";
@@ -63,6 +64,7 @@ import type * as data_vendors from "../data/vendors.js";
 import type * as data_wishlist from "../data/wishlist.js";
 import type * as http from "../http.js";
 import type * as lib_account_completion from "../lib/account_completion.js";
+import type * as lib_catalog_scope from "../lib/catalog_scope.js";
 import type * as lib_category_tree from "../lib/category_tree.js";
 import type * as lib_delivery_code from "../lib/delivery_code.js";
 import type * as lib_demo_data from "../lib/demo_data.js";
@@ -101,6 +103,7 @@ declare const fullApi: ApiFromModules<{
   "data/agent_zones": typeof data_agent_zones;
   "data/banners": typeof data_banners;
   "data/cart": typeof data_cart;
+  "data/catalog": typeof data_catalog;
   "data/categories": typeof data_categories;
   "data/clearance_batching": typeof data_clearance_batching;
   "data/clearance_cart": typeof data_clearance_cart;
@@ -149,6 +152,7 @@ declare const fullApi: ApiFromModules<{
   "data/wishlist": typeof data_wishlist;
   http: typeof http;
   "lib/account_completion": typeof lib_account_completion;
+  "lib/catalog_scope": typeof lib_catalog_scope;
   "lib/category_tree": typeof lib_category_tree;
   "lib/delivery_code": typeof lib_delivery_code;
   "lib/demo_data": typeof lib_demo_data;
