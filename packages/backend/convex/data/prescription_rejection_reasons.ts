@@ -1,9 +1,36 @@
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "../_generated/server";
-import {
-  PrescriptionRejectionReasonValidator,
-  PrescriptionRejectionReasonUpdateValidator,
-} from "../validators";
+import { assertStaffOrPermission, getAuthUser } from "../auth.helpers";
+import { PrescriptionRejectionReasonUpdateValidator } from "../validators";
+
+/**
+ * Prescription rejection reasons: the system defaults plus whatever custom ones
+ * staff have added.
+ *
+ * ── Why every staff-only gate went through `assertStaffOrPermission` ──────
+ *
+ * Every one of these checked `user.isStaff` directly, inline, with no fallback:
+ *
+ *     if (!user || !user.isStaff) {
+ *       throw new Error("Not authorized to view all rejection reasons");
+ *     }
+ *
+ * `isStaff` is a boolean this codebase never sets on any write path — it is
+ * orthogonal to `role_id` and to the wildcard permission this app's roles now
+ * use for absolute access. So a freshly-claimed super admin, whose access comes
+ * entirely from holding `"*"` on their role, has `isStaff` unset and was
+ * refused by all six of these checks. That is the "Not authorized to view all
+ * rejection reasons" error on /prescriptions/rejection-reasons.
+ *
+ * `auth.helpers.assertStaffOrPermission` already exists to bridge exactly this
+ * — it passes on `isStaff === true` OR the caller holding the permission (which
+ * the wildcard satisfies) — but this file never adopted it and hand-rolled the
+ * checks instead. Also, whether a caller may act on their OWN custom reason was
+ * previously unconditional (no staff/permission needed) and stays that way:
+ * `getAuthUser` alone gates create/update/deactivate on a caller's own record,
+ * and `assertStaffOrPermission` is reached only for system defaults or someone
+ * else's reason.
+ */
 
 // Query to get all active rejection reasons (both system defaults and custom)
 export const getActiveRejectionReasons = query({
@@ -27,19 +54,7 @@ export const getActiveRejectionReasons = query({
 export const getAllRejectionReasons = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user || !user.isStaff) {
-      throw new Error("Not authorized to view all rejection reasons");
-    }
+    await assertStaffOrPermission(ctx, "prescriptions:READ");
 
     return await ctx.db
       .query("prescriptionRejectionReasons")
@@ -56,23 +71,12 @@ export const createRejectionReason = mutation({
     is_system_default: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    const { user } = await getAuthUser(ctx);
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Only staff can create system default reasons
-    if (args.is_system_default && !user.isStaff) {
-      throw new Error("Not authorized to create system default reasons");
+    // Only staff (or a holder of the permission) can create SYSTEM defaults —
+    // any signed-in user may create their own custom reason.
+    if (args.is_system_default) {
+      await assertStaffOrPermission(ctx, "prescriptions:CREATE");
     }
 
     const rejectionReason = {
@@ -92,40 +96,28 @@ export const createRejectionReason = mutation({
 export const updateRejectionReason = mutation({
   args: PrescriptionRejectionReasonUpdateValidator,
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const { user } = await getAuthUser(ctx);
 
     const rejectionReason = await ctx.db.get(args.id);
     if (!rejectionReason) {
-      throw new Error("Rejection reason not found");
+      throw new ConvexError("Rejection reason not found");
     }
 
-    // Only staff can update system default reasons
-    // Users can only update their own custom reasons
-    if (rejectionReason.is_system_default && !user.isStaff) {
-      throw new Error("Not authorized to update system default reasons");
+    // A caller may freely edit their OWN custom reason. Everything else —
+    // a system default, or someone else's reason — needs the staff gate.
+    // `created_by` is unset on every system default, so `isOwner` is false for
+    // those without a separate branch.
+    const isOwner = rejectionReason.created_by === user._id;
+    if (!isOwner) {
+      await assertStaffOrPermission(ctx, "prescriptions:UPDATE");
     }
 
-    if (
-      !rejectionReason.is_system_default &&
-      rejectionReason.created_by !== user._id &&
-      !user.isStaff
-    ) {
-      throw new Error("Not authorized to update this rejection reason");
-    }
-
-    const updateData: any = {
+    const updateData: {
+      updated_at: number;
+      title?: string;
+      description?: string;
+      is_active?: boolean;
+    } = {
       updated_at: Date.now(),
     };
 
@@ -139,41 +131,20 @@ export const updateRejectionReason = mutation({
   },
 });
 
-// Mutation to delete/deactivate a rejection reason
+// Mutation to deactivate a rejection reason
 export const deactivateRejectionReason = mutation({
   args: { id: v.id("prescriptionRejectionReasons") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const { user } = await getAuthUser(ctx);
 
     const rejectionReason = await ctx.db.get(args.id);
     if (!rejectionReason) {
-      throw new Error("Rejection reason not found");
+      throw new ConvexError("Rejection reason not found");
     }
 
-    // Only staff can deactivate system default reasons
-    // Users can only deactivate their own custom reasons
-    if (rejectionReason.is_system_default && !user.isStaff) {
-      throw new Error("Not authorized to deactivate system default reasons");
-    }
-
-    if (
-      !rejectionReason.is_system_default &&
-      rejectionReason.created_by !== user._id &&
-      !user.isStaff
-    ) {
-      throw new Error("Not authorized to deactivate this rejection reason");
+    const isOwner = rejectionReason.created_by === user._id;
+    if (!isOwner) {
+      await assertStaffOrPermission(ctx, "prescriptions:UPDATE");
     }
 
     await ctx.db.patch(args.id, {
@@ -189,36 +160,16 @@ export const deactivateRejectionReason = mutation({
 export const deleteRejectionReason = mutation({
   args: { id: v.id("prescriptionRejectionReasons") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    const { user } = await getAuthUser(ctx);
 
     const rejectionReason = await ctx.db.get(args.id);
     if (!rejectionReason) {
-      throw new Error("Rejection reason not found");
+      throw new ConvexError("Rejection reason not found");
     }
 
-    // Only staff can delete system default reasons
-    if (rejectionReason.is_system_default && !user.isStaff) {
-      throw new Error("Not authorized to delete system default reasons");
-    }
-
-    if (
-      !rejectionReason.is_system_default &&
-      rejectionReason.created_by !== user._id &&
-      !user.isStaff
-    ) {
-      throw new Error("Not authorized to delete this rejection reason");
+    const isOwner = rejectionReason.created_by === user._id;
+    if (!isOwner) {
+      await assertStaffOrPermission(ctx, "prescriptions:DELETE");
     }
 
     // Check if the reason is being used by any prescriptions
@@ -245,19 +196,7 @@ export const deleteRejectionReason = mutation({
 export const seedSystemRejectionReasons = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user || !user.isStaff) {
-      throw new Error("Not authorized to seed system reasons");
-    }
+    await assertStaffOrPermission(ctx, "prescriptions:CREATE");
 
     // Check if system reasons already exist
     const existingReasons = await ctx.db
@@ -266,7 +205,7 @@ export const seedSystemRejectionReasons = mutation({
       .collect();
 
     if (existingReasons.length > 0) {
-      throw new Error("System rejection reasons already exist");
+      throw new ConvexError("System rejection reasons already exist");
     }
 
     const systemReasons = [
