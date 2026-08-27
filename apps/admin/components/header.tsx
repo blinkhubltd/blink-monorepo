@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Moon02Icon as Moon,
@@ -46,20 +47,24 @@ export function Header({ breadcrumbs }: { breadcrumbs: Crumb[] }) {
           {breadcrumbs.map((crumb, i) => {
             const last = i === breadcrumbs.length - 1;
             return (
-              <BreadcrumbItem key={`${crumb.label}-${i}`}>
-                {last || !crumb.href ? (
-                  <BreadcrumbPage className="truncate">
-                    {crumb.label}
-                  </BreadcrumbPage>
-                ) : (
-                  <>
+              // BreadcrumbItem and BreadcrumbSeparator each render an <li>, so
+              // the separator must be a SIBLING of the item, not nested inside
+              // it — an <li> nested in another <li> is invalid HTML, which is
+              // what React was flagging as a hydration error.
+              <Fragment key={`${crumb.label}-${i}`}>
+                <BreadcrumbItem>
+                  {last || !crumb.href ? (
+                    <BreadcrumbPage className="truncate">
+                      {crumb.label}
+                    </BreadcrumbPage>
+                  ) : (
                     <BreadcrumbLink asChild>
                       <Link href={crumb.href}>{crumb.label}</Link>
                     </BreadcrumbLink>
-                    <BreadcrumbSeparator />
-                  </>
-                )}
-              </BreadcrumbItem>
+                  )}
+                </BreadcrumbItem>
+                {!last ? <BreadcrumbSeparator /> : null}
+              </Fragment>
             );
           })}
         </BreadcrumbList>
