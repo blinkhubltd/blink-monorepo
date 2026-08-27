@@ -24,7 +24,7 @@ import {
   SearchableSelect,
   SearchableSelectOption,
 } from "@/components/ui/searchable-select";
-import { CascadingSelect } from "@/components/ui/cascading-select";
+import { ProductCategoryPicker } from "@/components/categories/CategoryPickers";
 import { Checkbox } from "@repo/ui/components/ui/checkbox";
 import { useCascadingCategories } from "@/lib/hooks/useCascadingCategories";
 import { toast } from "sonner";
@@ -164,7 +164,9 @@ export function ProductForm({
       return;
     }
 
-    // If we have a category path from CascadingSelect, check the first (root) category
+    // A caller may still pass an explicit path; nothing does since the
+    // category picker became a flat level-3 list, so the fallback below is
+    // the live route.
     if (categoryPath && categoryPath.length > 0) {
       const firstCategoryId = categoryPath[0];
       const rootCategory = allCategories.find(
@@ -951,21 +953,29 @@ export function ProductForm({
               </span>
             </div>
           )}
-          <CascadingSelect
-            options={rootCategories || hookRootCategories}
+          <Label htmlFor="category">
+            Category <span className="text-red-500">*</span>
+          </Label>
+          {/*
+            Replaces CascadingSelect, which committed a selection as soon as the
+            chosen category had no children — making leafness the rule instead of
+            depth, so a childless level-2 category was accepted exactly like a
+            proper level-3 one. It also fired onValueChange only on that leaf, so
+            picking a mid-level category left this field silently empty.
+
+            The picker now offers level-3 categories and nothing else, each
+            labelled with its full path. `checkIfPharmaceuticals` still receives
+            no explicit path — it falls back to walking up from the category id,
+            which it already implements and which is now the only path that can
+            be reached.
+          */}
+          <ProductCategoryPicker
             value={formData.category_id}
-            onValueChange={(value, path) => {
+            onValueChange={(value) => {
               handleInputChange("category_id", value);
               setTouched((prev) => ({ ...prev, category_id: true }));
-              // Check if pharmaceuticals with the full category path
-              // Convert CascadingOption[] to string[] if path exists
-              const pathValues = path
-                ? path.map((option) => option.value)
-                : undefined;
-              checkIfPharmaceuticals(value, pathValues);
+              checkIfPharmaceuticals(value);
             }}
-            loadChildren={loadChildCategories || hookLoadChildCategories}
-            placeholder="Select category"
             className={
               touched.category_id && errors.category_id ? "border-red-300" : ""
             }

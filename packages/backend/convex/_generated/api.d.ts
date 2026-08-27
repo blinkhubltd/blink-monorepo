@@ -63,6 +63,7 @@ import type * as data_vendors from "../data/vendors.js";
 import type * as data_wishlist from "../data/wishlist.js";
 import type * as http from "../http.js";
 import type * as lib_account_completion from "../lib/account_completion.js";
+import type * as lib_category_tree from "../lib/category_tree.js";
 import type * as lib_delivery_code from "../lib/delivery_code.js";
 import type * as lib_demo_data from "../lib/demo_data.js";
 import type * as lib_env from "../lib/env.js";
@@ -148,6 +149,7 @@ declare const fullApi: ApiFromModules<{
   "data/wishlist": typeof data_wishlist;
   http: typeof http;
   "lib/account_completion": typeof lib_account_completion;
+  "lib/category_tree": typeof lib_category_tree;
   "lib/delivery_code": typeof lib_delivery_code;
   "lib/demo_data": typeof lib_demo_data;
   "lib/env": typeof lib_env;

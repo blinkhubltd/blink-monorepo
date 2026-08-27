@@ -9,6 +9,14 @@ import {
   vendors,
 } from "../convex/lib/demo_data";
 import { resolvePeriod, dayKey } from "../convex/lib/time_range";
+import { leafCategoryKeys } from "../convex/lib/demo_data";
+import {
+  assertCategoryPlacement,
+  breadcrumbOf,
+  depthOf,
+  indexById,
+  productPlacementError,
+} from "../convex/lib/category_tree";
 
 /**
  * What a demo dataset has to prove.
@@ -490,4 +498,102 @@ describe("holds up on any date", () => {
       expect(p.orders.some((o) => o.shipment !== null)).toBe(true);
     });
   }
+});
+
+describe("the category tree is three levels, and products sit on the third", () => {
+  // Validated with the SAME functions the mutations use, not a reimplementation
+  // — otherwise the seed could satisfy a local idea of the rule and still be
+  // rejected by createProduct on a real deployment.
+  const nodes = categories.map((c) => ({
+    _id: c.key,
+    name: c.name,
+    parent_category_id: c.parentKey,
+  }));
+  const byId = indexById(nodes);
+
+  it("has all three levels populated", () => {
+    const depths = new Set(nodes.map((n) => depthOf(byId, n._id)));
+    expect([...depths].sort()).toEqual([1, 2, 3]);
+  });
+
+  it("agrees with its own declared depth on every category", () => {
+    // `depth` is redundant with `parentKey` on purpose — it is the readable
+    // half, and this is what stops the two drifting when the tree is edited.
+    for (const spec of categories) {
+      expect(depthOf(byId, spec.key), `${spec.name} declared depth`).toBe(
+        spec.depth,
+      );
+    }
+  });
+
+  it("resolves every declared parent key", () => {
+    const keys = new Set(categories.map((c) => c.key));
+    for (const spec of categories) {
+      if (spec.parentKey) {
+        expect(keys.has(spec.parentKey), `${spec.name} -> ${spec.parentKey}`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it("passes the real placement rule for every category", () => {
+    for (const spec of categories) {
+      expect(() =>
+        assertCategoryPlacement(nodes, spec.parentKey, spec.key),
+      ).not.toThrow();
+    }
+  });
+
+  it("puts every product on a level-3 category", () => {
+    // The requirement itself: Supermarkets › Groceries › Bread & Bakery ›
+    // product. A product on level 1 or 2 saves fine but is unreachable from the
+    // customer app's deepest drill-down.
+    for (const product of products) {
+      expect(
+        productPlacementError(nodes, product.categoryKey),
+        `${product.name} -> ${product.categoryKey}`,
+      ).toBeNull();
+    }
+  });
+
+  it("derives leafCategoryKeys as exactly the level-3 categories", () => {
+    const expected = nodes
+      .filter((n) => depthOf(byId, n._id) === 3)
+      .map((n) => n._id)
+      .sort();
+    expect([...leafCategoryKeys].sort()).toEqual(expected);
+  });
+
+  it("gives every level-3 category at least one product", () => {
+    // An empty aisle in a demo is a screen with nothing on it. Every leaf being
+    // populated is what makes the customer app's drill-down worth clicking
+    // through.
+    const used = new Set(products.map((p) => p.categoryKey));
+    for (const key of leafCategoryKeys) {
+      expect(used.has(key), `${key} has no products`).toBe(true);
+    }
+  });
+
+  it("keeps a category in the same industry as its parent", () => {
+    // The industries dashboard reaches a product's industry through its VENDOR,
+    // while the category tree carries its own industryKey. If a child sat in a
+    // different industry from its parent the two would disagree and the same
+    // revenue would appear under two industries.
+    const byKey = new Map(categories.map((c) => [c.key, c]));
+    for (const spec of categories) {
+      if (!spec.parentKey) continue;
+      expect(
+        byKey.get(spec.parentKey)?.industryKey,
+        `${spec.name} vs its parent`,
+      ).toBe(spec.industryKey);
+    }
+  });
+
+  it("builds the breadcrumb the requirement describes", () => {
+    // Named explicitly so the example in the request is a test, not a comment.
+    expect(breadcrumbOf(byId, "bakery")).toBe(
+      "Supermarkets › Groceries › Bread & Bakery",
+    );
+  });
 });

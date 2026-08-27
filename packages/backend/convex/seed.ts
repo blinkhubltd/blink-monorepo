@@ -7,6 +7,7 @@ import {
   categories,
   customers,
   industries,
+  leafCategoryKeys,
   pickers,
   products,
   riders,
@@ -234,15 +235,43 @@ export const seedDemoData = mutation({
     }
 
     // ── Categories ───────────────────────────────────────────────────────
+    //
+    // Three levels, inserted shallowest-first so a child's parent id already
+    // exists when it is written. Sorted by depth rather than trusting the
+    // declaration order in `demo_data.ts`, so reordering that list can never
+    // produce a dangling parent here.
     const categoryIds = new Map<string, Id<"categories">>();
-    let sortOrder = 0;
-    for (const spec of categories) {
+    const categoriesByDepth = [...categories].sort((a, b) => a.depth - b.depth);
+
+    // `sort_order` counts WITHIN a parent, which is what the admin tables use it
+    // for — display order among siblings. The category form used to write the
+    // category's DEPTH into this field, making every level-3 category
+    // sort_order 3 and the ordering meaningless.
+    const nextSortOrder = new Map<string, number>();
+
+    for (const spec of categoriesByDepth) {
+      const parentId = spec.parentKey
+        ? categoryIds.get(spec.parentKey)
+        : undefined;
+
+      if (spec.parentKey && !parentId) {
+        throw new ConvexError(
+          `Category "${spec.name}" names parent "${spec.parentKey}", which is ` +
+            "not in the demo tree.",
+        );
+      }
+
+      const siblingGroup = spec.parentKey ?? "__root__";
+      const order = nextSortOrder.get(siblingGroup) ?? 0;
+      nextSortOrder.set(siblingGroup, order + 1);
+
       const id = await ctx.db.insert("categories", {
         name: spec.name,
         slug: spec.key,
         industry: industryIds.get(spec.industryKey),
+        parent_category_id: parentId,
         status: "active",
-        sort_order: sortOrder++,
+        sort_order: order,
         searchText: spec.name,
         created_at: now,
         updated_at: now,
@@ -252,8 +281,21 @@ export const seedDemoData = mutation({
     }
 
     // ── Products ─────────────────────────────────────────────────────────
+    //
+    // Every product must name a LEVEL-3 category, the same rule
+    // `createProduct` enforces. Checked here against the declared tree rather
+    // than relying on the mutation, because the seeder inserts directly and
+    // would otherwise be the one path that can write the shape the rest of the
+    // system now rejects.
+    const leafKeys = new Set(leafCategoryKeys);
     const productIds: Id<"products">[] = [];
     for (const [index, spec] of products.entries()) {
+      if (!leafKeys.has(spec.categoryKey)) {
+        throw new ConvexError(
+          `Product "${spec.name}" names category "${spec.categoryKey}", which ` +
+            "is not a level-3 category. Products must sit on the third level.",
+        );
+      }
       const categoryId = categoryIds.get(spec.categoryKey);
       const vendorId = vendorIds.get(spec.vendorKey);
       if (!categoryId || !vendorId) {
