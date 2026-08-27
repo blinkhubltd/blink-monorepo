@@ -87,9 +87,24 @@ export const settingGroups: SettingGroup[] = [
       "What customers are charged for delivery. Applied at checkout — changing a fee does not alter orders already placed.",
     fields: [
       {
+        key: "free_delivery_threshold",
+        label: "Free delivery from",
+        help: "Basket subtotal at or above which the standard fee is waived. Applies to the WHOLE basket, not per shop, and waives one standard fee only — extra-hub surcharges are still charged. Clearance baskets are excluded.",
+        // positiveInteger, not `money`: a threshold with cents is meaningless,
+        // and a stored 0 would waive the fee on every basket including empty
+        // ones. lib/delivery_fee.ts treats 0 as unusable for the same reason.
+        kind: "integer",
+        unit: "KES",
+        fromStored: identity,
+        toStored: identity,
+        validate: positiveInteger(1),
+        description:
+          "Basket subtotal at or above which the base delivery fee is waived, in KES. Applies to the BASKET, not per shop, and waives one base fee only — extra-shop pickup fees are still charged. Does not apply to clearance baskets.",
+      },
+      {
         key: "delivery_fee",
         label: "Standard delivery",
-        help: "Charged on a normal order.",
+        help: "Charged on a normal order, and the fee waived once a basket reaches the free-delivery threshold above.",
         kind: "money",
         unit: "KES",
         fromStored: identity,

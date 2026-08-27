@@ -67,6 +67,7 @@ import type * as lib_account_completion from "../lib/account_completion.js";
 import type * as lib_catalog_scope from "../lib/catalog_scope.js";
 import type * as lib_category_tree from "../lib/category_tree.js";
 import type * as lib_delivery_code from "../lib/delivery_code.js";
+import type * as lib_delivery_fee from "../lib/delivery_fee.js";
 import type * as lib_demo_data from "../lib/demo_data.js";
 import type * as lib_env from "../lib/env.js";
 import type * as lib_geo from "../lib/geo.js";
@@ -155,6 +156,7 @@ declare const fullApi: ApiFromModules<{
   "lib/catalog_scope": typeof lib_catalog_scope;
   "lib/category_tree": typeof lib_category_tree;
   "lib/delivery_code": typeof lib_delivery_code;
+  "lib/delivery_fee": typeof lib_delivery_fee;
   "lib/demo_data": typeof lib_demo_data;
   "lib/env": typeof lib_env;
   "lib/geo": typeof lib_geo;

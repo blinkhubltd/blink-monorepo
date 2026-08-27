@@ -11,6 +11,8 @@ import {
 import { getUserByClerkId } from "../auth.helpers";
 import { syncShipmentStatusForOrder } from "./shipments";
 import { generateDeliveryCode as createDeliveryCode } from "../lib/delivery_code";
+import { priceClearanceDelivery } from "../lib/delivery_fee";
+import { readClearanceDeliveryPricing } from "./platform_settings";
 
 const computeOrderSearchText = (order: {
   reference?: string;
@@ -1338,35 +1340,23 @@ export const createClearanceOrder = mutation({
       searchText: "",
     };
 
-    const [clearanceDeliverySetting, extraVendorSetting] = await Promise.all([
-      ctx.db
-        .query("platform_settings")
-        .withIndex("by_key", (q) => q.eq("key", "clearance_delivery_fee"))
-        .first(),
-      ctx.db
-        .query("platform_settings")
-        .withIndex("by_key", (q) => q.eq("key", "clearance_extra_vendor_fee"))
-        .first(),
-    ]);
-
-    const parseNonNegative = (raw: string | undefined, fallback: number) => {
-      const parsed = Number.parseFloat(raw ?? "");
-      return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-    };
-
-    const baseClearanceDeliveryFee = parseNonNegative(
-      clearanceDeliverySetting?.value,
-      150,
-    );
-    const extraVendorFee = parseNonNegative(extraVendorSetting?.value, 50);
+    // Reads through the shared reader rather than two inline `by_key` lookups
+    // with their own local defaults. The duplication this replaces is exactly
+    // the drift the key-constant pattern exists to stop: this file had its own
+    // `parseNonNegative` with 150/50 baked in, so a settings change reached the
+    // quote and not the charge.
+    const clearancePricing = await readClearanceDeliveryPricing(ctx);
     const vendorCount = new Set(args.clearance_items.map((i) => i.vendor_id))
       .size;
 
-    const computedDeliveryFee =
-      vendorCount > 0
-        ? baseClearanceDeliveryFee +
-          Math.max(0, vendorCount - 1) * extraVendorFee
-        : 0;
+    // Clearance is deliberately excluded from the free-delivery threshold —
+    // those items are already discounted, and waiving delivery on top erodes
+    // the margin twice. `priceClearanceDelivery` takes no subtotal, so the
+    // threshold cannot leak in by accident.
+    const computedDeliveryFee = priceClearanceDelivery(
+      vendorCount,
+      clearancePricing,
+    );
 
     const subtotal = Number(orderData.subtotal_amount || 0);
     const tax = Number(orderData.tax_amount || 0);

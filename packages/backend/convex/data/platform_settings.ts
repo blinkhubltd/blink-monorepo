@@ -2,6 +2,14 @@ import { query, mutation, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { assertSuperAdmin } from "../auth.helpers";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
+import {
+  DEFAULT_DELIVERY_FEE_KES,
+  DEFAULT_EXTRA_VENDOR_FEE_KES,
+  DEFAULT_FREE_DELIVERY_THRESHOLD_KES,
+  resolveFeeSetting,
+  resolveNumericSetting,
+  type DeliveryPricingSettings,
+} from "../lib/delivery_fee";
 
 /**
  * The key `vendors.ts` reads to cap a vendor's `service_radius`, and the
@@ -13,6 +21,18 @@ import type { QueryCtx, MutationCtx } from "../_generated/server";
  * the limit from its enforcement.
  */
 export const VENDOR_SERVICE_RADIUS_LIMIT_KEY = "vendor_service_radius_limit_m";
+
+/**
+ * Keys the delivery pricing reads. Same reasoning as the radius key above: the
+ * settings page, the seeder and the enforcement must agree on one string, and a
+ * typo in any of the three decouples the setting from what it controls.
+ *
+ * A guard test asserts each literal appears in exactly those three places.
+ */
+export const DELIVERY_FEE_KEY = "delivery_fee";
+export const CLEARANCE_DELIVERY_FEE_KEY = "clearance_delivery_fee";
+export const EXTRA_VENDOR_FEE_KEY = "clearance_extra_vendor_fee";
+export const FREE_DELIVERY_THRESHOLD_KEY = "free_delivery_threshold";
 
 export const get = query({
   args: { key: v.string() },
@@ -103,17 +123,17 @@ export const seed = internalMutation({
         description: "Days before expiry to stop displaying clearance products",
       },
       {
-        key: "delivery_fee",
+        key: DELIVERY_FEE_KEY,
         value: "200",
         description: "Delivery fee for normal products in KES",
       },
       {
-        key: "clearance_delivery_fee",
+        key: CLEARANCE_DELIVERY_FEE_KEY,
         value: "150",
         description: "Delivery fee for clearance products in KES",
       },
       {
-        key: "clearance_extra_vendor_fee",
+        key: EXTRA_VENDOR_FEE_KEY,
         value: "50",
         description:
           "Extra delivery fee per additional vendor in clearance orders (KES)",
@@ -153,6 +173,12 @@ export const seed = internalMutation({
         value: "friday,saturday",
         description:
           "Comma-separated days of the week when agents can create payout requests (e.g. friday,saturday)",
+      },
+      {
+        key: FREE_DELIVERY_THRESHOLD_KEY,
+        value: String(DEFAULT_FREE_DELIVERY_THRESHOLD_KES),
+        description:
+          "Basket subtotal at or above which the base delivery fee is waived, in KES. Applies to the BASKET, not per shop, and waives one base fee only — extra-shop pickup fees are still charged. Does not apply to clearance baskets.",
       },
       {
         key: VENDOR_SERVICE_RADIUS_LIMIT_KEY,
@@ -284,32 +310,116 @@ export const getVendorsExceedingRadius = query({
   },
 });
 
+/**
+ * Delivery pricing, read once for both the quote and the charge.
+ *
+ * The plain-function half of the pair (same shape as
+ * `readVendorServiceRadiusLimit` above), so a mutation reads these inside its
+ * own transaction rather than round-tripping through a query — which is what
+ * lets the price a customer is quoted and the price an order is written with
+ * come from one read.
+ *
+ * A value that falls back is logged HERE rather than inside `lib/delivery_fee`,
+ * which stays ctx-free and silent. Absence is an ops condition worth seeing in
+ * the logs: it means the settings row is missing on this deployment.
+ */
+export async function readDeliveryPricing(
+  ctx: QueryCtx | MutationCtx,
+): Promise<DeliveryPricingSettings> {
+  const [baseRow, extraRow, thresholdRow] = await Promise.all([
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", DELIVERY_FEE_KEY))
+      .first(),
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", EXTRA_VENDOR_FEE_KEY))
+      .first(),
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", FREE_DELIVERY_THRESHOLD_KEY))
+      .first(),
+  ]);
+
+  const base = resolveFeeSetting(baseRow?.value, DEFAULT_DELIVERY_FEE_KES);
+  const extra = resolveFeeSetting(extraRow?.value, DEFAULT_EXTRA_VENDOR_FEE_KES);
+  const threshold = resolveNumericSetting(
+    thresholdRow?.value,
+    DEFAULT_FREE_DELIVERY_THRESHOLD_KES,
+  );
+
+  for (const [key, resolved] of [
+    [DELIVERY_FEE_KEY, base],
+    [EXTRA_VENDOR_FEE_KEY, extra],
+    [FREE_DELIVERY_THRESHOLD_KEY, threshold],
+  ] as const) {
+    if (resolved.resolution === "fallback") {
+      console.error(
+        `[delivery_pricing] setting "${key}" missing or unusable; using ${resolved.value}. Run platformSettings.seedDefaults.`,
+      );
+    }
+  }
+
+  return {
+    baseFee: base.value,
+    extraVendorFee: extra.value,
+    freeThreshold: threshold.value,
+  };
+}
+
+/** Query wrapper, for screens that display the pricing rules. */
+export const getDeliveryPricing = query({
+  args: {},
+  handler: async (ctx) => readDeliveryPricing(ctx),
+});
+
+/**
+ * Clearance delivery settings. Separate because clearance keeps its own base
+ * fee AND is deliberately excluded from the free-delivery threshold.
+ */
+export async function readClearanceDeliveryPricing(
+  ctx: QueryCtx | MutationCtx,
+): Promise<{ baseFee: number; extraVendorFee: number }> {
+  const [baseRow, extraRow] = await Promise.all([
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", CLEARANCE_DELIVERY_FEE_KEY))
+      .first(),
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", EXTRA_VENDOR_FEE_KEY))
+      .first(),
+  ]);
+
+  return {
+    baseFee: resolveFeeSetting(baseRow?.value, 150).value,
+    extraVendorFee: resolveFeeSetting(extraRow?.value, DEFAULT_EXTRA_VENDOR_FEE_KES)
+      .value,
+  };
+}
+
+/**
+ * @deprecated Returns the raw fee numbers with no threshold logic, which is how
+ * the old checkout charged a flat fee and never honoured free delivery. Use
+ * `readDeliveryPricing` / `getDeliveryPricing` and `lib/delivery_fee` instead,
+ * so the quote and the charge come from one calculation.
+ *
+ * Retained only until the remaining callers move over.
+ */
 export const getDeliveryFees = query({
   args: {},
   handler: async (ctx) => {
-    const [normalFee, clearanceFee, extraVendorFee] = await Promise.all([
-      ctx.db
-        .query("platform_settings")
-        .withIndex("by_key", (q) => q.eq("key", "delivery_fee"))
-        .first(),
-      ctx.db
-        .query("platform_settings")
-        .withIndex("by_key", (q) => q.eq("key", "clearance_delivery_fee"))
-        .first(),
-      ctx.db
-        .query("platform_settings")
-        .withIndex("by_key", (q) => q.eq("key", "clearance_extra_vendor_fee"))
-        .first(),
+    const [normal, clearance] = await Promise.all([
+      readDeliveryPricing(ctx),
+      readClearanceDeliveryPricing(ctx),
     ]);
-
     return {
-      delivery_fee: normalFee ? parseFloat(normalFee.value) : 200,
-      clearance_delivery_fee: clearanceFee
-        ? parseFloat(clearanceFee.value)
-        : 150,
-      clearance_extra_vendor_fee: extraVendorFee
-        ? parseFloat(extraVendorFee.value)
-        : 50,
+      delivery_fee: normal.baseFee,
+      clearance_delivery_fee: clearance.baseFee,
+      clearance_extra_vendor_fee: normal.extraVendorFee,
+      // Exposed so a caller that has not migrated can at least see the rule
+      // exists rather than silently charging a flat fee.
+      free_delivery_threshold: normal.freeThreshold,
     };
   },
 });
