@@ -6,7 +6,8 @@
     ".": "./convex/_generated/api.js",
     "./server": "./convex/_generated/server.js",
     "./dataModel": "./convex/_generated/dataModel.d.ts",
-    "./validators": "./convex/validators.ts"
+    "./validators": "./convex/validators.ts",
+    "./lib/*": "./convex/lib/*.ts"
   },
   "scripts": {
     "dev": "convex dev --tail-logs disable",

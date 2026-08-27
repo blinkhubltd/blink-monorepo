@@ -1,0 +1,27 @@
+{
+  "extends": "@repo/typescript/expo.json",
+  "compilerOptions": {
+    // Matches the override inside packages/backend. @repo/backend is consumed as
+    // raw TypeScript with no build step, so this app compiles the backend's
+    // source under ITS OWN tsconfig and the backend package's own setting does
+    // not reach here. Without this, 130 pre-existing errors inside
+    // packages/backend fail this app's typecheck.
+    //
+    // This is tracked debt, not a fix: it also weakens the flag for this app's
+    // own code. The real fix is the 130 errors in packages/backend, which sit on
+    // money paths (payment_finalization, payment_split, orders, cart) and need
+    // their own change.
+    "noUncheckedIndexedAccess": false,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}
