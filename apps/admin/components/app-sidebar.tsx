@@ -28,6 +28,7 @@ import {
   CollapsibleTrigger,
 } from "@repo/ui/components/ui/collapsible";
 import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
+import { BlinkMark } from "@/components/blink-mark";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
 import {
   ADMIN_ONLY_LINKS,
@@ -101,12 +102,18 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader className="px-3 py-4">
         <Link href="/" className="flex items-center gap-2.5">
           {/*
-            The wordmark is an image on marketing surfaces, but the rail is ink
-            and narrow — a yellow mark plus a text label reads at every width and
-            survives the collapsed state, which a wide logo does not.
+            The full wordmark is an image on marketing surfaces, but the rail is
+            ink and narrow — the mark in a yellow tile plus a text label reads at
+            every width and survives the collapsed state, which a wide lockup
+            does not.
+
+            The mark is the real Blink symbol (see components/blink-mark.tsx),
+            not the placeholder "B" that stood here. It inherits
+            `text-primary-foreground` from the tile, so the same component works
+            on ink or white without a second asset.
           */}
-          <span className="bg-primary text-primary-foreground grid size-8 shrink-0 place-items-center rounded-lg text-sm font-black">
-            B
+          <span className="bg-primary text-primary-foreground grid size-8 shrink-0 place-items-center rounded-lg">
+            <BlinkMark className="w-[18px]" />
           </span>
           <span className="grid text-left leading-tight group-data-[collapsible=icon]:hidden">
             <span className="text-sidebar-accent-foreground text-sm font-bold">
