@@ -1,4 +1,9 @@
-import { mutation, query } from "../_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "../_generated/server";
 import { internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
 import { api } from "../_generated/api";
@@ -8,7 +13,7 @@ import {
   orderPaymentStatus,
   orderStatus,
 } from "../validators";
-import { getUserByClerkId } from "../auth.helpers";
+import { getAuthUser, getUserByClerkId } from "../auth.helpers";
 import { syncShipmentStatusForOrder } from "./shipments";
 import { generateDeliveryCode as createDeliveryCode } from "../lib/delivery_code";
 import { priceClearanceDelivery } from "../lib/delivery_fee";
@@ -635,8 +640,25 @@ export const updatePaymentStatus = mutation({
   },
 });
 
-// Generate delivery code for pay_now orders
-export const generateDeliveryCode = mutation({
+/**
+ * Mint (or re-read) the code that authorises a handover.
+ *
+ * `internalMutation`, and that is a security fix rather than tidying. As a
+ * public mutation this **disclosed the delivery code to any anonymous caller**:
+ * the early return below hands back `order.delivery_code` whenever a code
+ * already exists and is unverified, so `generateDeliveryCode({ orderId })` was
+ * enough to obtain the secret that releases someone else's goods. No guessing
+ * required.
+ *
+ * `lib/delivery_code.ts` reasons that "guessing is bounded by the order lookup
+ * rather than by entropy" — which was true, and was the problem: the order
+ * lookup was not authenticated either.
+ *
+ * Calling it also re-sent the code by push/SMS, so it doubled as a way to spam
+ * a customer. Both callers are server-side (`notifications.ts`, `payments.ts`),
+ * so nothing legitimate is lost.
+ */
+export const generateDeliveryCode = internalMutation({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
@@ -680,17 +702,46 @@ export const generateDeliveryCode = mutation({
   },
 });
 
-// Verify delivery code
+/**
+ * Confirm a handover against the code the customer reads out.
+ *
+ * ── Why the caller is now checked ────────────────────────────────────────
+ *
+ * This was public, unauthenticated, and took `riderId` as an OPTIONAL ARGUMENT
+ * that it never used for anything. So an anonymous caller could mark somebody
+ * else's order Delivered by supplying an order id and the right six digits —
+ * and because a wrong code returned `{ verified: false }` instead of throwing,
+ * it was also its own brute-force oracle.
+ *
+ * `riderId` is now derived from the auth token and the argument is **removed**
+ * rather than accepted-and-ignored: an ignored parameter invites a future change
+ * to start honouring it, which is precisely how it got here.
+ *
+ * A wrong code still returns `{ verified: false }` rather than throwing — a
+ * rider mistyping at a doorstep is an ordinary event, and the rider app
+ * distinguishes it from a failure. The brute-force concern is answered by the
+ * caller having to BE the assigned rider, not by making a typo fatal.
+ */
 export const verifyDeliveryCode = mutation({
   args: {
     orderId: v.id("orders"),
     code: v.string(),
-    riderId: v.optional(v.id("users")), // for rider verification
   },
   handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
     const order = await ctx.db.get(args.orderId);
     if (!order) {
       throw new Error("Order not found");
+    }
+
+    // Only the rider actually carrying this order may close it. Checked against
+    // the order's own `rider_id`, so a signed-in rider cannot confirm a
+    // delivery assigned to a colleague.
+    if (!order.rider_id || order.rider_id !== user._id) {
+      throw new ConvexError(
+        "Only the rider assigned to this delivery can verify its code",
+      );
     }
 
     // Only applicable for pay_now orders
@@ -790,8 +841,20 @@ export const getOrdersAwaitingVerification = query({
   },
 });
 
-// Check delivery code without verifying (for UI validation)
-export const checkDeliveryCode = query({
+/**
+ * Test a code without consuming it.
+ *
+ * `internalQuery`: as a public query with no auth this was a free, unlimited,
+ * side-effect-free oracle for brute-forcing a six-digit code — it answered
+ * "is this the right code for this order" to anybody who asked, without even
+ * the audit trail a mutation would leave. 900,000 candidates is nothing against
+ * an endpoint that cheap.
+ *
+ * It has no callers in any app, so it is closed rather than gated. If a rider
+ * screen ever wants live validation, it should go through the same
+ * assigned-rider check `verifyDeliveryCode` now performs.
+ */
+export const checkDeliveryCode = internalQuery({
   args: {
     orderId: v.id("orders"),
     code: v.string(),

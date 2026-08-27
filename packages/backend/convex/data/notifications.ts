@@ -2,6 +2,7 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import {
   notificationTypes,
   orderStatus,
@@ -729,7 +730,7 @@ export const triggerOrderStatusNotification = action({
                   { orderId: args.orderId },
                 );
                 try {
-                  await ctx.runMutation(api.data.orders.generateDeliveryCode, {
+                  await ctx.runMutation(internal.data.orders.generateDeliveryCode, {
                     orderId: args.orderId,
                   });
                 } catch (genErr) {

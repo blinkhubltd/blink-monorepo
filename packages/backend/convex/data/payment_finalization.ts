@@ -1,9 +1,10 @@
 import { v, ConvexError } from "convex/values";
-import { mutation } from "../_generated/server";
+import { mutation, type MutationCtx } from "../_generated/server";
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { OrderItemWithoutOrderId, OrdersValidator } from "../validators";
 import { paymentMethodFromChannel } from "../lib/paystack";
+import { getAuthUser } from "../auth.helpers";
 
 /**
  * Order finalisation after payment.
@@ -62,12 +63,35 @@ async function findOrdersByIdempotencyKey(
   }));
 }
 
+/**
+ * The caller, and the assertion that they are finalising their OWN basket.
+ *
+ * ── What this closes ─────────────────────────────────────────────────────
+ *
+ * All four finalisers were public with no auth check of any kind, and each took
+ * `user_id: v.id("users")` as an ARGUMENT. So an anonymous caller could create
+ * orders **as any customer**, at prices of their own choosing, by supplying a
+ * user id and a payment reference. These are the real order-creating entry
+ * points — `createOrder` has no callers at all — so this is where the money was.
+ *
+ * `user_id` is now derived from the auth token and the argument is removed
+ * rather than accepted-and-ignored, on the same reasoning recorded in
+ * `tests/cart-auth-api.test.ts`: a parameter that is accepted but unused invites
+ * a later change to start honouring it.
+ *
+ * For the prepaid paths the payment row is cross-checked too, so a caller cannot
+ * finalise against somebody else's payment reference even while authenticated.
+ */
+async function callerFinalising(ctx: MutationCtx) {
+  const { user } = await getAuthUser(ctx);
+  return user;
+}
+
 // Create orders and order_items AFTER a verified successful payment.
 // Input includes grouped vendor order payloads so multiple vendor orders can be created from a single cart payment.
 export const finalizePaidOrders = mutation({
   args: {
     reference: v.string(),
-    user_id: v.id("users"),
     payment_method: v.union(
       v.literal("Card"),
       v.literal("Mobile Money"),
@@ -84,6 +108,7 @@ export const finalizePaidOrders = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const caller = await callerFinalising(ctx);
     // 1. Verify payment exists & has been marked Successful (or verify now)
     const payment = await ctx.db
       .query("payments")
@@ -91,6 +116,12 @@ export const finalizePaidOrders = mutation({
       .first();
 
     if (!payment) throw new Error("Payment not found for finalization");
+    // Authentication alone is not enough here: a signed-in customer could
+    // otherwise finalise against somebody else's payment reference and have the
+    // resulting orders written against their own account.
+    if (payment.user_id !== caller._id) {
+      throw new ConvexError("This payment belongs to a different customer");
+    }
     if (payment.status !== "Successful") {
       throw new Error("Payment not successful yet");
     }
@@ -250,7 +281,7 @@ export const finalizePaidOrders = mutation({
     // Clear the user's cart now that the orders are successfully created
     const cart = await ctx.db
       .query("cart")
-      .withIndex("by_user", (q) => q.eq("user_id", args.user_id))
+      .withIndex("by_user", (q) => q.eq("user_id", caller._id))
       .first();
     if (cart) {
       await ctx.db.patch(cart._id, { products: [], updated_at: Date.now() });
@@ -269,7 +300,6 @@ export const finalizePaidOrders = mutation({
 // Useful for cash/card on delivery flows where stock reservation may have been handled separately.
 export const finalizePayOnDeliveryOrders = mutation({
   args: {
-    user_id: v.id("users"),
     /**
      * Required. See OrdersValidator.idempotency_key — and the note on the
      * clearance variant for why this is not optional.
@@ -289,6 +319,7 @@ export const finalizePayOnDeliveryOrders = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const caller = await callerFinalising(ctx);
     const alreadyDone = await findOrdersByIdempotencyKey(
       ctx,
       args.idempotency_key,
@@ -404,7 +435,7 @@ export const finalizePayOnDeliveryOrders = mutation({
     // and the next visit looked like the order had not gone through.
     const cart = await ctx.db
       .query("cart")
-      .withIndex("by_user", (q) => q.eq("user_id", args.user_id))
+      .withIndex("by_user", (q) => q.eq("user_id", caller._id))
       .first();
     if (cart) {
       await ctx.db.patch(cart._id, { products: [], updated_at: Date.now() });
@@ -446,10 +477,10 @@ const ClearanceOrderGroup = v.object({
 export const finalizePaidClearanceOrders = mutation({
   args: {
     reference: v.string(),
-    user_id: v.id("users"),
     orders: v.array(ClearanceOrderGroup),
   },
   handler: async (ctx, args) => {
+    const caller = await callerFinalising(ctx);
     // 1. Verify payment
     const payment = await ctx.db
       .query("payments")
@@ -457,6 +488,12 @@ export const finalizePaidClearanceOrders = mutation({
       .first();
 
     if (!payment) throw new Error("Payment not found for finalization");
+    // Authentication alone is not enough here: a signed-in customer could
+    // otherwise finalise against somebody else's payment reference and have the
+    // resulting orders written against their own account.
+    if (payment.user_id !== caller._id) {
+      throw new ConvexError("This payment belongs to a different customer");
+    }
     if (payment.status !== "Successful")
       throw new Error("Payment not yet verified as successful");
 
@@ -479,7 +516,7 @@ export const finalizePaidClearanceOrders = mutation({
 
     // 3. Derive payment method from Paystack response
     const paymentMethod = paymentMethodFromChannel(payment.paystackResponse);
-    const customer = await ctx.db.get(args.user_id);
+    const customer = await ctx.db.get(caller._id);
     const customerName = customer
       ? customer.name ||
         `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim()
@@ -566,7 +603,7 @@ export const finalizePaidClearanceOrders = mutation({
     // Clear clearance cart
     const cart = await ctx.db
       .query("clearance_cart")
-      .withIndex("by_user", (q) => q.eq("user_id", args.user_id))
+      .withIndex("by_user", (q) => q.eq("user_id", caller._id))
       .first();
     if (cart) {
       await ctx.db.patch(cart._id, { items: [], updated_at: Date.now() });
@@ -615,7 +652,6 @@ export const finalizePaidClearanceOrders = mutation({
  */
 export const finalizePayOnDeliveryClearanceOrders = mutation({
   args: {
-    user_id: v.id("users"),
     /**
      * Required. See OrdersValidator.idempotency_key.
      *
@@ -630,6 +666,7 @@ export const finalizePayOnDeliveryClearanceOrders = mutation({
     orders: v.array(ClearanceOrderGroup),
   },
   handler: async (ctx, args) => {
+    const caller = await callerFinalising(ctx);
     const alreadyDone = await findOrdersByIdempotencyKey(
       ctx,
       args.idempotency_key,
@@ -637,7 +674,7 @@ export const finalizePayOnDeliveryClearanceOrders = mutation({
     );
     if (alreadyDone) return { created: alreadyDone };
 
-    const customer = await ctx.db.get(args.user_id);
+    const customer = await ctx.db.get(caller._id);
     const customerName = customer
       ? customer.name ||
         `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim()
@@ -726,7 +763,7 @@ export const finalizePayOnDeliveryClearanceOrders = mutation({
     // Clear clearance cart
     const cart = await ctx.db
       .query("clearance_cart")
-      .withIndex("by_user", (q) => q.eq("user_id", args.user_id))
+      .withIndex("by_user", (q) => q.eq("user_id", caller._id))
       .first();
     if (cart) {
       await ctx.db.patch(cart._id, { items: [], updated_at: Date.now() });

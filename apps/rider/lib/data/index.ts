@@ -263,10 +263,13 @@ export function useConfirmDelivery() {
         if (!input.orderId) {
           return { ok: false, message: "This delivery has no order attached" };
         }
+        // No `riderId`: the mutation derives the rider from the auth token and
+        // asserts it matches the order's assigned rider. It previously took the
+        // id as an argument and ignored it, which meant an anonymous caller
+        // could close anyone else's delivery.
         const result = await verifyCode({
           orderId: input.orderId,
           code: input.code,
-          riderId: userId,
         });
         if (!result.verified) {
           return { ok: false, invalidCode: true };

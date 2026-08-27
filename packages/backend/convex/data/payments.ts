@@ -7,6 +7,7 @@ import {
 } from "../validators";
 import { OrdersValidator, OrderItemWithoutOrderId } from "../validators";
 import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
 import type { Doc } from "../_generated/dataModel";
 import {
@@ -403,7 +404,7 @@ export const applyVerificationResult = mutation({
 
       if (linkedOrder && linkedOrder.payment_mode === "pay_now") {
         try {
-          await ctx.runMutation(api.data.orders.generateDeliveryCode, {
+          await ctx.runMutation(internal.data.orders.generateDeliveryCode, {
             orderId: payment.order_id,
           });
         } catch (codeError) {
