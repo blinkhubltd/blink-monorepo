@@ -166,20 +166,70 @@ export interface CategorySpec {
   key: string;
   name: string;
   industryKey: string;
+  /**
+   * The `key` of this category's parent. Absent for level 1.
+   *
+   * Declared as a flat list with parent keys rather than a nested literal
+   * because the seeder inserts in one pass and needs the parent's real Convex
+   * id available before the child — a nested structure would have to be
+   * flattened anyway, and `depth` below is asserted in the tests, so the flat
+   * form cannot silently drift out of shape.
+   */
+  parentKey?: string;
+  /** 1, 2 or 3. Redundant with `parentKey`, and cross-checked against it. */
+  depth: 1 | 2 | 3;
 }
 
+/**
+ * Three levels, exactly as `lib/category_tree.ts` requires:
+ *
+ *   Supermarkets › Groceries › Bread & Bakery › [products]
+ *
+ * Products attach ONLY to level 3. The seeder asserts this before writing
+ * anything, and `tests/demo-data.test.ts` asserts it without a database, so a
+ * product pointed at a level-1 or level-2 category cannot reach the deployment.
+ *
+ * Level 1 is the retail format ("Supermarkets", "Pharmacies"), level 2 the
+ * department, level 3 the aisle a shopper actually browses. That split matters
+ * for the demo to be worth looking at: with only two levels the customer app's
+ * category → subcategory → products drill-down has nothing to show at its
+ * deepest step.
+ */
 export const categories: CategorySpec[] = [
-  { key: "pain-relief", name: "Pain Relief", industryKey: "pharmacy" },
-  { key: "cold-flu", name: "Cold & Flu", industryKey: "pharmacy" },
-  { key: "vitamins", name: "Vitamins", industryKey: "pharmacy" },
-  { key: "bakery", name: "Bakery", industryKey: "grocery" },
-  { key: "dairy", name: "Dairy", industryKey: "grocery" },
-  { key: "produce", name: "Fruit & Vegetables", industryKey: "grocery" },
-  { key: "pantry", name: "Pantry", industryKey: "grocery" },
-  { key: "phones", name: "Phones", industryKey: "electronics" },
-  { key: "audio", name: "Audio", industryKey: "electronics" },
-  { key: "cables", name: "Cables & Chargers", industryKey: "electronics" },
+  // ── Supermarkets ────────────────────────────────────────────────────────
+  { key: "supermarkets", name: "Supermarkets", industryKey: "grocery", depth: 1 },
+  { key: "groceries", name: "Groceries", industryKey: "grocery", parentKey: "supermarkets", depth: 2 },
+  { key: "bakery", name: "Bread & Bakery", industryKey: "grocery", parentKey: "groceries", depth: 3 },
+  { key: "dairy", name: "Dairy & Eggs", industryKey: "grocery", parentKey: "groceries", depth: 3 },
+  { key: "produce", name: "Fruit & Vegetables", industryKey: "grocery", parentKey: "groceries", depth: 3 },
+  { key: "pantry", name: "Rice, Pasta & Pantry", industryKey: "grocery", parentKey: "groceries", depth: 3 },
+
+  // ── Pharmacies ──────────────────────────────────────────────────────────
+  { key: "pharmacies", name: "Pharmacies", industryKey: "pharmacy", depth: 1 },
+  { key: "medicine", name: "Medicine", industryKey: "pharmacy", parentKey: "pharmacies", depth: 2 },
+  { key: "pain-relief", name: "Pain Relief", industryKey: "pharmacy", parentKey: "medicine", depth: 3 },
+  { key: "cold-flu", name: "Cold & Flu", industryKey: "pharmacy", parentKey: "medicine", depth: 3 },
+  { key: "wellness", name: "Wellness", industryKey: "pharmacy", parentKey: "pharmacies", depth: 2 },
+  { key: "vitamins", name: "Vitamins & Supplements", industryKey: "pharmacy", parentKey: "wellness", depth: 3 },
+
+  // ── Electronics ─────────────────────────────────────────────────────────
+  { key: "electronics-shops", name: "Electronics", industryKey: "electronics", depth: 1 },
+  { key: "mobile", name: "Mobile & Accessories", industryKey: "electronics", parentKey: "electronics-shops", depth: 2 },
+  { key: "phones", name: "Phones", industryKey: "electronics", parentKey: "mobile", depth: 3 },
+  { key: "cables", name: "Cables & Chargers", industryKey: "electronics", parentKey: "mobile", depth: 3 },
+  { key: "sound", name: "Sound", industryKey: "electronics", parentKey: "electronics-shops", depth: 2 },
+  { key: "audio", name: "Headphones & Speakers", industryKey: "electronics", parentKey: "sound", depth: 3 },
 ];
+
+/**
+ * The level-3 keys, which are the only ones a product may name.
+ *
+ * Derived rather than hand-listed so it cannot fall out of step with the tree
+ * above, and used by both the seeder and the tests.
+ */
+export const leafCategoryKeys: string[] = categories
+  .filter((c) => c.depth === 3)
+  .map((c) => c.key);
 
 export interface ProductSpec {
   name: string;

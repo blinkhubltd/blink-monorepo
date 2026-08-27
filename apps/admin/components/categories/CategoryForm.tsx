@@ -15,6 +15,7 @@ import { api } from "@repo/backend";
 import { Button } from "@repo/ui/components/ui/button";
 import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
+import { ParentCategoryPicker } from "@/components/categories/CategoryPickers";
 import {
   Select,
   SelectContent,
@@ -71,8 +72,6 @@ export function CategoryForm({
   const [currentImageId, setCurrentImageId] = useState<Id<"_storage"> | null>(
     null
   );
-  const [selectedLevel1, setSelectedLevel1] = useState<string>("");
-  const [selectedLevel2, setSelectedLevel2] = useState<string>("");
 
   const generateUploadUrl = useMutation(api.data.files.generateUploadUrl);
   const getImageUrl = useQuery(
@@ -91,45 +90,8 @@ export function CategoryForm({
       });
       setCategoryName(initialCategory.name);
       setCurrentImageId(initialCategory.image || null);
-
-      // Set the cascading selection based on the parent
-      if (initialCategory.parent_category_id) {
-        const parent = categories.find(
-          (cat) => cat._id === initialCategory.parent_category_id
-        );
-        if (parent) {
-          if (parent.parent_category_id) {
-            // Parent has a parent, so this is level 3, parent is level 2
-            const grandParent = categories.find(
-              (cat) => cat._id === parent.parent_category_id
-            );
-            if (grandParent) {
-              setSelectedLevel1(grandParent._id);
-              setSelectedLevel2(parent._id);
-            }
-          } else {
-            setSelectedLevel1(parent._id);
-            setSelectedLevel2("stay-level1");
-          }
-        }
-      } else {
-        // No parent, so this is level 1
-        setSelectedLevel1("root");
-        setSelectedLevel2("stay-level1");
-      }
     }
   }, [mode, initialCategory, categories]);
-
-  useEffect(() => {
-    const newLevel = getNewCategoryLevel();
-    const parentId = getParentCategoryId();
-
-    setFormData((prev) => ({
-      ...prev,
-      sort_order: newLevel,
-      parent_category_id: parentId,
-    }));
-  }, [selectedLevel1, selectedLevel2]);
 
   useEffect(() => {
     if (getImageUrl && !selectedFile) {
@@ -165,83 +127,44 @@ export function CategoryForm({
     return uniqueSlug;
   };
 
-  const getCategoryDepth = (categoryId: string): number => {
-    const category = categories.find((cat) => cat._id === categoryId);
-    if (!category) return 0;
 
-    let depth = 1;
-    let current = category;
-
-    while (current.parent_category_id) {
-      const parent = categories.find(
-        (cat) => cat._id === current.parent_category_id
-      );
-      if (!parent) break;
-      current = parent;
-      depth++;
-    }
-
-    return depth;
-  };
-
-  // Get level 1 categories (root categories)
-  const level1Categories = useMemo(() => {
-    return categories.filter(
-      (cat) => !cat.parent_category_id && cat.status === "active"
-    );
-  }, [categories]);
-
-  // Get level 2 categories (children of selected level 1)
-  const level2Categories = useMemo(() => {
-    if (!selectedLevel1 || selectedLevel1 === "root") return [];
-    return categories.filter(
-      (cat) =>
-        cat.parent_category_id === selectedLevel1 && cat.status === "active"
-    );
-  }, [categories, selectedLevel1]);
-
-  // Determine what parent should be set based on selection
-  const getParentCategoryId = (): Id<"categories"> | undefined => {
-    if (selectedLevel2 && selectedLevel2 !== "stay-level1") {
-      // If level 2 is selected, the new category will be level 3
-      return selectedLevel2 as Id<"categories">;
-    } else if (selectedLevel1 && selectedLevel1 !== "root") {
-      // If only level 1 is selected, the new category will be level 2
-      return selectedLevel1 as Id<"categories">;
-    }
-    // If no selection or "root" selected, the new category will be level 1
-    return undefined;
-  };
-
-  useEffect(() => {
-    setFormData((prev) => ({
-      ...prev,
-      parent_category_id: getParentCategoryId(),
-    }));
-  }, [selectedLevel1, selectedLevel2]);
-
-  const getSelectedPath = (): string => {
+  /**
+   * The path this category will sit at, given the chosen parent.
+   *
+   * Shown rather than the old "New category will be: Level N" box, because a
+   * breadcrumb answers the same question and one more: whether the parent
+   * chosen is the intended branch. "Level 3" alone does not distinguish
+   * Supermarkets › Groceries › Bread from Pharmacies › Wellness › Bread.
+   *
+   * Depth comes from walking the parent chain over the same list the picker was
+   * built from, bounded because a pre-existing cycle in the data would
+   * otherwise spin here.
+   */
+  const plannedBreadcrumb = useMemo(() => {
+    const name = categoryName.trim() || "This category";
     const parts: string[] = [];
 
-    if (selectedLevel1) {
-      const level1Cat = categories.find((cat) => cat._id === selectedLevel1);
-      if (level1Cat) parts.push(level1Cat.name);
+    let current = formData.parent_category_id as string | undefined;
+    const seen = new Set<string>();
+    while (current && !seen.has(current) && seen.size < 64) {
+      seen.add(current);
+      const node = categories.find((c) => c._id === current);
+      if (!node) break;
+      parts.unshift(node.name);
+      current = node.parent_category_id as string | undefined;
     }
 
-    if (selectedLevel2) {
-      const level2Cat = categories.find((cat) => cat._id === selectedLevel2);
-      if (level2Cat) parts.push(level2Cat.name);
-    }
+    parts.push(name);
+    const level = parts.length;
+    const suffix =
+      level === 3
+        ? " — holds products"
+        : level === 2
+          ? " — can have subcategories"
+          : " — top level";
 
-    return parts.join(" > ");
-  };
-
-  // Determine what level the new category will be
-  const getNewCategoryLevel = (): number => {
-    if (selectedLevel2 && selectedLevel2 !== "stay-level1") return 3; // Third level
-    if (selectedLevel1 && selectedLevel1 !== "root") return 2; // Second level
-    return 1; // First level (root)
-  };
+    return `${parts.join(" › ")}  (level ${level}${suffix})`;
+  }, [categories, categoryName, formData.parent_category_id]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -276,12 +199,11 @@ export function CategoryForm({
     const fd = new FormData(formEl);
     const generatedSlug = generateUniqueSlug(categoryName);
 
-    // Validate that we're not creating a category beyond level 3
-    const newLevel = getNewCategoryLevel();
-    if (newLevel > 3) {
-      toast.error("Cannot create categories beyond level 3");
-      return;
-    }
+    // The depth limit is not re-checked here. The picker cannot offer a level-3
+    // parent, and `createCategory`/`updateCategory` enforce the rule server-side
+    // with the full tree in hand — including the cycle and descendant cases a
+    // client-side check cannot see. A third copy of the rule here would be the
+    // one most likely to drift.
 
     setLoading(true);
     try {
@@ -313,7 +235,11 @@ export function CategoryForm({
         description: String(fd.get("description") || ""),
         image,
         status: formData.status!,
-        sort_order: formData.sort_order || getNewCategoryLevel(),
+        // Sibling display order, NOT the depth. This field used to be assigned
+        // the category's level, which made every level-3 category sort_order 3
+        // and the ordering meaningless. Left at whatever the record already had,
+        // or 0 for a new one, until there is a UI for reordering siblings.
+        sort_order: formData.sort_order ?? 0,
       };
 
       await onSubmit(values);
@@ -326,8 +252,6 @@ export function CategoryForm({
         setSelectedFile(null);
         setImagePreview(null);
         setCurrentImageId(null);
-        setSelectedLevel1("root");
-        setSelectedLevel2("stay-level1");
       }
     } finally {
       setLoading(false);
@@ -422,116 +346,37 @@ export function CategoryForm({
           )}
 
           <div className="space-y-2">
-            <Label>Category Hierarchy</Label>
+            <Label>Parent category</Label>
+            {/*
+              One searchable picker, following sydia's category form, instead of
+              the two chained "Level 1" / "Level 2" dropdowns this replaced.
 
-            {/* Show current selection path */}
-            {getSelectedPath() && (
-              <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md border">
-                <span className="font-medium">Selected Path: </span>
-                <span className="text-foreground">{getSelectedPath()}</span>
-              </div>
-            )}
+              Those dropdowns encoded the depth rule in the UI only — sentinel
+              values ("root", "stay-level1") stood in for "no parent", and
+              nothing on the server enforced anything, so a fourth level was one
+              API call away. The rule now lives in
+              `packages/backend/convex/lib/category_tree.ts` and is enforced by
+              `createCategory`/`updateCategory`; this picker simply never offers
+              a choice that would be rejected, and shows the resulting path so
+              the level is visible rather than inferred.
+            */}
+            <ParentCategoryPicker
+              value={formData.parent_category_id}
+              onValueChange={(parentId: string | undefined) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  parent_category_id: parentId as Id<"categories"> | undefined,
+                }))
+              }
+              excludeId={mode === "edit" ? initialCategory?._id : undefined}
+            />
 
-            {/* Level 1 Selection */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium flex items-center gap-2">
-                Level 1 Category
-              </Label>
-              <Select
-                value={selectedLevel1 || "root"}
-                onValueChange={(value) => {
-                  setSelectedLevel1(value);
-                  setSelectedLevel2("stay-level1"); // Reset level 2 when level 1 changes
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select level 1 category (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="root">
-                    No parent (root category)
-                  </SelectItem>
-                  {level1Categories.map((cat) => (
-                    <SelectItem
-                      key={cat._id}
-                      value={cat._id}
-                      disabled={
-                        mode === "edit" &&
-                        initialCategory &&
-                        cat._id === initialCategory._id
-                      }
-                    >
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="text-muted-foreground bg-muted/50 rounded-md border p-3 text-sm">
+              <span className="font-medium">This category will be: </span>
+              <span className="text-foreground">
+                {plannedBreadcrumb}
+              </span>
             </div>
-
-            {/* Level 2 Selection - Only show if Level 1 is selected */}
-            {selectedLevel1 &&
-              selectedLevel1 !== "root" &&
-              level2Categories.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <HugeiconsIcon icon={ChevronRight} className="h-3 w-3 text-muted-foreground" />
-                    Level 2 Category
-                  </Label>
-                  <Select
-                    value={selectedLevel2 || "stay-level1"}
-                    onValueChange={setSelectedLevel2}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select level 2 category (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="stay-level1">
-                        Stop at level 1
-                      </SelectItem>
-                      {level2Categories.map((cat) => (
-                        <SelectItem
-                          key={cat._id}
-                          value={cat._id}
-                          disabled={
-                            mode === "edit" &&
-                            initialCategory &&
-                            cat._id === initialCategory._id
-                          }
-                        >
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-            {/* Show what level the new category will be */}
-            <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-200">
-              <div className="space-y-1">
-                <div>
-                  <span className="font-medium">New category will be: </span>
-                  <span>
-                    Level {getNewCategoryLevel()}
-                    {getNewCategoryLevel() === 3 &&
-                      " (Final level - can hold products)"}
-                    {getNewCategoryLevel() === 2 && " (Can have subcategories)"}
-                    {getNewCategoryLevel() === 1 && " (Root category)"}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium">Sort Order: </span>
-                  <span>{getNewCategoryLevel()} (Auto-assigned)</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Categories can be nested up to 3 levels. Level 3 categories are
-              the final level that hold products. You can only create categories
-              up to level 2, and when you add a category to level 2, it becomes
-              a level 3 category.
-            </p>
           </div>
 
           <FormField
@@ -541,19 +386,6 @@ export function CategoryForm({
             placeholder="Enter category description"
             defaultValue={mode === "edit" ? initialCategory?.description : ""}
           />
-
-          <div className="space-y-2">
-            <Label>Sort Order (Auto-generated)</Label>
-            <Input
-              value={`Level ${formData.sort_order || getNewCategoryLevel()}`}
-              readOnly
-              className="bg-muted text-muted-foreground"
-            />
-            <p className="text-xs text-muted-foreground">
-              Sort order is automatically assigned based on category level:
-              Level 1 (Root) = 1, Level 2 = 2, Level 3 = 3
-            </p>
-          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
