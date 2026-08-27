@@ -166,6 +166,16 @@ export default function VendorForm({
     limit: 100,
   });
 
+  // The platform-wide ceiling from Settings — the SAME query the backend
+  // mutation validates against, so what this form shows is never out of step
+  // with what saving will actually accept. `updateVendor`/`addVendor` remain
+  // the authority; this is purely so the rejection is not a surprise typed
+  // into a field that looked unconstrained.
+  const serviceRadiusLimit = useQuery(
+    api.data.platform_settings.getVendorServiceRadiusLimit,
+    {},
+  );
+
   const form = useForm<VendorFormValues>({
     resolver: zodResolver(vendorSchema),
     defaultValues: defaultValues ?? {
@@ -673,7 +683,7 @@ export default function VendorForm({
                       <Input
                         type="number"
                         min={1}
-                        max={2500}
+                        max={serviceRadiusLimit}
                         placeholder="10"
                         {...field}
                         onChange={(e) =>
@@ -682,9 +692,21 @@ export default function VendorForm({
                       />
                     </FormControl>
                     <FormMessage />
-                    <p className="text-xs text-muted-foreground">
-                      Delivery area radius from this location
-                    </p>
+                    {serviceRadiusLimit !== undefined &&
+                    field.value > serviceRadiusLimit ? (
+                      <p className="text-destructive text-xs">
+                        Exceeds the platform limit of{" "}
+                        {serviceRadiusLimit.toLocaleString("en-KE")} m — saving
+                        will be rejected. Raise the limit on Settings first.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Delivery area radius from this location
+                        {serviceRadiusLimit !== undefined
+                          ? ` — up to ${serviceRadiusLimit.toLocaleString("en-KE")} m`
+                          : ""}
+                      </p>
+                    )}
                   </FormItem>
                 )}
               />

@@ -19,6 +19,7 @@ import { Input } from "@repo/ui/components/ui/input";
 import { Label } from "@repo/ui/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
 import { DemoDataCard } from "./_components/demo-data-card";
+import { ServiceRadiusLimitCard } from "./_components/service-radius-limit-card";
 import { Checkbox } from "@repo/ui/components/ui/checkbox";
 import { toast } from "sonner";
 import { getConvexErrorMessage } from "@/lib/utils";
@@ -490,6 +491,8 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <ServiceRadiusLimitCard />
 
         {/* Renders only for a super admin; see DemoDataCard. */}
         <DemoDataCard />
