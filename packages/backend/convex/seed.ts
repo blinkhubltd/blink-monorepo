@@ -1,8 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
-import { getAuthUser } from "./auth.helpers";
-import { isSuperAdminPermissions } from "./lib/role_presets";
+import { assertSuperAdmin } from "./auth.helpers";
 import {
   buildDemoPlan,
   categories,
@@ -66,15 +65,13 @@ interface Manifest {
 }
 
 async function requireSuperAdmin(ctx: MutationCtx): Promise<Doc<"users">> {
-  const { user } = await getAuthUser(ctx);
+  // Shared with platform_settings.ts and anything else gated on holding the
+  // wildcard outright, rather than a resource permission — see
+  // `auth.helpers.assertSuperAdmin` for why settings-shaped actions need this
+  // rather than `assertPermission`.
+  const { user } = await assertSuperAdmin(ctx);
   const doc = await ctx.db.get(user._id);
   if (!doc) throw new ConvexError("Your user record could not be read.");
-  const role = doc.role_id ? await ctx.db.get(doc.role_id) : null;
-  if (!isSuperAdminPermissions(role?.permissions)) {
-    throw new ConvexError(
-      "Only a super admin can seed or clear demo data.",
-    );
-  }
   return doc;
 }
 
