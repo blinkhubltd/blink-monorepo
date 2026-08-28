@@ -172,7 +172,27 @@ orders. That equality is now enforced server-side, so these check it holds.
 - [ ] Choose "Pay now": it states that the card step is not in this build and
       that nothing was charged. Nothing should be charged.
 
-## 10. Security spot-checks
+## 10. Orders, tracking and profile
+
+- [ ] Place an order, then open the Orders tab — it appears, and a multi-shop
+      basket shows as ONE card saying "N deliveries", not N separate cards.
+- [ ] A live order sorts above an older delivered one, regardless of date.
+- [ ] "Track" appears only while something is still coming.
+- [ ] Tracking shows a five-step rail with the current step marked. Cancel an
+      order in admin and reopen tracking — no rail, just the status.
+- [ ] **Before a rider is assigned**, tracking shows no rider name, no phone and
+      no position.
+- [ ] **Once the order is Out for Delivery**, the rider's first name appears, and
+      a call button. Confirm it is a FIRST name only, and that no surname,
+      rider id or rider address is shown anywhere.
+- [ ] Profile shows your email, and the Terms/Privacy links open the legal
+      screen with a version number from platform settings.
+- [ ] Sign out from Profile — no unhandled error, and the guest basket behaves
+      as in §4.
+- [ ] Open `/order/<someone else's order id>` while signed in → not found, and
+      it must NOT confirm the order exists.
+
+## 11. Security spot-checks
 
 Worth confirming from a REST client rather than the app, since the app will
 never exercise them.
@@ -181,6 +201,12 @@ never exercise them.
       unauthenticated → `Unauthorized`.
 - [ ] `data/orders:generateDeliveryCode` and `checkDeliveryCode` are no longer
       in the public function list at all.
+- [ ] Neither are `data/tracking:getRiderLocation`, `getShipmentTracking`,
+      `getDeliveryTimeline`, `getEstimatedDeliveryTime` or `getActiveDeliveries`
+      — each previously returned rider or customer rows, or live rider GPS, to
+      anyone holding a shipment id.
+- [ ] `data/tracking:updateRiderLocation` unauthenticated → `Unauthorized`, and
+      it no longer accepts a `riderId`.
 - [ ] `data/payment_finalization:finalizePaidOrders` unauthenticated →
       `Unauthorized`.
 
