@@ -1569,3 +1569,66 @@ export const getMyOrdersByReference = query({
     return orders.filter((o) => o.user_id === user._id);
   },
 });
+
+/**
+ * The caller's own order history, newest first.
+ *
+ * Auth-derived. `getUserOrders` and `getUserOrdersPaginated` above take the user
+ * id as an ARGUMENT, so an order id or a user id was enough to read somebody's
+ * history — which carries their address, their phone and everything they have
+ * ever bought.
+ *
+ * Bounded rather than paginated: a customer's history is small enough that a
+ * cursor is more machinery than the screen needs, and `take` keeps the read off
+ * the per-query document ceiling regardless of how long they have been a
+ * customer.
+ */
+export const getMyOrders = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return [];
+
+    const limit = Math.min(Math.max(args.limit ?? 30, 1), 100);
+
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .order("desc")
+      .take(limit);
+
+    return Promise.all(
+      orders.map(async (order) => {
+        const vendor = await ctx.db.get(order.vendor_id);
+        const items = await ctx.db
+          .query("order_items")
+          .withIndex("by_order", (q) => q.eq("order_id", order._id))
+          .collect();
+
+        return {
+          _id: order._id,
+          reference: order.reference,
+          // The basket reference, so the list can group several deliveries that
+          // came from one checkout.
+          paymentReference: order.payment_reference ?? null,
+          orderDate: order.order_date,
+          orderStatus: order.order_status,
+          paymentStatus: order.payment_status,
+          paymentMode: order.payment_mode ?? null,
+          total: order.total_amount,
+          deliveryFee: order.delivery_fee,
+          vendorName: vendor?.name ?? null,
+          itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
+          // A couple of names, so a row is recognisable without opening it.
+          previewNames: items.slice(0, 2).map((i) => i.name),
+        };
+      }),
+    );
+  },
+});
