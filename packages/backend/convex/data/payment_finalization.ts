@@ -82,6 +82,50 @@ async function findOrdersByIdempotencyKey(
  * For the prepaid paths the payment row is cross-checked too, so a caller cannot
  * finalise against somebody else's payment reference even while authenticated.
  */
+
+/**
+ * Replace an order's money with the figures the customer was actually charged.
+ *
+ * ── Why the client's numbers are discarded, not validated ────────────────
+ *
+ * The client still describes the SHAPE of each order — address, receiver,
+ * payment mode, which items — but every money field is overwritten from the
+ * quote stored on the payment row at initiation. Validating instead would mean
+ * deciding what to do on a mismatch after the card has already been charged,
+ * and both answers are bad: rejecting strands a captured payment with no order,
+ * accepting records a total that differs from what was taken.
+ *
+ * Overwriting has one answer: the orders always sum to the amount charged.
+ *
+ * Returns the order unchanged when there is no quote — rows created before
+ * quotes existed still finalise as they did.
+ */
+function applyQuoteToOrder<T extends { vendor_id: Id<"vendors"> }>(
+  order: T,
+  quote: Doc<"payments">["quote"] | undefined,
+): T {
+  if (!quote) return order;
+
+  const leg = quote.legs.find((l) => l.vendorId === order.vendor_id);
+  if (!leg) {
+    // A vendor in the submitted orders that the quote never priced. Refusing is
+    // right: writing it would create an order nobody paid for.
+    throw new ConvexError(
+      "This order does not match what was quoted. Please start checkout again.",
+    );
+  }
+
+  return {
+    ...order,
+    subtotal_amount: leg.subtotal,
+    delivery_fee: leg.deliveryFee,
+    // Tax is zero and recorded explicitly, so the assumption is legible rather
+    // than inferred from an absent field.
+    tax_amount: quote.tax,
+    total_amount: leg.total,
+  };
+}
+
 async function callerFinalising(ctx: MutationCtx) {
   const { user } = await getAuthUser(ctx);
   return user;
@@ -122,6 +166,9 @@ export const finalizePaidOrders = mutation({
     if (payment.user_id !== caller._id) {
       throw new ConvexError("This payment belongs to a different customer");
     }
+    // The prices the customer agreed to and was charged. Every order written
+    // below takes its money from here, not from the request.
+    const storedQuote = payment.quote;
     if (payment.status !== "Successful") {
       throw new Error("Payment not successful yet");
     }
@@ -168,10 +215,13 @@ export const finalizePaidOrders = mutation({
 
     for (const grp of args.orders) {
       // Normalize payment_method in the order object to ensure it's valid
-      const normalizedOrder = {
-        ...grp.order,
-        payment_method: orderPaymentMethod,
-      };
+      const normalizedOrder = applyQuoteToOrder(
+        {
+          ...grp.order,
+          payment_method: orderPaymentMethod,
+        },
+        storedQuote,
+      );
       const grpWithNormalizedOrder = {
         ...grp,
         order: normalizedOrder,
@@ -305,6 +355,15 @@ export const finalizePayOnDeliveryOrders = mutation({
      * clearance variant for why this is not optional.
      */
     idempotency_key: v.string(),
+    /**
+     * The reference returned by `checkout.beginCheckout`.
+     *
+     * Required, not optional. It is how the server-priced quote is found, and
+     * an optional-and-sometimes-honoured price source is the shape that let the
+     * client set its own prices in the first place. Safe to require: this
+     * mutation has no callers outside this repo.
+     */
+    reference: v.string(),
     orders: v.array(
       v.object({
         order: OrdersValidator,
@@ -320,6 +379,23 @@ export const finalizePayOnDeliveryOrders = mutation({
   },
   handler: async (ctx, args) => {
     const caller = await callerFinalising(ctx);
+
+    // Nothing has been charged on this path, but the prices still must not come
+    // from the client. The quote was priced and stored when checkout began.
+    const quotePayment = await ctx.db
+      .query("payments")
+      .withIndex("by_reference", (q) => q.eq("reference", args.reference))
+      .first();
+    if (!quotePayment) {
+      throw new ConvexError(
+        "No checkout was started for this order. Please try again.",
+      );
+    }
+    if (quotePayment.user_id !== caller._id) {
+      throw new ConvexError("This checkout belongs to a different customer");
+    }
+    const storedQuote = quotePayment.quote;
+
     const alreadyDone = await findOrdersByIdempotencyKey(
       ctx,
       args.idempotency_key,
@@ -356,7 +432,7 @@ export const finalizePayOnDeliveryOrders = mutation({
       }
 
       const base: typeof grp.order = {
-        ...grp.order,
+        ...applyQuoteToOrder(grp.order, storedQuote),
         payment_mode: "pay_on_delivery",
         payment_status: "Unpaid",
         order_status:
@@ -494,6 +570,9 @@ export const finalizePaidClearanceOrders = mutation({
     if (payment.user_id !== caller._id) {
       throw new ConvexError("This payment belongs to a different customer");
     }
+    // The prices the customer agreed to and was charged. Every order written
+    // below takes its money from here, not from the request.
+    const storedQuote = payment.quote;
     if (payment.status !== "Successful")
       throw new Error("Payment not yet verified as successful");
 

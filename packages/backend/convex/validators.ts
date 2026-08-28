@@ -884,6 +884,57 @@ export const PaymentsValidator = v.object({
   payment_date: v.number(),
   status: v.union(...paymentStatus.map((e) => v.literal(e))),
   updated_at: v.number(),
+
+  /**
+   * The basket as priced when this payment was initiated.
+   *
+   * Payment is authorised at initiation and orders are written after Paystack
+   * confirms — two separate moments, between which the basket can change. So
+   * the basket is priced ONCE, stored here, the customer is charged exactly
+   * `amount`, and finalisation writes orders from this rather than re-deriving.
+   * The race stops being a case to handle and becomes impossible.
+   *
+   * It also makes a retried finalisation idempotent: it replays identical
+   * numbers instead of re-pricing against a basket that may since have emptied.
+   *
+   * Optional because rows written before this existed do not have one;
+   * finalisation falls back to its previous behaviour when it is absent.
+   */
+  quote: v.optional(
+    v.object({
+      subtotal: v.float64(),
+      grossDeliveryFee: v.float64(),
+      deliveryFee: v.float64(),
+      freeDeliveryApplied: v.boolean(),
+      // Recorded so a later settings change cannot make a past order look wrong.
+      freeDeliveryThreshold: v.float64(),
+      tax: v.float64(),
+      total: v.float64(),
+      requiresPrescription: v.boolean(),
+      vendorCount: v.float64(),
+      itemCount: v.float64(),
+      legs: v.array(
+        v.object({
+          vendorId: v.id("vendors"),
+          subtotal: v.float64(),
+          deliveryFee: v.float64(),
+          total: v.float64(),
+          lines: v.array(
+            v.object({
+              productId: v.id("products"),
+              vendorId: v.id("vendors"),
+              name: v.string(),
+              quantity: v.float64(),
+              // The price AS QUOTED. Never re-read — this is what was agreed.
+              unitPrice: v.float64(),
+              lineTotal: v.float64(),
+              requiresPrescription: v.boolean(),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
 });
 
 export const StockReservationValidator = v.object({
