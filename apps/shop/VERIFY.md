@@ -140,7 +140,39 @@ checkout gate.
 
 - [ ] No unreadable text, no white-on-white card, no invisible border.
 
-## 9. Security spot-checks
+## 9. Checkout and the order total
+
+The figure on screen must equal the figure charged and the figures written to the
+orders. That equality is now enforced server-side, so these check it holds.
+
+- [ ] One-shop basket under 2,000: subtotal + 200 = total. The VAT lines
+      decompose the subtotal (ex-VAT + VAT = subtotal); they do not add to it.
+- [ ] One-shop basket over 2,000: delivery shows Free, and a "you saved KES 200"
+      line appears.
+- [ ] **Two-shop basket:** the summary groups lines by shop and says "2
+      deliveries". Delivery is 250, not 400.
+- [ ] Place a **pay-on-delivery** order for a two-shop basket. Then confirm:
+      two orders exist; each order's `delivery_fee` is its apportioned share;
+      **the two fees sum to exactly the fee shown at checkout**; and the two
+      `total_amount`s sum to the total shown.
+- [ ] The confirmation screen lists both deliveries and the basket total.
+- [ ] The basket is empty afterwards.
+- [ ] Double-tap "Place order" — exactly one set of orders is created.
+- [ ] Change a product's price in admin while sitting on checkout, then place the
+      order — it refuses and says the price changed, rather than charging either
+      figure.
+- [ ] Remove the delivery address, or use an account with none — the button is
+      disabled and the reason is listed.
+- [ ] Deny location permission, then check the receiver section still appears and
+      explains itself rather than vanishing.
+- [ ] An address ~200m from where you are: receiver name and phone are required,
+      and the distance is shown.
+- [ ] Put an item needing a prescription in the basket: checkout blocks and says
+      why.
+- [ ] Choose "Pay now": it states that the card step is not in this build and
+      that nothing was charged. Nothing should be charged.
+
+## 10. Security spot-checks
 
 Worth confirming from a REST client rather than the app, since the app will
 never exercise them.
@@ -156,10 +188,10 @@ never exercise them.
 
 ## Known not-done
 
-- **Order placement.** Checkout gates and explains, but does not place an order.
-  It needs the payments-quote work so the amount charged and the orders written
-  cannot disagree.
-- **Prescription upload** is checkout-only and unbuilt here.
-- The finalisers still trust client-supplied `delivery_fee` / `total_amount`
-  from an *authenticated* caller. Anonymous and cross-customer abuse is closed;
-  a signed-in customer setting their own price is not, until the quote lands.
+- **Paystack.** Pay-on-delivery is complete end to end. The card step needs the
+  native SDK on a real device and is not faked — the quote is already recorded
+  and the amount fixed, so it slots in without touching pricing.
+- **Prescription upload.** Checkout detects that a basket needs one and blocks,
+  but the upload flow itself is not built here.
+- **Clearance baskets** remain a separate flow and are not part of this
+  checkout.
