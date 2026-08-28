@@ -1580,6 +1580,10 @@ export const bulkAssignRole = mutation({
   },
 });
 
+/**
+ * @deprecated Takes `clerkId` as an argument, so any client can rewrite any
+ * customer's phone number. Use `setMyPhone` below.
+ */
 export const userUpsertPhone = mutation({
   args: {
     clerkId: v.string(),
@@ -1610,5 +1614,37 @@ export const getAccountCompletionStatus = query({
     const user = await ctx.db.get(userId);
     if (!user) return null;
     return await getAccountCompletion(ctx, user);
+  },
+});
+
+/**
+ * Set the caller's own phone number.
+ *
+ * Auth-derived. `userUpsertPhone` above takes `clerkId` as an ARGUMENT and
+ * patches that user, so any client could rewrite any customer's phone number —
+ * which is the number a rider calls and, on some flows, a recovery channel.
+ * Same class as the cart and address IDORs.
+ */
+export const setMyPhone = mutation({
+  args: { phone: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Unauthorized");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) throw new ConvexError("User not found");
+
+    const phone = args.phone.replace(/[\s-]/g, "");
+    // Same rule the checkout screen validates against, applied server-side too
+    // so a client that skips validation cannot store a number nobody can call.
+    if (!/^\+?\d{7,15}$/.test(phone)) {
+      throw new ConvexError("Enter a valid phone number");
+    }
+
+    await ctx.db.patch(user._id, { phone, updated_at: Date.now() });
+    return { ok: true };
   },
 });

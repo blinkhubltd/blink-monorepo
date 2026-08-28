@@ -1495,3 +1495,77 @@ export const createClearanceOrder = mutation({
     return { success: true, orderId };
   },
 });
+
+/**
+ * One of the caller's own orders, with its items.
+ *
+ * Auth-derived and ownership-checked. `getOrderById` and `getOrderWithItems`
+ * take only an order id with no auth at all, and the latter joins the customer
+ * row — so an order id was enough to read somebody's name, and the order carries
+ * their address and phone. Order ids are sequential-ish Convex ids, not secrets.
+ *
+ * Returns null rather than throwing for an order that is not the caller's, so
+ * the screen shows "not found" and does not confirm that the id exists.
+ */
+export const getMyOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return null;
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order || order.user_id !== user._id) return null;
+
+    const [vendor, items] = await Promise.all([
+      ctx.db.get(order.vendor_id),
+      ctx.db
+        .query("order_items")
+        .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
+        .collect(),
+    ]);
+
+    // Deliberately no customer join: the caller IS the customer, so returning
+    // their own name adds nothing and widens what a leak would expose.
+    return {
+      ...order,
+      vendor: vendor ? { _id: vendor._id, name: vendor.name } : null,
+      items,
+    };
+  },
+});
+
+/**
+ * Every order in one basket, by the reference they share.
+ *
+ * A basket spanning several shops becomes several orders. The confirmation
+ * screen shows all of them, because a customer who bought one basket should not
+ * have to work out that it became three deliveries.
+ */
+export const getMyOrdersByReference = query({
+  args: { reference: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return [];
+
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_payment_reference", (q) =>
+        q.eq("payment_reference", args.reference),
+      )
+      .collect();
+
+    return orders.filter((o) => o.user_id === user._id);
+  },
+});

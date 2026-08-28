@@ -4,6 +4,11 @@ import { v, ConvexError } from "convex/values";
 import { api } from "../_generated/api";
 
 // Get user's saved addresses
+/**
+ * @deprecated Takes `clerkId` as an argument rather than deriving identity from
+ * the auth token, so any client can read any customer's saved addresses. Use
+ * `getMyAddresses` below. Retained only until the standalone app retires.
+ */
 export const getUserAddresses = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -433,5 +438,37 @@ export const fetchDefaultAddress = query({
       status: defaultAddress.status,
       _creationTime: userAddresses._creationTime,
     };
+  },
+});
+
+/**
+ * The caller's own saved addresses.
+ *
+ * Auth-derived. `getUserAddresses` above takes `clerkId` as an ARGUMENT, so any
+ * client can read any customer's saved addresses — home address, coordinates and
+ * all. Same class as the cart IDOR, and rather more sensitive.
+ *
+ * Returns an empty array rather than throwing when signed out, so the checkout
+ * screen renders an explanation instead of crashing.
+ */
+export const getMyAddresses = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return [];
+
+    const doc = await ctx.db
+      .query("address")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .unique();
+    if (!doc) return [];
+
+    return doc.addresses.filter((a) => a.status === "Active");
   },
 });

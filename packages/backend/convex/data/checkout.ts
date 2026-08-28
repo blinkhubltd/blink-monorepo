@@ -240,3 +240,145 @@ export async function readQuoteForReference(
   if (!payment || payment.user_id !== userId) return null;
   return payment.quote ?? null;
 }
+
+/**
+ * Place the order for a pay-on-delivery checkout.
+ *
+ * ── The client sends no money and no order structure ─────────────────────
+ *
+ * It sends where to deliver, who is receiving, and any instructions. Everything
+ * else — the orders, their line items, every figure on them — is built here from
+ * the quote stored by `beginCheckout`.
+ *
+ * The screen this replaces assembled the order objects itself, one per vendor,
+ * each with client-computed `subtotal_amount`, `delivery_fee` and
+ * `total_amount`, and handed them to a mutation that stored them verbatim. Two
+ * consequences beyond the obvious one:
+ *
+ *   - it grouped by `item.product?.vendor_id || "unknown"` and cast the literal
+ *     string `"unknown"` into an `Id<"vendors">`, so a product with no vendor
+ *     made the whole finalisation throw — after the customer had paid;
+ *   - the delivery fee it displayed and the fees it wrote to the orders
+ *     disagreed, so the orders always summed to more than the amount charged.
+ *
+ * Neither is expressible here: the quote has already excluded vendor-less lines
+ * and its legs are guaranteed to sum to the total that was quoted.
+ */
+export const placeMyOrder = mutation({
+  args: {
+    /** From `beginCheckout`. Identifies the quote and de-duplicates a retry. */
+    reference: v.string(),
+    address: v.object({
+      street: v.optional(v.string()),
+      address_1: v.optional(v.string()),
+      address_2: v.optional(v.string()),
+      city: v.optional(v.string()),
+      country: v.optional(v.string()),
+      lat: v.optional(v.number()),
+      lng: v.optional(v.number()),
+    }),
+    receiverContact: v.optional(
+      v.object({ name: v.string(), phone: v.string() }),
+    ),
+    specialInstructions: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const payment = await ctx.db
+      .query("payments")
+      .withIndex("by_reference", (q) => q.eq("reference", args.reference))
+      .first();
+    if (!payment) {
+      throw new ConvexError(
+        "No checkout was started for this order. Please try again.",
+      );
+    }
+    if (payment.user_id !== user._id) {
+      throw new ConvexError("This checkout belongs to a different customer");
+    }
+    if (payment.payment_method !== "Cash on Delivery") {
+      throw new ConvexError(
+        "This checkout was started for online payment. Complete the payment instead.",
+      );
+    }
+
+    const quote = payment.quote;
+    if (!quote) {
+      throw new ConvexError("This checkout has no price attached. Start again.");
+    }
+
+    // Idempotent on the reference: a double-tapped button, or a retry after a
+    // dropped connection, must not create a second set of orders.
+    const existing = await ctx.db
+      .query("orders")
+      .withIndex("by_payment_reference", (q) =>
+        q.eq("payment_reference", args.reference),
+      )
+      .collect();
+    if (existing.length > 0) {
+      return { orderIds: existing.map((o) => o._id), reused: true as const };
+    }
+
+    const now = Date.now();
+    const orderIds: Id<"orders">[] = [];
+
+    for (const leg of quote.legs) {
+      const orderId = await ctx.db.insert("orders", {
+        // One reference per basket, suffixed per delivery, so a customer with
+        // three deliveries can tell a support agent which one they mean.
+        reference: `${args.reference}-${orderIds.length + 1}`,
+        order_date: now,
+        vendor_id: leg.vendorId,
+        user_id: user._id,
+        service_radius: 0,
+        payment_mode: "pay_on_delivery",
+        order_status: "Confirmed",
+        payment_status: "Unpaid",
+        payment_method: "Cash on Delivery",
+        // Straight from the quote. Nothing here came from the client.
+        subtotal_amount: leg.subtotal,
+        tax_amount: quote.tax,
+        discount_amount: 0,
+        delivery_fee: leg.deliveryFee,
+        total_amount: leg.total,
+        payment_reference: args.reference,
+        idempotency_key: args.reference,
+        address: args.address,
+        receiver_contact: args.receiverContact,
+        special_instructions: args.specialInstructions || undefined,
+        updated_at: now,
+      });
+
+      for (const item of leg.lines) {
+        await ctx.db.insert("order_items", {
+          order_id: orderId,
+          product_id: item.productId,
+          vendor_id: item.vendorId,
+          name: item.name,
+          sku: "",
+          quantity: item.quantity,
+          price: item.unitPrice,
+          tax: 0,
+          discount: 0,
+          total: item.lineTotal,
+          requires_prescription: item.requiresPrescription,
+        });
+      }
+
+      orderIds.push(orderId);
+    }
+
+    // Emptied only after every order is written, so a failure part-way leaves
+    // the basket intact and the retry above finds the orders it did create.
+    const cart = await ctx.db
+      .query("cart")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+    if (cart) {
+      await ctx.db.patch(cart._id, { products: [], updated_at: now });
+    }
+
+    return { orderIds, reused: false as const };
+  },
+});
