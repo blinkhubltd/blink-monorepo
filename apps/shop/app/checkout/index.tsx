@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
+import type { Id } from "@repo/backend/dataModel";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -25,7 +26,6 @@ import {
   DeliveryAddressSection,
   DeliveryInstructionsSection,
   PaymentModeSection,
-  PrescriptionSection,
   ReceiverSection,
   SectionCard,
   type AddressForDisplay,
@@ -33,9 +33,11 @@ import {
 import {
   checkoutBlockers,
   distanceMetres,
+  prescriptionGate,
   receiverRequirement,
   validateReceiver,
 } from "../../lib/checkout-rules";
+import { PrescriptionUploadSection } from "../../components/checkout/prescription-upload";
 import { formatKES } from "../../lib/format";
 import { LEGAL_DOC_META, legalUrl, type LegalDoc } from "../../lib/legal";
 import { openExternal } from "../../lib/open-external";
@@ -147,7 +149,43 @@ export default function CheckoutScreen() {
   const hasPhone = storedPhone.trim().length > 0;
 
   const quote = quoteResult?.quote ?? null;
-  const prescriptionStatus = quote?.requiresPrescription ? "missing" : "none";
+
+  /*
+    Which shops in this basket need paperwork. Per shop, because each vendor's
+    pharmacist reviews their own: the old checkout asked one vendor-keyed query
+    and treated the answer as the whole basket's, so an approval from one shop
+    cleared the other.
+  */
+  const vendorsNeedingRx = useMemo(
+    () =>
+      (quote?.legs ?? [])
+        .filter((leg) => leg.lines.some((line) => line.requiresPrescription))
+        .map((leg) => leg.vendorId),
+    [quote],
+  );
+
+  const prescriptionRows = useQuery(
+    api.data.prescriptions.getMyPrescriptionsByVendor,
+    isSignedIn && vendorsNeedingRx.length > 0
+      ? { vendorIds: vendorsNeedingRx as Id<"vendors">[] }
+      : "skip",
+  );
+
+  // Names only - every other vendor query returns commission, radius and bank
+  // details, which have no business on a customer device.
+  const vendorNames = useQuery(
+    api.data.vendors.getVendorNames,
+    vendorsNeedingRx.length > 0
+      ? { ids: vendorsNeedingRx as Id<"vendors">[] }
+      : "skip",
+  );
+
+  const prescriptionStatus = prescriptionGate({
+    vendorsNeeding: vendorsNeedingRx,
+    // `undefined` from a skipped or in-flight query is "not answered yet", and
+    // the gate treats that as `loading` rather than as nothing-on-file.
+    rows: vendorsNeedingRx.length === 0 ? [] : (prescriptionRows ?? null),
+  });
 
   const blockers = checkoutBlockers({
     hasQuote: !!quote,
@@ -399,13 +437,23 @@ export default function CheckoutScreen() {
             </SectionCard>
           )}
 
-          <PrescriptionSection
-            status={prescriptionStatus}
-            onAction={() =>
-              setFailure(
-                "Prescription upload is not available yet in this build.",
-              )
-            }
+          <PrescriptionUploadSection
+            vendors={vendorsNeedingRx.map((vendorId) => {
+              const row = prescriptionRows?.find(
+                (candidate) => candidate.vendorId === vendorId,
+              );
+              return {
+                vendorId: vendorId as Id<"vendors">,
+                name:
+                  vendorNames?.find((v) => v._id === vendorId)?.name ??
+                  "This shop",
+                status: row?.status ?? null,
+                rejectionReasonId: row?.rejectionReasonId ?? null,
+              };
+            })}
+            // The subscription updates on its own; this exists so a failed
+            // upload does not leave a stale banner from a previous attempt.
+            onUploaded={() => setFailure(null)}
           />
 
           <SectionCard title="Order summary">

@@ -429,6 +429,56 @@ The screens:
       forever (an empty setting used to mean no day was allowed).
 - [ ] A rejected request shows the admin's rejection reason. The old dashboard
       never showed it.
+## 19. Prescriptions
+
+**The whole path was dead before this change.** Seven cross-module calls in
+`prescriptions.ts` and `picker_assignment.ts` were strings cast through
+`as any`, and every name was wrong - so no prescription was ever routed to a
+picker and no picker was ever notified. The upload swallowed the failure and
+returned success, so it looked like it worked. The same wrong reference sat in
+`assignOrderToPicker`, so ORDER routing to pickers was broken too.
+
+That means this section tests behaviour that has never run in production. Expect
+surprises, and check the picker side as well as the customer side.
+
+Setup: a product with `requires_prescription: true`, and at least one user with
+the Picker role whose `picker_details.vendor_id` is that product's vendor and
+whose `picker_details.status` is Active.
+
+- [ ] Add the Rx product to your basket and open checkout. The Prescriptions
+      section names the SHOP, and the pay button is blocked with a reason.
+- [ ] Take a photo. It uploads, the badge becomes In review, and the button
+      unblocks - a pending prescription does not block checkout, by design: the
+      order is held for dispatch instead.
+- [ ] In admin/picker, confirm a `picker_assignments` row was created for that
+      prescription AND the assigned picker got a notification. This is the part
+      that never worked.
+- [ ] Deactivate every picker for that vendor and upload again: the screen says
+      it was received but nobody is available to review it. It must NOT show
+      plain success.
+- [ ] Reject the prescription as a picker. Checkout blocks again with "not
+      accepted", and the section offers a re-upload.
+- [ ] Approve it. The badge becomes Approved.
+- [ ] **Two chemists in one basket.** Add Rx products from two different
+      vendors. Two rows appear. Approve ONE. Checkout must still block: an
+      approval from one shop must not clear the other. This is the defect the
+      old vendor-keyed query had.
+- [ ] Upload a second document for a vendor that already has an APPROVED one.
+      The new row must show In review, not instantly Approved - the old query
+      returned the most recent for the vendor pair and auto-closed on the old
+      approval.
+- [ ] Cancel the photo picker: back to buttons, no spinner left running.
+- [ ] Deny camera permission: an explanation, and the file option still works.
+
+Security, from a REST client:
+
+- [ ] `data/prescriptions:uploadMyPrescription` unauthenticated →
+      `Unauthorized`, and it accepts no `clerkId`.
+- [ ] `getMyPrescription` on somebody else's prescription id → null, the same
+      answer as a missing one.
+- [ ] `data/vendors:getVendorNames` returns ONLY `_id` and `name`. Confirm no
+      commission, service radius, bank details or Paystack subaccount appear -
+      this is the one vendor query a customer device may call.
 
 ---
 
@@ -441,8 +491,7 @@ The screens:
 - **Paystack.** Pay-on-delivery is complete end to end. The card step needs the
   native SDK on a real device and is not faked — the quote is already recorded
   and the amount fixed, so it slots in without touching pricing.
-- **Prescription upload.** Checkout detects that a basket needs one and blocks,
-  but the upload flow itself is not built here.
+
 - **Clearance** is now built (§17) as a separate basket and checkout, which is
   what the data model requires: its own table, stock, expiry and delivery rule.
   Card payment there is blocked by the same missing Paystack step.

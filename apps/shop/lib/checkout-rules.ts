@@ -141,3 +141,71 @@ export function checkoutBlockers(input: {
 
   return blockers;
 }
+
+/** One shop's prescription state, as `getMyPrescriptionsByVendor` reports it. */
+export interface VendorPrescription {
+  vendorId: string;
+  status: string | null;
+  uploadedAt: number | null;
+}
+
+export type PrescriptionGate =
+  | "none"
+  | "loading"
+  | "missing"
+  | "pending"
+  | "rejected"
+  | "approved";
+
+/**
+ * The basket's overall prescription state, from the per-shop rows.
+ *
+ * A basket can span shops, and each shop reviews its own paperwork - so the
+ * question "is this basket cleared" is an aggregate, and the aggregate has to be
+ * pessimistic in a specific order:
+ *
+ *   rejected  beats everything: there is something to fix now.
+ *   missing   next: a shop with no document at all cannot be reviewed.
+ *   pending   next: somebody is looking.
+ *   approved  only when every shop that needs paperwork has it.
+ *
+ * The old checkout asked one vendor-keyed query and treated its answer as the
+ * whole basket's, so in a two-shop basket an approval from one shop cleared the
+ * other - the item that needed a pharmacist shipped without one.
+ */
+export function prescriptionGate(input: {
+  /** Vendors in the basket with at least one item needing a prescription. */
+  vendorsNeeding: readonly string[];
+  /** Null while the query is in flight. */
+  rows: readonly VendorPrescription[] | null;
+}): PrescriptionGate {
+  if (input.vendorsNeeding.length === 0) return "none";
+  // Null is "not answered yet", never "nothing on file" - treating it as missing
+  // would block checkout for a beat on every render, and treating it as approved
+  // would open the gate before the answer arrives.
+  if (input.rows === null) return "loading";
+
+  const byVendor = new Map(input.rows.map((row) => [row.vendorId, row]));
+
+  let anyRejected = false;
+  let anyMissing = false;
+  let anyPending = false;
+
+  for (const vendorId of input.vendorsNeeding) {
+    const row = byVendor.get(vendorId);
+    const status = row?.status ?? null;
+
+    if (status === null) anyMissing = true;
+    else if (status === "rejected") anyRejected = true;
+    else if (status === "approved") continue;
+    // Anything else - "pending", or a status this build does not know - counts as
+    // under review rather than as cleared. An unknown status must never open a
+    // gate.
+    else anyPending = true;
+  }
+
+  if (anyRejected) return "rejected";
+  if (anyMissing) return "missing";
+  if (anyPending) return "pending";
+  return "approved";
+}

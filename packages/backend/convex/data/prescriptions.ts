@@ -1,9 +1,35 @@
 import { v, ConvexError } from "convex/values";
-import { internalMutation, mutation, query } from "../_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+} from "../_generated/server";
+import { getAuthUser, getAuthUserOrNull } from "../auth.helpers";
 import { Id } from "../_generated/dataModel";
 import {
   prescriptionStatus,
 } from "../validators";
+import { api } from "../_generated/api";
+
+/*
+ * NOTE ON THE FUNCTION REFERENCES IN THIS FILE
+ *
+ * Every cross-module call below used to be a STRING cast through `as any`:
+ * `ctx.runQuery("pickerAssignment:getNextPickerForVendor" as any, ...)` and
+ * `ctx.scheduler.runAfter(0, "notifications:notifyUser" as any, ...)`.
+ *
+ * Both names were wrong. These modules live at `data/picker_assignment` and
+ * `data/notifications`, so the references resolved to nothing and every call
+ * threw at runtime - and the `as any` meant the type checker could not say so.
+ * The prescription path swallowed the throw in a catch that still returned
+ * `success: true`, so an upload appeared to work while no picker was ever
+ * assigned and no notification was ever sent.
+ *
+ * Typed references now. If a module moves, this stops compiling instead of
+ * silently doing nothing.
+ */
+
 
 // Notify picker when prescription is uploaded
 export const notifyPickerPrescriptionUploaded = mutation({
@@ -34,7 +60,7 @@ export const notifyPickerPrescriptionUploaded = mutation({
 
     // Notify all pickers for this vendor
     for (const picker of pickers) {
-      await ctx.scheduler.runAfter(0, "notifications:notifyUser" as any, {
+      await ctx.scheduler.runAfter(0, api.data.notifications.notifyUser, {
         userId: picker._id,
         type: "system" as const,
         title: "New Prescription to Verify 📋",
@@ -205,9 +231,9 @@ export const updatePrescriptionStatus = mutation({
           : "Your prescription could not be verified. Please upload a new, clear prescription.";
 
     // Schedule notification to be sent
-    await ctx.scheduler.runAfter(0, "notifications:notifyUser" as any, {
+    await ctx.scheduler.runAfter(0, api.data.notifications.notifyUser, {
       userId: prescription.user_id,
-      type: "prescription_update" as const,
+      type: "system" as const,
       title: notificationTitle,
       message: notificationMessage,
       data: {
@@ -272,9 +298,9 @@ export const updatePrescriptionStatusWithReason = mutation({
           : "Your prescription could not be verified. Please upload a new, clear prescription.";
 
     // Schedule notification to be sent
-    await ctx.scheduler.runAfter(0, "notifications:notifyUser" as any, {
+    await ctx.scheduler.runAfter(0, api.data.notifications.notifyUser, {
       userId: prescription.user_id,
-      type: "prescription_update" as const,
+      type: "system" as const,
       title: notificationTitle,
       message: notificationMessage,
       data: {
@@ -325,6 +351,61 @@ export const getApprovedPrescriptions = query({
   },
 });
 
+/** What `assignPrescriptionToPicker` returns. Annotated to break the cycle. */
+type AssignmentResult = {
+  success: boolean;
+  assignedPickerId?: Id<"users">;
+} | null;
+
+/**
+ * Route a prescription to a picker and tell them about it.
+ *
+ * Shared by both upload entry points. Failure is REPORTED rather than swallowed:
+ * the previous version wrapped this in a catch that still returned
+ * `success: true`, so an upload that reached nobody looked identical to one that
+ * did — and since the function reference was a wrong string, that was every
+ * upload ever made. The customer waited for a verification that had not been
+ * requested.
+ */
+async function routePrescription(
+  ctx: MutationCtx,
+  prescriptionId: Id<"prescriptions">,
+  vendorId: Id<"vendors">,
+  customerName: string,
+): Promise<{ assigned: boolean; assignedPickerId: Id<"users"> | null }> {
+  let result: AssignmentResult = null;
+  try {
+    result = await ctx.runMutation(
+      api.data.picker_assignment.assignPrescriptionToPicker,
+      { prescriptionId, vendorId },
+    );
+  } catch (error) {
+    // The one genuine case: no active picker for this vendor. Recorded, not
+    // hidden — the prescription still exists and can be picked up manually.
+    console.error("prescription assignment failed", { prescriptionId, error });
+    return { assigned: false, assignedPickerId: null };
+  }
+
+  const pickerId = result?.assignedPickerId ?? null;
+  if (!pickerId) return { assigned: false, assignedPickerId: null };
+
+  await ctx.scheduler.runAfter(0, api.data.notifications.notifyUser, {
+    userId: pickerId,
+    type: "system" as const,
+    title: "New prescription to verify",
+    message: `A prescription from ${customerName} needs verifying.`,
+    data: { prescriptionId, route: "/prescription-verification" },
+  });
+
+  return { assigned: true, assignedPickerId: pickerId };
+}
+
+/**
+ * @deprecated Takes `clerkId` as an argument rather than deriving identity from
+ * the auth token, so any client could upload a prescription on another
+ * customer's behalf — and a prescription is the document that unblocks a
+ * restricted purchase. Use `uploadMyPrescription`.
+ */
 export const uploadPrescriptionForVerification = mutation({
   args: {
     prescriptionDocument: v.id("_storage"),
@@ -336,12 +417,9 @@ export const uploadPrescriptionForVerification = mutation({
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
       .unique();
+    if (!user) throw new ConvexError("User not found");
 
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const newPrescription = await ctx.db.insert("prescriptions", {
+    const prescriptionId = await ctx.db.insert("prescriptions", {
       user_id: user._id,
       prescription_document: args.prescriptionDocument,
       status: "pending",
@@ -349,43 +427,138 @@ export const uploadPrescriptionForVerification = mutation({
       uploaded_at: Date.now(),
     });
 
-    // Use round-robin assignment to assign prescription to a picker
-    try {
-      const assignmentResult = await ctx.runMutation(
-        "pickerAssignment:assignPrescriptionToPicker" as any,
-        {
-          prescriptionId: newPrescription,
-          vendorId: args.vendorId,
-        },
-      );
+    const routed = await routePrescription(
+      ctx,
+      prescriptionId,
+      args.vendorId,
+      user.name ?? `${user.first_name} ${user.last_name}`.trim(),
+    );
 
-      if (assignmentResult && assignmentResult.success) {
-        // Notify the assigned picker
-        await ctx.scheduler.runAfter(0, "notifications:notifyUser" as any, {
-          userId: assignmentResult.assignedPickerId,
-          type: "system" as const,
-          title: "New Prescription to Verify 📋",
-          message: `A new prescription from ${user.name} has been assigned to you for verification.`,
-          data: {
-            prescriptionId: newPrescription,
-            route: `/prescription-verification`,
-          },
-        });
-      }
+    return { success: true, prescriptionId, ...routed };
+  },
+});
 
+/**
+ * Upload one of the caller's own prescriptions, for one vendor.
+ *
+ * ── Why the caller cannot say who they are ───────────────────────────────
+ *
+ * A prescription is the document that unblocks a restricted purchase. The
+ * previous mutation took `clerkId` as an argument, so a client could file a
+ * document against somebody else's account — either to unblock their own
+ * purchase using another person's paperwork, or to attach a document to a
+ * customer who never uploaded one.
+ *
+ * ── The result names what actually happened ──────────────────────────────
+ *
+ * `assigned: false` means the prescription was stored but no picker was
+ * available to verify it, which the screen says out loud. The old version
+ * returned `success: true` in that case, so the customer waited for a review
+ * nobody had been asked for.
+ */
+export const uploadMyPrescription = mutation({
+  args: {
+    storageId: v.id("_storage"),
+    vendorId: v.id("vendors"),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    // The vendor must exist: a prescription filed against a stray id is
+    // invisible to every picker queue.
+    const vendor = await ctx.db.get(args.vendorId);
+    if (!vendor) throw new ConvexError("That shop no longer exists.");
+
+    const prescriptionId = await ctx.db.insert("prescriptions", {
+      user_id: user._id,
+      prescription_document: args.storageId,
+      status: "pending",
+      vendor_id: args.vendorId,
+      uploaded_at: Date.now(),
+    });
+
+    const routed = await routePrescription(
+      ctx,
+      prescriptionId,
+      args.vendorId,
+      typeof user.name === "string" && user.name
+        ? user.name
+        : `${user.first_name} ${user.last_name}`.trim(),
+    );
+
+    return { prescriptionId, ...routed };
+  },
+});
+
+/**
+ * One of the caller's own prescriptions, by id.
+ *
+ * This is what a screen polls after uploading, and it is deliberately keyed on
+ * the prescription rather than on the vendor. `getPrescriptionStatus` returns the
+ * MOST RECENT prescription for a `{clerkId, vendorId}` pair, so a previously
+ * approved document made a brand-new upload report itself approved the instant it
+ * was made — the screen closed on an approval that belonged to a different piece
+ * of paper.
+ */
+export const getMyPrescription = query({
+  args: { prescriptionId: v.id("prescriptions") },
+  handler: async (ctx, args) => {
+    const caller = await getAuthUserOrNull(ctx);
+    if (!caller) return null;
+
+    const prescription = await ctx.db.get(args.prescriptionId);
+    // Same answer for somebody else's prescription as for a missing one.
+    if (!prescription || prescription.user_id !== caller.user._id) return null;
+
+    return {
+      _id: prescription._id,
+      status: prescription.status,
+      vendorId: prescription.vendor_id,
+      uploadedAt: prescription.uploaded_at,
+      // The table stores a rejection REASON ID, not text. Resolved below so the
+      // screen can show why rather than an opaque id — there is no `verified_at`
+      // or `rejection_reason` column, whatever the old code assumed.
+      rejectionReasonId: prescription.rejection_reason_id ?? null,
+      notes: prescription.notes ?? null,
+      assigned: !!prescription.assigned_picker_id,
+    };
+  },
+});
+
+/**
+ * The caller's latest prescription per vendor, for a set of vendors.
+ *
+ * Used by checkout to decide which shops in the basket still need paperwork.
+ * `uploadedAt` is returned so a screen can tell an approval filed months ago
+ * apart from one filed for this basket — the distinction the vendor-keyed query
+ * could not express.
+ */
+export const getMyPrescriptionsByVendor = query({
+  args: { vendorIds: v.array(v.id("vendors")) },
+  handler: async (ctx, args) => {
+    const caller = await getAuthUserOrNull(ctx);
+    if (!caller) return [];
+
+    // Bounded by the number of shops in a basket, and capped so a crafted
+    // request cannot fan out.
+    const vendorIds = args.vendorIds.slice(0, 25);
+
+    const mine = await ctx.db
+      .query("prescriptions")
+      .withIndex("by_user", (q) => q.eq("user_id", caller.user._id))
+      .order("desc")
+      .take(100);
+
+    return vendorIds.map((vendorId) => {
+      const latest = mine.find((p) => p.vendor_id === vendorId);
       return {
-        success: true,
-        prescriptionId: newPrescription,
-        assignedPickerId: assignmentResult?.assignedPickerId,
+        vendorId,
+        prescriptionId: latest?._id ?? null,
+        status: latest?.status ?? null,
+        uploadedAt: latest?.uploaded_at ?? null,
+        rejectionReasonId: latest?.rejection_reason_id ?? null,
       };
-    } catch (error) {
-      console.error("Failed to assign prescription to picker:", error);
-      return {
-        success: true,
-        prescriptionId: newPrescription,
-        assignedPickerId: null,
-      };
-    }
+    });
   },
 });
 

@@ -453,3 +453,27 @@ export const getHubForCrew = query({
     };
   },
 });
+
+/**
+ * Shop names for a set of ids. Nothing else.
+ *
+ * The customer app needs to name the shops in a basket - "which chemist needs
+ * the prescription" is unanswerable without it - and every existing vendor query
+ * returns the whole document: commission rate, service radius, bank details,
+ * Paystack subaccount. `getVendorById` and `getAllVendors` are on the rider app's
+ * banned list for exactly that reason.
+ *
+ * This returns the name and nothing else, capped, so it is safe to call from a
+ * customer device. A missing vendor is simply absent from the result rather than
+ * null-padded: the caller is labelling, not counting.
+ */
+export const getVendorNames = query({
+  args: { ids: v.array(v.id("vendors")) },
+  handler: async (ctx, args) => {
+    const ids = args.ids.slice(0, 25);
+    const rows = await Promise.all(ids.map((id) => ctx.db.get(id)));
+    return rows
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .map((row) => ({ _id: row._id, name: row.name }));
+  },
+});

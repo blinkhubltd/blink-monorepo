@@ -1,62 +1,94 @@
 import { v } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import {
   pickerAssignmentTypes,
 } from "../validators";
+
+/*
+ * NOTE ON THE FUNCTION REFERENCES IN THIS FILE
+ *
+ * Every cross-module call below used to be a STRING cast through `as any`:
+ * `ctx.runQuery("pickerAssignment:getNextPickerForVendor" as any, ...)` and
+ * `ctx.scheduler.runAfter(0, "notifications:notifyUser" as any, ...)`.
+ *
+ * Both names were wrong. These modules live at `data/picker_assignment` and
+ * `data/notifications`, so the references resolved to nothing and every call
+ * threw at runtime - and the `as any` meant the type checker could not say so.
+ * The prescription path swallowed the throw in a catch that still returned
+ * `success: true`, so an upload appeared to work while no picker was ever
+ * assigned and no notification was ever sent.
+ *
+ * Typed references now. If a module moves, this stops compiling instead of
+ * silently doing nothing.
+ */
+
+
+/**
+ * The next picker for a vendor, round-robin.
+ *
+ * A plain function rather than a `ctx.runQuery` into this module's own query.
+ * The two mutations below used to reach it by string name, which resolved to
+ * nothing; reaching it through `api.data.picker_assignment.*` instead makes the
+ * module reference itself, and TypeScript cannot infer a type for a function
+ * whose type depends on its own module's api object. Calling the logic directly
+ * is both cheaper (no nested query) and typed.
+ */
+async function nextPickerForVendor(
+  ctx: QueryCtx | MutationCtx,
+  vendorId: Id<"vendors">,
+): Promise<Id<"users"> | null> {
+  const pickerRole = await ctx.db
+    .query("roles")
+    .withIndex("by_name", (q) => q.eq("name", "Picker"))
+    .unique();
+
+  const pickers = pickerRole
+    ? await ctx.db
+        .query("users")
+        .withIndex("by_role_id", (q) => q.eq("role_id", pickerRole._id))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("picker_details.vendor_id"), vendorId),
+            q.eq(q.field("picker_details.status"), "Active"),
+          ),
+        )
+        .collect()
+    : [];
+
+  if (pickers.length === 0) return null;
+  if (pickers.length === 1) return pickers[0]!._id;
+
+  const lastAssignment = await ctx.db
+    .query("picker_assignments")
+    .withIndex("by_vendor", (q) => q.eq("vendor_id", vendorId))
+    .order("desc")
+    .first();
+
+  if (!lastAssignment) return pickers[0]!._id;
+
+  const currentIndex = pickers.findIndex(
+    (candidate) => candidate._id === lastAssignment.picker_id,
+  );
+  // `findIndex` returns -1 when the last-assigned picker has since been
+  // deactivated or moved vendors, and `(-1 + 1) % n` is 0 — which starts the
+  // rotation over rather than throwing. Left as is, deliberately: a fair
+  // rotation matters less than always finding somebody.
+  const nextIndex = (currentIndex + 1) % pickers.length;
+  return pickers[nextIndex]!._id;
+}
 
 // Store picker assignment state for round-robin
 export const getNextPickerForVendor = query({
   args: {
     vendorId: v.id("vendors"),
   },
-  handler: async (ctx, args) => {
-    // Get all active pickers for this vendor
-    const pickerRole = await ctx.db
-      .query("roles")
-      .withIndex("by_name", (q) => q.eq("name", "Picker"))
-      .unique();
-    const pickers = pickerRole
-      ? await ctx.db
-          .query("users")
-          .withIndex("by_role_id", (q) => q.eq("role_id", pickerRole._id))
-          .filter((q) =>
-            q.and(
-              q.eq(q.field("picker_details.vendor_id"), args.vendorId),
-              q.eq(q.field("picker_details.status"), "Active"),
-            ),
-          )
-          .collect()
-      : [];
-
-    if (pickers.length === 0) {
-      return null;
-    }
-
-    if (pickers.length === 1) {
-      return pickers[0]._id;
-    }
-
-    // Get the last assignment for this vendor
-    const lastAssignment = await ctx.db
-      .query("picker_assignments")
-      .withIndex("by_vendor", (q) => q.eq("vendor_id", args.vendorId))
-      .order("desc")
-      .first();
-
-    if (!lastAssignment) {
-      // First assignment, pick the first picker
-      return pickers[0]._id;
-    }
-
-    // Find current picker index and get next one
-    const currentIndex = pickers.findIndex(
-      (p) => p._id === lastAssignment.picker_id,
-    );
-    const nextIndex = (currentIndex + 1) % pickers.length;
-
-    return pickers[nextIndex]._id;
-  },
+  handler: async (ctx, args) => await nextPickerForVendor(ctx, args.vendorId),
 });
 
 // Assign an order to a picker using round-robin
@@ -104,12 +136,7 @@ export const assignOrderToPicker = mutation({
     }
 
     // Get next picker using round-robin
-    const nextPickerId = await ctx.runQuery(
-      "pickerAssignment:getNextPickerForVendor" as any,
-      {
-        vendorId: args.vendorId,
-      },
-    );
+    const nextPickerId = await nextPickerForVendor(ctx, args.vendorId);
 
     if (!nextPickerId) {
       throw new Error("No pickers available for this vendor");
@@ -146,12 +173,7 @@ export const assignPrescriptionToPicker = mutation({
   },
   handler: async (ctx, args) => {
     // Get next picker using round-robin
-    const nextPickerId = await ctx.runQuery(
-      "pickerAssignment:getNextPickerForVendor" as any,
-      {
-        vendorId: args.vendorId,
-      },
-    );
+    const nextPickerId = await nextPickerForVendor(ctx, args.vendorId);
 
     if (!nextPickerId) {
       throw new Error("No pickers available for this vendor");
