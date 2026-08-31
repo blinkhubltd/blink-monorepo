@@ -1,9 +1,10 @@
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
+import { Heart } from "lucide-react-native";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -17,6 +18,8 @@ import { ScreenHeader } from "../../components/screen-header";
 import { NotFoundState } from "../../components/states";
 import { ProductCard } from "../../components/product-card";
 import { formatKES } from "../../lib/format";
+import { useWishlist } from "../../lib/use-wishlist";
+import { SaveError, SavePrompt } from "../../components/save-prompt";
 
 /**
  * Product detail. URL `/product/[productId]`.
@@ -51,6 +54,7 @@ import { formatKES } from "../../lib/format";
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const cart = useCart();
+  const wishlist = useWishlist();
 
   const product = useQuery(
     api.data.products.getProductDetails,
@@ -99,7 +103,48 @@ export default function ProductDetailScreen() {
               </Text>
             </View>
           )}
+
+          {/*
+            Saving, over the image. The old screen rendered its heart from a
+            query that returns `undefined` while in flight, so a saved product
+            drew as unsaved on every mount — and a tap in that window removed it.
+            `saved` is only true once the answer has arrived.
+          */}
+          <Pressable
+            onPress={() => void wishlist.toggle(product._id as Id<"products">)}
+            accessibilityRole="button"
+            accessibilityState={{
+              selected: wishlist.loaded && wishlist.isSaved(product._id),
+            }}
+            accessibilityLabel={
+              wishlist.loaded && wishlist.isSaved(product._id)
+                ? "Remove from saved items"
+                : "Save this item"
+            }
+            hitSlop={8}
+            className="right-space-4 top-space-4 bg-card size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+          >
+            <Heart
+              size={20}
+              color={
+                wishlist.loaded && wishlist.isSaved(product._id)
+                  ? "#D83A34"
+                  : "#5A6372"
+              }
+              fill={
+                wishlist.loaded && wishlist.isSaved(product._id)
+                  ? "#D83A34"
+                  : "transparent"
+              }
+            />
+          </Pressable>
         </View>
+
+        <SavePrompt
+          visible={wishlist.requiresSignIn}
+          onDismiss={wishlist.dismissSignIn}
+        />
+        <SaveError message={wishlist.error} onDismiss={wishlist.dismissError} />
 
         <View className="gap-space-5 px-screen pt-space-5">
           <View className="gap-space-2">
@@ -205,6 +250,10 @@ export default function ProductDetailScreen() {
                         quantityInCart={cart.quantityOf(
                           item._id as Id<"products">,
                         )}
+                        saved={wishlist.isSaved(item._id)}
+                        onToggleSave={() =>
+                          void wishlist.toggle(item._id as Id<"products">)
+                        }
                         onPress={() =>
                           // `replace`, not `push`: the old screen pushed, so
                           // hopping through related products grew the stack

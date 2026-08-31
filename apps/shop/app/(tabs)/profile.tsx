@@ -73,6 +73,11 @@ export default function ProfileScreen() {
     api.data.addresses.getMyAddresses,
     isSignedIn ? {} : "skip",
   );
+  const wishlist = useQuery(api.data.wishlist.getMyWishlist, {});
+  // Null while in flight, so the row shows nothing rather than "Nothing saved
+  // yet" — which reads as an answer and is the same loading-vs-absent slip the
+  // wishlist heart used to make.
+  const savedCount = wishlist ? wishlist.productIds.length : null;
 
   if (!isSignedIn) {
     return (
@@ -178,9 +183,14 @@ export default function ProfileScreen() {
           <Row
             icon={<Heart size={20} color="#5A6372" />}
             label="Saved items"
-            detail="Coming soon"
-            onPress={() => router.push("/orders")}
-            muted
+            detail={
+              savedCount === null
+                ? undefined
+                : savedCount === 0
+                  ? "Nothing saved yet"
+                  : `${savedCount} ${savedCount === 1 ? "item" : "items"}`
+            }
+            onPress={() => router.push("/saved")}
           />
         </View>
 

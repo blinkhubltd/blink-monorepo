@@ -217,6 +217,57 @@ never exercise them.
 - [ ] `data/payment_finalization:finalizePaidOrders` unauthenticated →
       `Unauthorized`.
 
+## 12. Addresses
+
+- [ ] Profile → Delivery addresses. With none saved, the empty state explains
+      rather than showing an empty box.
+- [ ] Add one. The map's pin stays centred while the map moves under it, and the
+      line beside it says how many shops reach the spot — before you submit.
+- [ ] Drag the pin somewhere no shop covers → the reason is stated and Save is
+      blocked. Confirm the message names coverage, not a validation failure.
+- [ ] While the coverage check is in flight it must NOT say "no shop delivers
+      here". A pan should never flash that message.
+- [ ] The FIRST address saved is default even if you left the switch off.
+- [ ] Save a second address named the same as the first (try lower case, and try
+      trailing spaces). The button must read "Replace <name>" and explain, and
+      afterwards there must be ONE entry, not two that look identical.
+- [ ] Delete the default. Another address becomes default — the oldest — rather
+      than the book being left with none.
+- [ ] Delete confirms in the row itself. On web too, where `Alert.alert` does
+      nothing.
+- [ ] Reload on `/addresses/new?label=Home` — it returns to the same edit with
+      the fields filled, not a blank Add form.
+- [ ] Check out with no saved address: checkout offers "Add an address" and
+      reaching it works. Before this existed it told you to use your profile,
+      where there was no such screen.
+- [ ] On web, the picker says it is a stand-in and uses the browser location
+      rather than rendering an empty box.
+
+## 13. Saved items
+
+- [ ] Tap the heart on a card while signed OUT → a line offering sign-in appears
+      on the same screen. You must not be navigated away, and the basket and
+      scroll position must survive.
+- [ ] Signed in, tap the heart: it fills immediately. Reopen the screen — it is
+      still filled. Watch for a flash of empty on mount; that was the old bug.
+- [ ] Profile → Saved items lists them with current prices. Change a price in
+      admin and reopen — the new price shows, because nothing is remembered from
+      when it was saved.
+- [ ] Save something, then take it out of stock in admin. It stays in the list,
+      marked unbuyable — not hidden, which looks like the app lost it.
+- [ ] Archive a saved product in admin. The footer says how many saved items are
+      no longer in the catalogue rather than the count silently disagreeing with
+      the list.
+- [ ] Unsave from the saved screen: the item leaves and the count drops.
+
+Security, from a REST client:
+
+- [ ] `data/wishlist:toggleMyWishlistItem` unauthenticated → `Unauthorized`.
+- [ ] `data/addresses:saveMyAddress`, `setMyDefaultAddress` and
+      `deleteMyAddress` unauthenticated → `Unauthorized`, and none of the three
+      accepts a `clerkId` or `user_id`.
+- [ ] `data/legal_acceptances:recordAcceptance` accepts no version argument.
+
 ---
 
 ## Known not-done

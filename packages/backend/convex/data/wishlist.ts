@@ -1,10 +1,15 @@
 import { mutation, query } from "../_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { getImageUrl } from "./files";
-import { getUserByClerkId } from "../auth.helpers";
+import { getAuthUser, getUserByClerkId } from "../auth.helpers";
 
 // Clerk ID wrapper for toggleWishList
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `toggleMyWishlistItem`. Retained only until the standalone app retires.
+ */
 export const toggleWishListByClerkId = mutation({
   args: {
     clerkId: v.string(),
@@ -72,6 +77,11 @@ export const toggleWishListByClerkId = mutation({
 });
 
 // Clerk ID wrapper for isProductInWishList
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `getMyWishlist`. Retained only until the standalone app retires.
+ */
 export const isProductInWishListByClerkId = query({
   args: {
     clerkId: v.string(),
@@ -94,6 +104,11 @@ export const isProductInWishListByClerkId = query({
 });
 
 // Clerk ID wrapper for getWishList
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `getMyWishlist`. Retained only until the standalone app retires.
+ */
 export const getWishListByClerkId = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
@@ -161,6 +176,11 @@ export const getWishListByClerkId = query({
 });
 
 // Paginated version for wishlist items
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `getMyWishlist`. Retained only until the standalone app retires.
+ */
 export const getWishListByClerkIdPaginated = query({
   args: {
     clerkId: v.string(),
@@ -251,6 +271,11 @@ export const getWishListByClerkIdPaginated = query({
 });
 
 // Add product to wishlist
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `toggleMyWishlistItem`. Retained only until the standalone app retires.
+ */
 export const addToWishList = mutation({
   args: {
     user_id: v.id("users"),
@@ -305,6 +330,11 @@ export const addToWishList = mutation({
 });
 
 // Remove product from wishlist
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `removeFromMyWishlist`. Retained only until the standalone app retires.
+ */
 export const removeFromWishList = mutation({
   args: {
     user_id: v.id("users"),
@@ -341,6 +371,11 @@ export const removeFromWishList = mutation({
 });
 
 // Toggle product in wishlist (add if not present, remove if present)
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `toggleMyWishlistItem`. Retained only until the standalone app retires.
+ */
 export const toggleWishList = mutation({
   args: {
     user_id: v.id("users"),
@@ -405,6 +440,11 @@ export const toggleWishList = mutation({
 });
 
 // Get user's wishlist with product details
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `getMyWishlist`. Retained only until the standalone app retires.
+ */
 export const getWishList = query({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -471,6 +511,11 @@ export const getWishList = query({
 });
 
 // Check if product is in wishlist
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `getMyWishlist`. Retained only until the standalone app retires.
+ */
 export const isProductInWishList = query({
   args: {
     user_id: v.id("users"),
@@ -493,6 +538,11 @@ export const isProductInWishList = query({
 });
 
 // Get wishlist count
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `getMyWishlist`. Retained only until the standalone app retires.
+ */
 export const getWishListCount = query({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -510,6 +560,11 @@ export const getWishListCount = query({
 });
 
 // Clear entire wishlist
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `removeFromMyWishlist`. Retained only until the standalone app retires.
+ */
 export const clearWishList = mutation({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
@@ -538,6 +593,11 @@ export const clearWishList = mutation({
 });
 
 // Move multiple items from wishlist to cart
+/**
+ * @deprecated Takes the actor as an argument rather than deriving it from
+ * the auth token, so any client can act on any customer's wishlist. Use
+ * `the auth-derived cart and wishlist functions`. Retained only until the standalone app retires.
+ */
 export const moveWishListToCart = mutation({
   args: {
     user_id: v.id("users"),
@@ -617,5 +677,142 @@ export const moveWishListToCart = mutation({
       success: true,
       message: `${args.product_ids.length} item(s) moved to cart`,
     };
+  },
+});
+
+// ── The caller's own wishlist ─────────────────────────────────────────────
+//
+// All twelve functions above take the actor as an argument — `clerkId` or a raw
+// `Id<"users">` — and none reads `ctx.auth.getUserIdentity()`. `moveWishListToCart`
+// is the worst of them: one public mutation that rewrites an arbitrary user's
+// cart AND wishlist given only their user id.
+//
+// They also disagree about their own contract: `{success, message, isInWishlist}`,
+// `{success, inWishlist, message}`, a bare boolean and `{inWishlist}` all appear.
+// And `getWishListByClerkId` wraps its body in try/catch returning
+// `success: true` with an empty list on error, so a thrown database error is
+// indistinguishable from an empty wishlist — the same loading-vs-absent
+// confusion that produced the refresh-to-home bug in the app.
+//
+// The two below are the whole surface the customer app needs. Ids only: the
+// screen hydrates them through `catalog.productsByIds`, which is bounded, capped
+// and already the single place purchasability is decided. Storing or returning
+// prices here would give the wishlist its own opinion about what something
+// costs.
+
+/**
+ * How many products one wishlist may hold.
+ *
+ * The array lives in a single document, so an uncapped wishlist is an uncapped
+ * document — and `productsByIds` caps at 100 anyway, so beyond that the screen
+ * would silently show a truncated list while the badge counted the rest. Capping
+ * on write means the number shown and the number stored agree.
+ */
+const MAX_WISHLIST_ITEMS = 100;
+
+/** The caller's wishlist, as product ids in the order they were saved. */
+export const getMyWishlist = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    // Signed out is an empty wishlist, not an error: the heart renders on
+    // catalogue cards, which are browsable without an account.
+    if (!identity) return { productIds: [] as Id<"products">[], atCapacity: false };
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return { productIds: [] as Id<"products">[], atCapacity: false };
+
+    const doc = await ctx.db
+      .query("wishlist")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+
+    const productIds = doc?.products ?? [];
+    return { productIds, atCapacity: productIds.length >= MAX_WISHLIST_ITEMS };
+  },
+});
+
+/**
+ * Add or remove one product from the caller's own wishlist.
+ *
+ * Returns the resulting state rather than "success", so the heart is drawn from
+ * what the server decided instead of from what the client assumed. The old
+ * mutations returned `success: true` in every path including the ones where
+ * nothing changed.
+ *
+ * The product must exist. Nothing else is checked — an out-of-stock or inactive
+ * product is exactly the sort of thing a customer wants to be reminded of later,
+ * so purchasability is a decision for the basket, not for saving something.
+ */
+export const toggleMyWishlistItem = mutation({
+  args: { productId: v.id("products") },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const product = await ctx.db.get(args.productId);
+    if (!product) throw new ConvexError("That product no longer exists.");
+
+    const doc = await ctx.db
+      .query("wishlist")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+
+    const now = Date.now();
+
+    if (!doc) {
+      await ctx.db.insert("wishlist", {
+        user_id: user._id,
+        products: [args.productId],
+        updated_at: now,
+      });
+      return { inWishlist: true, count: 1 };
+    }
+
+    const present = doc.products.includes(args.productId);
+
+    if (present) {
+      const products = doc.products.filter((id) => id !== args.productId);
+      await ctx.db.patch(doc._id, { products, updated_at: now });
+      return { inWishlist: false, count: products.length };
+    }
+
+    if (doc.products.length >= MAX_WISHLIST_ITEMS) {
+      throw new ConvexError(
+        `Your saved list is full at ${MAX_WISHLIST_ITEMS} items. Remove something first.`,
+      );
+    }
+
+    const products = [...doc.products, args.productId];
+    await ctx.db.patch(doc._id, { products, updated_at: now });
+    return { inWishlist: true, count: products.length };
+  },
+});
+
+/**
+ * Drop products from the caller's wishlist without toggling them one by one.
+ *
+ * Used after moving saved items into the basket. Ids that are not in the list
+ * are ignored rather than erroring — the caller is reconciling, not asserting.
+ */
+export const removeFromMyWishlist = mutation({
+  args: { productIds: v.array(v.id("products")) },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const doc = await ctx.db
+      .query("wishlist")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+    if (!doc) return { count: 0 };
+
+    const dropping = new Set(args.productIds);
+    const products = doc.products.filter((id) => !dropping.has(id));
+    if (products.length !== doc.products.length) {
+      await ctx.db.patch(doc._id, { products, updated_at: Date.now() });
+    }
+    return { count: products.length };
   },
 });
