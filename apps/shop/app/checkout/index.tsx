@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  View,
+} from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
@@ -31,6 +37,8 @@ import {
   validateReceiver,
 } from "../../lib/checkout-rules";
 import { formatKES } from "../../lib/format";
+import { LEGAL_DOC_META, legalUrl, type LegalDoc } from "../../lib/legal";
+import { openExternal } from "../../lib/open-external";
 
 /**
  * Checkout.
@@ -92,6 +100,9 @@ export default function CheckoutScreen() {
     isSignedIn ? {} : "skip",
   );
   const setMyPhone = useMutation(api.user.users.setMyPhone);
+  const recordAcceptance = useMutation(
+    api.data.legal_acceptances.recordAcceptance,
+  );
   const beginCheckout = useMutation(api.data.checkout.beginCheckout);
   const placeMyOrder = useMutation(api.data.checkout.placeMyOrder);
 
@@ -170,6 +181,12 @@ export default function CheckoutScreen() {
     setPendingReference(reference);
 
     try {
+      // Consent, before anything is priced or written. The versions are read
+      // server-side inside the mutation, so the record says which documents were
+      // current rather than which strings this build happens to ship. A retry
+      // appends a second row, which is correct for an append-only consent log.
+      await recordAcceptance({});
+
       const started = await beginCheckout({
         reference,
         paymentMode,
@@ -401,6 +418,23 @@ export default function CheckoutScreen() {
 
           <PaymentModeSection mode={paymentMode} onChange={setPaymentMode} />
 
+          {/*
+            The agreement, stated where the commitment is made rather than
+            buried in the profile tab. Both documents open on the website — one
+            copy, editable without a store release — and placing the order
+            records the acceptance against the versions the server holds.
+          */}
+          <View className="gap-space-2 flex-row flex-wrap items-baseline">
+            <Text size="caption" variant="subtle">
+              Placing this order accepts our
+            </Text>
+            <LegalLink doc="terms" onFail={setFailure} />
+            <Text size="caption" variant="subtle">
+              and
+            </Text>
+            <LegalLink doc="privacy" onFail={setFailure} />
+          </View>
+
           {failure ? (
             <View className="bg-destructive-soft p-space-4 rounded-md">
               <Text size="sm" variant="destructive">
@@ -455,6 +489,42 @@ export default function CheckoutScreen() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+/**
+ * One legal document, opened on the website.
+ *
+ * A failure is reported through the same banner the rest of the screen uses,
+ * because a link that does nothing when tapped is how a customer concludes the
+ * terms are being hidden from them.
+ */
+function LegalLink({
+  doc,
+  onFail,
+}: {
+  doc: LegalDoc;
+  onFail: (message: string) => void;
+}) {
+  const url = legalUrl(doc);
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={LEGAL_DOC_META[doc].title}
+      accessibilityHint="Opens in your browser"
+      onPress={() => {
+        void openExternal(url).then((ok) => {
+          if (!ok) onFail(`Could not open your browser. Read them at ${url}`);
+        });
+      }}
+      // A 44pt target is not available inline in a sentence, so the underline
+      // and colour carry the affordance instead of size.
+      hitSlop={8}
+    >
+      <Text size="caption" weight="semibold" className="underline">
+        {LEGAL_DOC_META[doc].title}
+      </Text>
+    </Pressable>
   );
 }
 

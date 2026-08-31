@@ -185,8 +185,15 @@ orders. That equality is now enforced server-side, so these check it holds.
 - [ ] **Once the order is Out for Delivery**, the rider's first name appears, and
       a call button. Confirm it is a FIRST name only, and that no surname,
       rider id or rider address is shown anywhere.
-- [ ] Profile shows your email, and the Terms/Privacy links open the legal
-      screen with a version number from platform settings.
+- [ ] Profile shows your email, and the Terms/Privacy rows open the WEBSITE in
+      the in-app browser, then return you to Profile on close. Confirm both
+      URLs resolve to a published document rather than a 404 - the paths live in
+      `lib/legal.ts` and have never been checked against the live site.
+- [ ] Checkout shows the agreement line above the pay button, and both links
+      open. Placing an order inserts a `legal_acceptances` row whose versions
+      match `platform_settings` - not `v1.0` unless that is genuinely the
+      setting. Bump `terms_version` in admin, place another order, and confirm
+      the new row carries the new version.
 - [ ] Sign out from Profile — no unhandled error, and the guest basket behaves
       as in §4.
 - [ ] Open `/order/<someone else's order id>` while signed in → not found, and

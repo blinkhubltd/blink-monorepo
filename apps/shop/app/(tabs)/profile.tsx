@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -6,6 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import {
   ChevronRight,
+  ExternalLink,
   FileText,
   Heart,
   MapPin,
@@ -22,6 +24,13 @@ import { Avatar } from "@repo/mobile-ui/components/ui/avatar";
 import { ScreenHeader } from "../../components/screen-header";
 import { useCart } from "../../providers/CartProvider";
 import { useLocation } from "../../providers/LocationProvider";
+import {
+  LEGAL_DOC_META,
+  legalBaseUrl,
+  legalUrl,
+  type LegalDoc,
+} from "../../lib/legal";
+import { openExternal } from "../../lib/open-external";
 
 /**
  * Profile.
@@ -44,6 +53,12 @@ export default function ProfileScreen() {
   const { user } = useUser();
   const cart = useCart();
   const { point, request } = useLocation();
+
+  const [linkFailed, setLinkFailed] = useState(false);
+
+  async function openLegal(doc: LegalDoc) {
+    setLinkFailed(!(await openExternal(legalUrl(doc))));
+  }
 
   const access = useQuery(
     api.user.access.getMyAccess,
@@ -150,19 +165,34 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/*
+          Legal documents open on the website rather than being duplicated in the
+          app: one copy, edited without a store release, so what the app links to
+          cannot drift behind what the customer actually agreed to.
+        */}
         <View className="border-hairline border-border bg-card rounded-lg">
           <Row
             icon={<FileText size={20} color="#5A6372" />}
-            label="Terms of service"
-            onPress={() => router.push("/legal/terms")}
+            label={LEGAL_DOC_META.terms.title}
+            detail="Opens the website"
+            external
+            onPress={() => void openLegal("terms")}
           />
           <Separator />
           <Row
             icon={<ShieldCheck size={20} color="#5A6372" />}
-            label="Privacy policy"
-            onPress={() => router.push("/legal/privacy")}
+            label={LEGAL_DOC_META.privacy.title}
+            detail="Opens the website"
+            external
+            onPress={() => void openLegal("privacy")}
           />
         </View>
+
+        {linkFailed ? (
+          <Text size="caption" variant="destructive">
+            Could not open your browser. The documents are at {legalBaseUrl()}.
+          </Text>
+        ) : null}
 
         {access && "roleName" in access && access.roleName ? (
           <Text size="caption" variant="subtle">
@@ -191,18 +221,22 @@ function Row({
   detail,
   onPress,
   muted = false,
+  external = false,
 }: {
   icon: React.ReactNode;
   label: string;
   detail?: string;
   onPress: () => void;
   muted?: boolean;
+  /** Leaves the app. Announced, and marked with a different affordance. */
+  external?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
+      accessibilityRole={external ? "link" : "button"}
       accessibilityLabel={detail ? `${label}. ${detail}` : label}
+      accessibilityHint={external ? "Opens in your browser" : undefined}
       className="min-h-control gap-space-3 px-space-4 py-space-4 active:bg-muted flex-row items-center"
     >
       {icon}
@@ -216,7 +250,11 @@ function Row({
           </Text>
         ) : null}
       </View>
-      <ChevronRight size={18} color="#818A99" />
+      {external ? (
+        <ExternalLink size={16} color="#818A99" />
+      ) : (
+        <ChevronRight size={18} color="#818A99" />
+      )}
     </Pressable>
   );
 }

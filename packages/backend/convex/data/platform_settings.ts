@@ -204,6 +204,54 @@ export const seed = internalMutation({
   },
 });
 
+export const TERMS_VERSION_KEY = "terms_version";
+export const PRIVACY_VERSION_KEY = "privacy_version";
+export const EULA_VERSION_KEY = "eula_version";
+
+/** The version every legal document is currently at. */
+export interface LegalVersions {
+  terms_version: string;
+  privacy_version: string;
+  eula_version: string;
+}
+
+/**
+ * Legal versions, read inside the caller's own transaction.
+ *
+ * Exists so `legal_acceptances.recordAcceptance` can stamp an acceptance with
+ * the version the platform is actually on, rather than with a version the client
+ * sent. The old customer app passed the literal string `"v1.0"` from two call
+ * sites, so every acceptance ever recorded claimed v1.0 regardless of the
+ * setting — which makes the re-acceptance check permanently wrong in one
+ * direction or the other, and makes the acceptance record worthless as evidence.
+ *
+ * The `"v1.0"` fallback matches `getLegalSettings` so a missing row does not
+ * produce two different answers depending on which function you asked.
+ */
+export async function readLegalVersions(
+  ctx: QueryCtx | MutationCtx,
+): Promise<LegalVersions> {
+  const [terms, privacy, eula] = await Promise.all([
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", TERMS_VERSION_KEY))
+      .first(),
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", PRIVACY_VERSION_KEY))
+      .first(),
+    ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", EULA_VERSION_KEY))
+      .first(),
+  ]);
+  return {
+    terms_version: terms?.value ?? "v1.0",
+    privacy_version: privacy?.value ?? "v1.0",
+    eula_version: eula?.value ?? "v1.0",
+  };
+}
+
 /** Returns version string and last-updated timestamp for each legal document. */
 export const getLegalSettings = query({
   args: {},
