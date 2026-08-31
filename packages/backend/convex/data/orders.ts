@@ -1374,7 +1374,15 @@ export const getUserOrdersPaginated = query({
 
 // ─── Clearance Order ────────────────────────────────────────────────────────────
 
-export const createClearanceOrder = mutation({
+/**
+ * @internal Zero callers, no auth, and it accepted a whole client-built order
+ * including its prices. Worse than the regular creator in one respect: it wrote
+ * ONE order for a basket whose items could span several vendors, computing the
+ * fee from the distinct vendor count while attributing the whole order to a
+ * single `vendor_id` — so a two-shop clearance basket became one order that one
+ * shop was expected to fulfil in full. Use `clearance_checkout`.
+ */
+export const createClearanceOrder = internalMutation({
   args: {
     order: OrdersValidator,
     clearance_items: v.array(

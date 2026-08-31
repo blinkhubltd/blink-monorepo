@@ -1,7 +1,8 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ChevronRight, Tag } from "lucide-react-native";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { useCategoryTree } from "../../../lib/catalogue";
@@ -50,6 +51,33 @@ export default function CategoriesScreen() {
           keyExtractor={(item) => item._id}
           contentContainerClassName="px-screen pb-space-8"
           ItemSeparatorComponent={() => <View className="h-space-4" />}
+          ListHeaderComponent={
+            /*
+              The way into clearance. It is a separate catalogue with its own
+              stock, expiry and delivery rule, so it gets an entry point rather
+              than being mixed into the category grid where its prices would
+              look like ordinary ones.
+            */
+            <Pressable
+              onPress={() => router.push("/clearance")}
+              accessibilityRole="button"
+              accessibilityLabel="Clearance deals"
+              className="border-hairline border-border bg-card mb-space-4 gap-space-3 p-space-4 flex-row items-center rounded-xl active:opacity-90"
+            >
+              <View className="bg-primary size-control rounded-pill items-center justify-center">
+                <Tag size={20} color="#0A0E16" />
+              </View>
+              <View className="gap-space-1 flex-1">
+                <Text size="base" weight="semibold">
+                  Clearance deals
+                </Text>
+                <Text size="caption" variant="subtle">
+                  Short-dated stock at a discount
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#818A99" />
+            </Pressable>
+          }
           renderItem={({ item, index }) => (
             // Manual gutter: FlashList v2 has no columnWrapper, and padding the
             // odd column keeps both tiles the same width.

@@ -913,6 +913,9 @@ export const PaymentsValidator = v.object({
       requiresPrescription: v.boolean(),
       vendorCount: v.float64(),
       itemCount: v.float64(),
+      // A clearance basket. Its lines are `clearance_products`, its orders
+      // carry `is_clearance`, and no free-delivery waiver was available.
+      isClearance: v.optional(v.boolean()),
       legs: v.array(
         v.object({
           vendorId: v.id("vendors"),
@@ -921,7 +924,13 @@ export const PaymentsValidator = v.object({
           total: v.float64(),
           lines: v.array(
             v.object({
-              productId: v.id("products"),
+              // Either table: a clearance line references
+              // `clearance_products`, which is a separate table from the
+              // regular catalogue rather than a flag on it.
+              productId: v.union(
+                v.id("products"),
+                v.id("clearance_products"),
+              ),
               vendorId: v.id("vendors"),
               name: v.string(),
               quantity: v.float64(),
@@ -929,6 +938,14 @@ export const PaymentsValidator = v.object({
               unitPrice: v.float64(),
               lineTotal: v.float64(),
               requiresPrescription: v.boolean(),
+              // Clearance lines only. Recorded so the receipt keeps the
+              // discount the customer was shown, even if the listing is later
+              // edited or expires.
+              originalPrice: v.optional(v.float64()),
+              discountPercentage: v.optional(v.float64()),
+              sku: v.optional(v.string()),
+              unitType: v.optional(v.string()),
+              unitValue: v.optional(v.float64()),
             }),
           ),
         }),

@@ -2933,6 +2933,12 @@ exports[`table shapes > matches the committed snapshot 1`] = `
               },
               "optional": false,
             },
+            "isClearance": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": true,
+            },
             "itemCount": {
               "fieldType": {
                 "type": "number",
@@ -2957,6 +2963,12 @@ exports[`table shapes > matches the committed snapshot 1`] = `
                         "value": {
                           "type": "object",
                           "value": {
+                            "discountPercentage": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": true,
+                            },
                             "lineTotal": {
                               "fieldType": {
                                 "type": "number",
@@ -2969,10 +2981,25 @@ exports[`table shapes > matches the committed snapshot 1`] = `
                               },
                               "optional": false,
                             },
+                            "originalPrice": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": true,
+                            },
                             "productId": {
                               "fieldType": {
-                                "tableName": "products",
-                                "type": "id",
+                                "type": "union",
+                                "value": [
+                                  {
+                                    "tableName": "products",
+                                    "type": "id",
+                                  },
+                                  {
+                                    "tableName": "clearance_products",
+                                    "type": "id",
+                                  },
+                                ],
                               },
                               "optional": false,
                             },
@@ -2988,11 +3015,29 @@ exports[`table shapes > matches the committed snapshot 1`] = `
                               },
                               "optional": false,
                             },
+                            "sku": {
+                              "fieldType": {
+                                "type": "string",
+                              },
+                              "optional": true,
+                            },
                             "unitPrice": {
                               "fieldType": {
                                 "type": "number",
                               },
                               "optional": false,
+                            },
+                            "unitType": {
+                              "fieldType": {
+                                "type": "string",
+                              },
+                              "optional": true,
+                            },
+                            "unitValue": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": true,
                             },
                             "vendorId": {
                               "fieldType": {

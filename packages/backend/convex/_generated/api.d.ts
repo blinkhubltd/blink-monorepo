@@ -20,6 +20,7 @@ import type * as data_categories from "../data/categories.js";
 import type * as data_checkout from "../data/checkout.js";
 import type * as data_clearance_batching from "../data/clearance_batching.js";
 import type * as data_clearance_cart from "../data/clearance_cart.js";
+import type * as data_clearance_checkout from "../data/clearance_checkout.js";
 import type * as data_clearance_products from "../data/clearance_products.js";
 import type * as data_coverage from "../data/coverage.js";
 import type * as data_directions from "../data/directions.js";
@@ -111,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   "data/checkout": typeof data_checkout;
   "data/clearance_batching": typeof data_clearance_batching;
   "data/clearance_cart": typeof data_clearance_cart;
+  "data/clearance_checkout": typeof data_clearance_checkout;
   "data/clearance_products": typeof data_clearance_products;
   "data/coverage": typeof data_coverage;
   "data/directions": typeof data_directions;

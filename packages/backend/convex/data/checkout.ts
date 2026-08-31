@@ -351,9 +351,20 @@ export const placeMyOrder = mutation({
       });
 
       for (const item of leg.lines) {
+        // Validated against the table rather than cast. A stored quote can now
+        // hold clearance ids too, and those belong in `clearance_order_items`
+        // with their own price fields — writing one here would produce an order
+        // item pointing at a row that is not a catalogue product.
+        const productId = ctx.db.normalizeId("products", item.productId);
+        if (!productId) {
+          throw new ConvexError(
+            "This checkout contains clearance items. Use the clearance checkout.",
+          );
+        }
+
         await ctx.db.insert("order_items", {
           order_id: orderId,
-          product_id: item.productId,
+          product_id: productId,
           vendor_id: item.vendorId,
           name: item.name,
           sku: "",

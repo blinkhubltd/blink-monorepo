@@ -334,6 +334,54 @@ Security, from a REST client:
       the same caller.
 - [ ] `rateMyDelivery` on an order you do not own → "Order not found", the same
       answer as an id that does not exist.
+## 17. Clearance
+
+Seed at least two clearance listings from two different shops, one with an
+`expiry_date` and one without, and one with `quantity: 1`.
+
+- [ ] The Shop tab shows a Clearance entry above the categories. It opens
+      `/clearance`.
+- [ ] Deals show the discount, the real strike-through price, and the DATE. The
+      catalogue cards deliberately show no strike-through, because those prices
+      are stubs - confirm the difference is intact.
+- [ ] A listing with an `expiry_date` reads "Use within N days"; one without
+      reads "Offer ends in N days". These are different dates and must not be
+      conflated - the first is when the food goes off.
+- [ ] Set an expiry two days out: the line turns urgent (red).
+- [ ] Add a deal. The clearance basket bar appears. Confirm the CATALOGUE basket
+      count does not change - they are separate baskets, by design.
+- [ ] Add 1 of a listing with 1 in stock, then try to add more: the stepper's
+      plus is disabled at stock, and the server refuses if bypassed.
+- [ ] Expire a listing in admin (`display_end_date` in the past) while it is in
+      your basket. The basket keeps the line, marked "This deal has ended", and
+      the total excludes it. It must not silently vanish, and the total must not
+      include it.
+- [ ] Sold-out and ended read differently.
+
+Money - this is the part worth checking carefully:
+
+- [ ] A clearance basket over the free-delivery threshold is STILL charged
+      delivery. Free delivery does not apply to discounted stock, and the
+      checkout says so. If this ever shows free, the waiver has leaked.
+- [ ] A two-shop clearance basket: fee is base + 50, not base x 2, and it
+      produces TWO orders. The old `createClearanceOrder` wrote one order for
+      the whole basket while charging for two pickups.
+- [ ] The two orders' delivery fees sum exactly to the basket fee.
+- [ ] Place a pay-on-delivery clearance order and confirm in admin: both orders
+      carry `is_clearance: true`, their items are in `clearance_order_items`
+      with the original price and discount as shown, and the listing stock has
+      dropped.
+- [ ] Double-tap Place order: one set of orders, not two.
+
+Security, from a REST client:
+
+- [ ] `data/clearance_cart:getCart`, `addToCart`, `updateQuantity`,
+      `removeFromCart` and `clearCart` all still exist but each takes a
+      `user_id` - confirm the app calls none of them. The `*My*` versions take
+      no identity at all.
+- [ ] `data/orders:createClearanceOrder` is gone from the public function list.
+- [ ] `beginClearanceCheckout` with an `expectedTotal` that does not match is
+      refused, and nothing is charged.
 
 ---
 
@@ -344,5 +392,6 @@ Security, from a REST client:
   and the amount fixed, so it slots in without touching pricing.
 - **Prescription upload.** Checkout detects that a basket needs one and blocks,
   but the upload flow itself is not built here.
-- **Clearance baskets** remain a separate flow and are not part of this
-  checkout.
+- **Clearance** is now built (§17) as a separate basket and checkout, which is
+  what the data model requires: its own table, stock, expiry and delivery rule.
+  Card payment there is blocked by the same missing Paystack step.
