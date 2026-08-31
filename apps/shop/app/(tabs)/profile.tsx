@@ -7,6 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import {
   ChevronRight,
+  Crosshair,
   ExternalLink,
   FileText,
   Heart,
@@ -67,6 +68,10 @@ export default function ProfileScreen() {
   const orders = useQuery(
     api.data.orders.getMyOrders,
     isSignedIn ? { limit: 1 } : "skip",
+  );
+  const addresses = useQuery(
+    api.data.addresses.getMyAddresses,
+    isSignedIn ? {} : "skip",
   );
 
   if (!isSignedIn) {
@@ -147,11 +152,25 @@ export default function ProfileScreen() {
           <Separator />
           <Row
             icon={<MapPin size={20} color="#5A6372" />}
-            label="Delivery location"
+            label="Delivery addresses"
+            detail={
+              addresses === undefined
+                ? undefined
+                : addresses.length === 0
+                  ? "None saved yet"
+                  : (addresses.find((a) => a.is_default)?.label ??
+                    `${addresses.length} saved`)
+            }
+            onPress={() => router.push("/addresses")}
+          />
+          <Separator />
+          <Row
+            icon={<Crosshair size={20} color="#5A6372" />}
+            label="Where you are now"
             detail={
               point
                 ? `${point.lat.toFixed(3)}, ${point.lng.toFixed(3)}`
-                : "Not set"
+                : "Not set — used to pick which shops to show"
             }
             onPress={() => void request()}
           />

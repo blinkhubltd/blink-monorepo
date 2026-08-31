@@ -325,9 +325,30 @@ export default function CheckoutScreen() {
                 />
               ) : (
                 <Text size="sm" variant="muted">
-                  You have no saved addresses yet. Add one from your profile.
+                  You have no saved addresses yet.
                 </Text>
               )}
+              {/*
+                The way out of the dead end. Until the address book existed this
+                screen told the customer to "add one from your profile", where
+                there was no such screen: a filled basket and nowhere to go.
+              */}
+              <Button
+                variant="outline"
+                label="Add an address"
+                onPress={() => router.push("/addresses/new")}
+              />
+            </SectionCard>
+          ) : !selectedAddress && addresses && addresses.length === 0 ? (
+            <SectionCard title="Where should this go?">
+              <Text size="sm" variant="muted">
+                Add a delivery address to place this order. It takes a moment,
+                and it is saved for next time.
+              </Text>
+              <Button
+                label="Add an address"
+                onPress={() => router.push("/addresses/new")}
+              />
             </SectionCard>
           ) : (
             <DeliveryAddressSection
