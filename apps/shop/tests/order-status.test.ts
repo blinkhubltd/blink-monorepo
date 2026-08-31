@@ -135,3 +135,17 @@ describe("isLive", () => {
     expect(isLive("Something New")).toBe(true);
   });
 });
+
+describe("presentStatus and inherited keys", () => {
+  it("does not return a prototype member as a presentation", () => {
+    // A bare index on an object literal resolves "constructor" to
+    // Object.prototype.constructor — truthy, so a `??` fallback never fires and
+    // the badge renders undefined.
+    for (const key of ["constructor", "toString", "hasOwnProperty"]) {
+      const presentation = presentStatus(key);
+      expect(presentation.label, key).toBe(key);
+      expect(presentation.variant, key).toBe("secondary");
+      expect(presentation.step, key).toBeNull();
+    }
+  });
+});

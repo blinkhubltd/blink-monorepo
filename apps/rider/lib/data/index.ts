@@ -619,11 +619,10 @@ export function useToggleShift() {
 // ---------------------------------------------------------------------------
 
 export function useNotifications(): CrewNotification[] | undefined {
-  const { userId } = useCrew();
-  const docs = useQuery(
-    api.data.user_notifications.getUserNotifications,
-    userId ? { userId } : "skip",
-  );
+  // Auth-derived: the previous query took `userId` as an argument and was
+  // public, so any caller could read any user's feed — and delivery-code
+  // notifications carry the handover code in their message.
+  const docs = useQuery(api.data.user_notifications.getMyNotifications, {});
   return useMemo(
     () => (docs === undefined ? undefined : docs.map(toCrewNotification)),
     [docs],
@@ -631,20 +630,14 @@ export function useNotifications(): CrewNotification[] | undefined {
 }
 
 export function useUnreadCount(): number | undefined {
-  const { userId } = useCrew();
-  return useQuery(
-    api.data.user_notifications.getUnreadNotificationCount,
-    userId ? { userId } : "skip",
-  );
+  return useQuery(api.data.user_notifications.getMyUnreadCount, {});
 }
 
 export function useMarkNotificationsRead() {
-  const { userId } = useCrew();
   const markAll = useMutation(
-    api.data.user_notifications.markAllNotificationsAsRead,
+    api.data.user_notifications.markAllMyNotificationsRead,
   );
   return useCallback(async () => {
-    if (!userId) return;
-    await markAll({ userId });
-  }, [userId, markAll]);
+    await markAll({});
+  }, [markAll]);
 }

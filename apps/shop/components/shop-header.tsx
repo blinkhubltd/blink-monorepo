@@ -1,9 +1,19 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { ChevronDown, MapPin, Search, ShoppingBag } from "lucide-react-native";
+import {
+  Bell,
+  ChevronDown,
+  MapPin,
+  Search,
+  ShoppingBag,
+} from "lucide-react-native";
+
+import { useQuery } from "convex/react";
+import { api } from "@repo/backend";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { useLocation } from "../providers/LocationProvider";
+import { useCart } from "../providers/CartProvider";
 
 /**
  * The catalogue header: where you are, what you're looking at, and the cart.
@@ -26,6 +36,10 @@ export function ShopHeader({
   subtitle?: string;
 }) {
   const { point, denied, requesting, request } = useLocation();
+  const { count } = useCart();
+  // Args-free and unconditional: it returns 0 when signed out rather than
+  // needing an isSignedIn gate, which is how guest browsing gets broken.
+  const unread = useQuery(api.data.user_notifications.getMyUnreadCount, {}) ?? 0;
 
   const locationLabel = point
     ? // Coordinates until reverse geocoding lands. Deliberately not faked as a
@@ -54,14 +68,48 @@ export function ShopHeader({
           <ChevronDown size={16} color="#5A6372" />
         </Pressable>
 
-        <Pressable
-          onPress={() => router.push("/cart")}
-          accessibilityRole="button"
-          accessibilityLabel="Basket"
-          className="size-control rounded-pill items-center justify-center active:opacity-70"
-        >
-          <ShoppingBag size={24} color="#0A0E16" />
-        </Pressable>
+        <View className="flex-row items-center">
+          {/*
+            The bell, with a dot rather than a number: the exact count of unread
+            notifications is not a decision anyone makes, and the query behind it
+            is capped for the same reason.
+          */}
+          <Pressable
+            onPress={() => router.push("/notifications")}
+            accessibilityRole="button"
+            accessibilityLabel={
+              unread > 0 ? `Notifications, ${unread} unread` : "Notifications"
+            }
+            className="size-control rounded-pill items-center justify-center active:opacity-70"
+          >
+            <Bell size={22} color="#0A0E16" />
+            {unread > 0 ? (
+              <View className="bg-primary right-space-2 top-space-2 size-[9px] rounded-pill absolute" />
+            ) : null}
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/cart")}
+            accessibilityRole="button"
+            accessibilityLabel={
+              count > 0 ? `Basket, ${count} items` : "Basket, empty"
+            }
+            className="size-control rounded-pill items-center justify-center active:opacity-70"
+          >
+            <ShoppingBag size={24} color="#0A0E16" />
+            {/*
+              The count, which neither header showed before — a customer could
+              not tell from any screen whether they had a basket at all.
+            */}
+            {count > 0 ? (
+              <View className="bg-primary right-space-1 top-space-1 min-w-[18px] rounded-pill absolute items-center justify-center px-[4px]">
+                <Text size="caption" weight="bold" variant="onBrand">
+                  {count > 99 ? "99+" : count}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
       </View>
 
       <View className="gap-space-1">

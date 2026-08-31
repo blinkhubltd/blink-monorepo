@@ -284,6 +284,33 @@ Security, from a REST client:
       nothing does not. Tapping a recent term re-runs it.
 - [ ] Clear removes them, and they stay gone after a force-quit.
 - [ ] The keyboard's Search key commits immediately rather than waiting.
+## 15. Notifications
+
+- [ ] The bell in the catalogue header shows a dot only when something is
+      unread, and the basket icon now carries a count — check both headers, the
+      catalogue one and the pushed-screen one.
+- [ ] Place an order, then have admin move it along. The status notification
+      arrives and tapping it opens THAT order. The backend still writes
+      `/order-details/<id>`, a path this app does not have, so a regression here
+      shows up as a not-found screen.
+- [ ] Tapping an unread one clears its dot. Mark all as read clears the rest.
+- [ ] A notification with no order and no known route is not pressable, and
+      offers a delete instead of a chevron.
+
+Security, from a REST client - this is the one to actually try:
+
+- [ ] `data/user_notifications:getUserNotifications` is GONE from the public
+      function list. It took `userId` as an argument, and delivery-code
+      notifications carry the six-digit handover code in their message and in
+      `data.deliveryCode` - so it was a second door onto the secret that
+      `generateDeliveryCode` was closed for.
+- [ ] `createDeliveryCodeNotification` and the other six creators are gone too.
+      Anyone could previously write a notification titled "Your Delivery Code"
+      into any customer's feed, with a phone number of their choosing.
+- [ ] `getMyNotifications` unauthenticated returns an empty list, not an error
+      and not somebody's feed.
+- [ ] Rider notifications still work - the rider app moved onto the same
+      auth-derived queries in this change.
 
 ---
 

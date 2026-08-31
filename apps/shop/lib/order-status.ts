@@ -99,14 +99,18 @@ export const ORDER_STATUS: Record<OrderStatus, StatusPresentation> = {
  * honest; guessing a colour for it is not.
  */
 export function presentStatus(status: string): StatusPresentation {
-  return (
-    ORDER_STATUS[status as OrderStatus] ?? {
-      label: status,
-      helper: "",
-      variant: "secondary" as const,
-      step: null,
-    }
-  );
+  // `hasOwn`, not a bare index: indexing an object literal with
+  // "constructor" reaches Object.prototype and returns a truthy function, so
+  // the `??` fallback never fires and the badge renders `undefined`.
+  if (Object.prototype.hasOwnProperty.call(ORDER_STATUS, status)) {
+    return ORDER_STATUS[status as OrderStatus]!;
+  }
+  return {
+    label: status,
+    helper: "",
+    variant: "secondary" as const,
+    step: null,
+  };
 }
 
 /** Whether this order is still expected to arrive. */

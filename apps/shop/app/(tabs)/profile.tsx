@@ -6,6 +6,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import {
+  Bell,
   ChevronRight,
   Crosshair,
   ExternalLink,
@@ -78,6 +79,8 @@ export default function ProfileScreen() {
   // yet" — which reads as an answer and is the same loading-vs-absent slip the
   // wishlist heart used to make.
   const savedCount = wishlist ? wishlist.productIds.length : null;
+  const unread = useQuery(api.data.user_notifications.getMyUnreadCount, {});
+  const unreadCount = unread === undefined ? null : unread;
 
   if (!isSignedIn) {
     return (
@@ -178,6 +181,19 @@ export default function ProfileScreen() {
                 : "Not set — used to pick which shops to show"
             }
             onPress={() => void request()}
+          />
+          <Separator />
+          <Row
+            icon={<Bell size={20} color="#5A6372" />}
+            label="Notifications"
+            detail={
+              unreadCount === null
+                ? undefined
+                : unreadCount > 0
+                  ? `${unreadCount} unread`
+                  : "All caught up"
+            }
+            onPress={() => router.push("/notifications")}
           />
           <Separator />
           <Row

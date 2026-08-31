@@ -2,24 +2,54 @@ import {
   action,
   internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   query,
 } from "../_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { api, internal } from "../_generated/api";
 import {
   notificationReadStatus,
   notificationTypes,
 } from "../validators";
+import { getAuthUser, getAuthUserOrNull } from "../auth.helpers";
 
 // 90 days in milliseconds
 const NOTIFICATION_RETENTION_PERIOD = 90 * 24 * 60 * 60 * 1000;
 
+/** Past this the badge reads "9+", so counting further is wasted work. */
+const UNREAD_BADGE_CAP = 9;
+
+/** Ceiling on one mark-all pass. See the note on `markAllMyNotificationsRead`. */
+const MAX_BULK_MARK = 200;
+
+/**
+ * `notifications.data` is `v.any()`, so its shape is whatever the writer chose.
+ * These two readers narrow the only fields the customer app navigates by, and
+ * return null for anything else rather than passing an untyped blob to a client.
+ */
+function readOrderId(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const value = (data as { orderId?: unknown }).orderId;
+  return typeof value === "string" ? value : null;
+}
+
+function readRoute(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const value = (data as { route?: unknown }).route;
+  return typeof value === "string" ? value : null;
+}
+
 /**
  * Get all notifications for a user (excludes auto-deleted ones)
  */
-export const getUserNotifications = query({
+/**
+ * @internal Took `userId` as an argument and was public, so any caller could read any
+ * user's feed — and delivery-code notifications carry the six-digit handover
+ * code in their message and in `data.deliveryCode`. Use `getMyNotifications`.
+ */
+export const getUserNotifications = internalQuery({
   args: {
     userId: v.id("users"),
     limit: v.optional(v.number()),
@@ -63,7 +93,10 @@ export const getUserNotifications = query({
 /**
  * Get unread notification count for a user (excludes old notifications)
  */
-export const getUnreadNotificationCount = query({
+/**
+ * @internal Took `userId` as an argument. Use `getMyUnreadCount`.
+ */
+export const getUnreadNotificationCount = internalQuery({
   args: {
     userId: v.id("users"),
   },
@@ -169,7 +202,14 @@ export const scheduleNotificationCleanup = internalAction({
 /**
  * Create a new notification with automatic expiry tracking
  */
-export const createNotification = mutation({
+/**
+ * @internal Was a public mutation, so anyone could write into any
+ * customer's notification feed. A notification titled "Your Delivery Code"
+ * carrying an attacker's number is a phishing message delivered inside the
+ * app the customer trusts. Reached through `internal.*` from the actions in
+ * `notifications.ts`.
+ */
+export const createNotification = internalMutation({
   args: {
     userId: v.id("users"),
     type: v.union(...notificationTypes.map((e) => v.literal(e))),
@@ -198,7 +238,14 @@ export const createNotification = mutation({
 /**
  * Create notification for rider assignment
  */
-export const createRiderAssignmentNotification = mutation({
+/**
+ * @internal Was a public mutation, so anyone could write into any
+ * customer's notification feed. A notification titled "Your Delivery Code"
+ * carrying an attacker's number is a phishing message delivered inside the
+ * app the customer trusts. Reached through `internal.*` from the actions in
+ * `notifications.ts`.
+ */
+export const createRiderAssignmentNotification = internalMutation({
   args: {
     riderId: v.id("users"),
     orderId: v.id("orders"),
@@ -238,7 +285,14 @@ export const createRiderAssignmentNotification = mutation({
 /**
  * Create notification for picker assignment
  */
-export const createPickerAssignmentNotification = mutation({
+/**
+ * @internal Was a public mutation, so anyone could write into any
+ * customer's notification feed. A notification titled "Your Delivery Code"
+ * carrying an attacker's number is a phishing message delivered inside the
+ * app the customer trusts. Reached through `internal.*` from the actions in
+ * `notifications.ts`.
+ */
+export const createPickerAssignmentNotification = internalMutation({
   args: {
     pickerId: v.id("users"),
     orderId: v.id("orders"),
@@ -276,7 +330,14 @@ export const createPickerAssignmentNotification = mutation({
 /**
  * Create notification for vendor pickers about new order
  */
-export const createVendorPickerNotification = mutation({
+/**
+ * @internal Was a public mutation, so anyone could write into any
+ * customer's notification feed. A notification titled "Your Delivery Code"
+ * carrying an attacker's number is a phishing message delivered inside the
+ * app the customer trusts. Reached through `internal.*` from the actions in
+ * `notifications.ts`.
+ */
+export const createVendorPickerNotification = internalMutation({
   args: {
     pickerId: v.id("users"),
     orderId: v.id("orders"),
@@ -314,7 +375,14 @@ export const createVendorPickerNotification = mutation({
 /**
  * Create notification for rider when order is ready for pickup
  */
-export const createOrderReadyNotification = mutation({
+/**
+ * @internal Was a public mutation, so anyone could write into any
+ * customer's notification feed. A notification titled "Your Delivery Code"
+ * carrying an attacker's number is a phishing message delivered inside the
+ * app the customer trusts. Reached through `internal.*` from the actions in
+ * `notifications.ts`.
+ */
+export const createOrderReadyNotification = internalMutation({
   args: {
     riderId: v.id("users"),
     orderId: v.id("orders"),
@@ -350,7 +418,14 @@ export const createOrderReadyNotification = mutation({
 /**
  * Create delivery code notification for customers
  */
-export const createDeliveryCodeNotification = mutation({
+/**
+ * @internal Was a public mutation, so anyone could write into any
+ * customer's notification feed. A notification titled "Your Delivery Code"
+ * carrying an attacker's number is a phishing message delivered inside the
+ * app the customer trusts. Reached through `internal.*` from the actions in
+ * `notifications.ts`.
+ */
+export const createDeliveryCodeNotification = internalMutation({
   args: {
     userId: v.id("users"),
     orderId: v.id("orders"),
@@ -390,7 +465,14 @@ export const createDeliveryCodeNotification = mutation({
 /**
  * Create order status update notification for customers
  */
-export const createOrderStatusNotification = mutation({
+/**
+ * @internal Was a public mutation, so anyone could write into any
+ * customer's notification feed. A notification titled "Your Delivery Code"
+ * carrying an attacker's number is a phishing message delivered inside the
+ * app the customer trusts. Reached through `internal.*` from the actions in
+ * `notifications.ts`.
+ */
+export const createOrderStatusNotification = internalMutation({
   args: {
     userId: v.id("users"),
     orderId: v.id("orders"),
@@ -461,7 +543,10 @@ export const createOrderStatusNotification = mutation({
 /**
  * Mark a notification as read
  */
-export const markNotificationAsRead = mutation({
+/**
+ * @internal Took `userId` as an argument. Use `markMyNotificationRead`.
+ */
+export const markNotificationAsRead = internalMutation({
   args: {
     notificationId: v.id("notifications"),
     userId: v.id("users"),
@@ -491,7 +576,11 @@ export const markNotificationAsRead = mutation({
 /**
  * Mark all notifications as read for a user
  */
-export const markAllNotificationsAsRead = mutation({
+/**
+ * @internal Took `userId` as an argument, and `.collect()`s an unbounded set. Use
+ * `markAllMyNotificationsRead`.
+ */
+export const markAllNotificationsAsRead = internalMutation({
   args: {
     userId: v.id("users"),
   },
@@ -526,7 +615,10 @@ export const markAllNotificationsAsRead = mutation({
 /**
  * Delete a notification
  */
-export const deleteNotification = mutation({
+/**
+ * @internal Took `userId` as an argument. Use `deleteMyNotification`.
+ */
+export const deleteNotification = internalMutation({
   args: {
     notificationId: v.id("notifications"),
     userId: v.id("users"),
@@ -546,7 +638,10 @@ export const deleteNotification = mutation({
 /**
  * Delete all read notifications for a user
  */
-export const deleteReadNotifications = mutation({
+/**
+ * @internal Took `userId` as an argument, and `.collect()`s an unbounded set.
+ */
+export const deleteReadNotifications = internalMutation({
   args: {
     userId: v.id("users"),
   },
@@ -580,7 +675,7 @@ export const createOrderNotification = mutation({
   },
   handler: async (ctx, args): Promise<any> => {
     return await ctx.runMutation(
-      api.data.user_notifications.createOrderStatusNotification,
+      internal.data.user_notifications.createOrderStatusNotification,
       {
         userId: args.userId,
         orderId: args.orderId,
@@ -755,5 +850,175 @@ export const getNotificationStats = query({
     };
 
     return stats;
+  },
+});
+
+// ── The caller's own notifications ────────────────────────────────────────
+//
+// The functions above take `userId: v.id("users")` as an argument and are public.
+// That is not merely an IDOR over a notification feed:
+// `createDeliveryCodeNotification` stores the six-digit handover code in the
+// notification's message AND in `data.deliveryCode`, so
+// `getUserNotifications({ userId })` returned the code that authorises releasing
+// someone else's parcel, to an unauthenticated caller.
+//
+// That is the same disclosure closed on `orders.generateDeliveryCode`, still open
+// through a second door — worth stating plainly, because closing one route to a
+// secret and leaving another is how a fix comes to be believed.
+//
+// The six `create*Notification` mutations are equally public, so anyone could
+// write into any customer's feed. A notification titled "🔐 Your Delivery Code"
+// with an attacker's phone number in it is a complete phishing primitive, and it
+// arrives inside the app the customer trusts. They are internal now; the actions
+// in `notifications.ts` reach them through `internal.*`.
+
+/**
+ * The caller's own notifications, newest first.
+ *
+ * Signed out returns an empty list rather than throwing: the bell renders in a
+ * header that a guest can see.
+ */
+export const getMyNotifications = query({
+  args: {
+    limit: v.optional(v.number()),
+    status: v.optional(
+      v.union(...notificationReadStatus.map((e) => v.literal(e))),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthUserOrNull(ctx);
+    if (!user) return [];
+
+    const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
+    const cutoff = Date.now() - NOTIFICATION_RETENTION_PERIOD;
+
+    const rows = args.status
+      ? await ctx.db
+          .query("notifications")
+          .withIndex("by_user_status", (q) =>
+            q.eq("user_id", user.user._id).eq("status", args.status!),
+          )
+          .order("desc")
+          .take(limit)
+      : await ctx.db
+          .query("notifications")
+          .withIndex("by_user_created", (q) =>
+            q.eq("user_id", user.user._id),
+          )
+          .order("desc")
+          .take(limit);
+
+    return rows
+      .filter((n) => n.created_at > cutoff)
+      .map((n) => ({
+        _id: n._id,
+        type: n.type,
+        status: n.status,
+        title: n.title,
+        message: n.message,
+        created_at: n.created_at,
+        // `data` is `v.any()` — whatever the writer put there. Only the two
+        // fields the app navigates by are projected, rather than handing the
+        // client an untyped blob whose contents nobody controls.
+        orderId: readOrderId(n.data),
+        route: readRoute(n.data),
+      }));
+  },
+});
+
+/** How many unread notifications the caller has, capped for display. */
+export const getMyUnreadCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getAuthUserOrNull(ctx);
+    if (!user) return 0;
+
+    // Capped read rather than a count of everything: the badge shows "9+" past
+    // nine, so reading a thousand rows to render "9+" is wasted work — and an
+    // unbounded read is how a query starts throwing at scale.
+    const rows = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_status", (q) =>
+        q.eq("user_id", user.user._id).eq("status", "unread"),
+      )
+      .take(UNREAD_BADGE_CAP + 1);
+
+    const cutoff = Date.now() - NOTIFICATION_RETENTION_PERIOD;
+    return rows.filter((n) => n.created_at > cutoff).length;
+  },
+});
+
+/** Mark one of the caller's own notifications read. */
+export const markMyNotificationRead = mutation({
+  args: { notificationId: v.id("notifications") },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const notification = await ctx.db.get(args.notificationId);
+    // One message for both cases, so this cannot be used to test whether a
+    // notification id exists.
+    if (!notification || notification.user_id !== user._id) {
+      throw new ConvexError("Notification not found.");
+    }
+    if (notification.status === "read") return { alreadyRead: true };
+
+    const now = Date.now();
+    await ctx.db.patch(args.notificationId, {
+      status: "read",
+      read_at: now,
+      updated_at: now,
+    });
+    return { alreadyRead: false };
+  },
+});
+
+/** Mark all of the caller's unread notifications read. */
+export const markAllMyNotificationsRead = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await getAuthUser(ctx);
+
+    // Bounded. Its predecessor collected the whole unread index, which is
+    // unbounded by construction and throws past the document limit — and the
+    // customer it throws for is the one who never opened the screen.
+    const rows = await ctx.db
+      .query("notifications")
+      .withIndex("by_user_status", (q) =>
+        q.eq("user_id", user._id).eq("status", "unread"),
+      )
+      .take(MAX_BULK_MARK);
+
+    const cutoff = Date.now() - NOTIFICATION_RETENTION_PERIOD;
+    const now = Date.now();
+    const marking = rows.filter((n) => n.created_at > cutoff);
+
+    await Promise.all(
+      marking.map((n) =>
+        ctx.db.patch(n._id, { status: "read", read_at: now, updated_at: now }),
+      ),
+    );
+
+    return {
+      marked: marking.length,
+      // True when the cap was hit, so the caller knows another pass is needed
+      // rather than believing the feed is clear.
+      more: rows.length === MAX_BULK_MARK,
+    };
+  },
+});
+
+/** Delete one of the caller's own notifications. */
+export const deleteMyNotification = mutation({
+  args: { notificationId: v.id("notifications") },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const notification = await ctx.db.get(args.notificationId);
+    if (!notification || notification.user_id !== user._id) {
+      throw new ConvexError("Notification not found.");
+    }
+
+    await ctx.db.delete(args.notificationId);
+    return { deleted: true };
   },
 });

@@ -69,9 +69,9 @@ const ALLOWED = new Set<string>([
   "data.shipments.getCrewDeliveryDetail",
   "data.shipments.listRiderDeliveries",
   "data.tracking.confirmDelivery",
-  "data.user_notifications.getUnreadNotificationCount",
-  "data.user_notifications.getUserNotifications",
-  "data.user_notifications.markAllNotificationsAsRead",
+  "data.user_notifications.getMyNotifications",
+  "data.user_notifications.getMyUnreadCount",
+  "data.user_notifications.markAllMyNotificationsRead",
   "data.vendors.getHubForCrew",
   "user.users.getCurrentUser",
 ]);
