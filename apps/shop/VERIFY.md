@@ -382,10 +382,61 @@ Security, from a REST client:
 - [ ] `data/orders:createClearanceOrder` is gone from the public function list.
 - [ ] `beginClearanceCheckout` with an `expectedTotal` that does not match is
       refused, and nothing is charged.
+## 18. Agents and referrals
+
+**Read this section before testing.** The hole it closes is the most serious
+found in this port: `incrementInstallCount` and `incrementRegistrationCount`
+were public, unauthenticated mutations that credited an agent's balance, keyed
+only on the referral code printed on the agent's own QR poster. Anyone who could
+read a poster could call either in a loop and mint earnings, withdrawable
+through the Paystack payout path.
+
+Security, from a REST client - do these first:
+
+- [ ] `data/marketing:incrementInstallCount` and `incrementRegistrationCount`
+      are GONE from the public function list.
+- [ ] `data/marketing:getAgentByUser`, `getAgentEarnings`, `getAgentStats` and
+      `data/agent_payment_requests:getAgentPaymentRequests` are gone too. Each
+      took an id with no auth; the first returned the agent's M-Pesa number and
+      Paystack recipient code.
+- [ ] `attributeMyRegistration` unauthenticated → `Unauthorized`.
+- [ ] Call `attributeMyRegistration` twice with a valid code as the same signed-in
+      customer. The agent's registration count and balance move ONCE. Check the
+      `users` row now carries `referred_by_agent_id`.
+- [ ] Call it as the agent themselves → refused, no credit.
+- [ ] Call it with a code that does not exist → the same shape as a valid call,
+      with nothing credited. It must not reveal whether the code exists.
+
+The screens:
+
+- [ ] As a non-agent customer, Profile shows a Referral code row and NO agent
+      row. Confirm the agent row is hidden, not shown-and-empty.
+- [ ] As an agent (assign an agent record in admin), Profile shows the agent row
+      and it opens `/agent`.
+- [ ] The dashboard shows Available to withdraw, and when a request is open, the
+      earned-and-unpaid figure with the difference named. Confirm they differ.
+- [ ] Nothing on the screen or in the network response contains the Paystack
+      recipient code or the M-Pesa number. Check the response body, not just the
+      UI.
+- [ ] With payouts not enabled, the request form explains rather than failing on
+      submit.
+- [ ] Request a payout for exactly the available balance: accepted. For one
+      shilling more: refused with a reason before submitting.
+- [ ] Open a second request while one is pending → refused.
+- [ ] Set `agent_payout_days` to a day that is not today → the request is
+      refused by the server, and the screen shows that message. Then clear the
+      setting to an empty string: payouts must work again, NOT be blocked
+      forever (an empty setting used to mean no day was allowed).
+- [ ] A rejected request shows the admin's rejection reason. The old dashboard
+      never showed it.
 
 ---
 
 ## Known not-done
+
+- **Referral capture from a QR deep link.** The code is entered by hand on
+  `/referral`. The link would carry it into the same verified mutation, with
+  the same one-credit-per-account guarantee - it is wiring, not new rules.
 
 - **Paystack.** Pay-on-delivery is complete end to end. The card step needs the
   native SDK on a real device and is not faked — the quote is already recorded

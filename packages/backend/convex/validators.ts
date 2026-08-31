@@ -531,6 +531,16 @@ export const UsersValidator = v.object({
   push_token: v.optional(v.string()),
   role_id: v.optional(v.id("roles")),
   isStaff: v.optional(v.boolean()),
+  /**
+   * Which agent, if any, this account was registered through.
+   *
+   * Set once and never cleared, which is what makes referral crediting
+   * idempotent: the previous `incrementRegistrationCount` was a public,
+   * unauthenticated mutation keyed on the agent code printed on the poster, so
+   * it could be replayed indefinitely and each call credited money. One credit
+   * per real account, ever, is enforced by the presence of this field.
+   */
+  referred_by_agent_id: v.optional(v.id("agents")),
   updated_at: v.optional(v.number()),
 });
 

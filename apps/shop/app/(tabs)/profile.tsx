@@ -9,12 +9,14 @@ import {
   Bell,
   ChevronRight,
   Crosshair,
+  Gift,
   ExternalLink,
   FileText,
   Heart,
   MapPin,
   Package,
   ShieldCheck,
+  TrendingUp,
   User as UserIcon,
 } from "lucide-react-native";
 
@@ -80,6 +82,10 @@ export default function ProfileScreen() {
   // wishlist heart used to make.
   const savedCount = wishlist ? wishlist.productIds.length : null;
   const unread = useQuery(api.data.user_notifications.getMyUnreadCount, {});
+  // Null for the great majority of customers, who are not agents. The row is
+  // hidden rather than shown-and-empty: an "Agent" entry that explains it does
+  // not apply to you is noise on every profile.
+  const agent = useQuery(api.data.marketing.getMyAgentSummary, {});
   const unreadCount = unread === undefined ? null : unread;
 
   if (!isSignedIn) {
@@ -218,6 +224,26 @@ export default function ProfileScreen() {
                   : `${savedCount} ${savedCount === 1 ? "item" : "items"}`
             }
             onPress={() => router.push("/saved")}
+          />
+        </View>
+
+        <View className="border-hairline border-border bg-card rounded-lg">
+          {agent ? (
+            <>
+              <Row
+                icon={<TrendingUp size={20} color="#5A6372" />}
+                label="Agent dashboard"
+                detail={`Code ${agent.code}`}
+                onPress={() => router.push("/agent")}
+              />
+              <Separator />
+            </>
+          ) : null}
+          <Row
+            icon={<Gift size={20} color="#5A6372" />}
+            label="Referral code"
+            detail="Credit whoever signed you up"
+            onPress={() => router.push("/referral")}
           />
         </View>
 

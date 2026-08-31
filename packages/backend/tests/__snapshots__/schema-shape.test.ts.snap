@@ -5332,6 +5332,13 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         },
         "optional": true,
       },
+      "referred_by_agent_id": {
+        "fieldType": {
+          "tableName": "agents",
+          "type": "id",
+        },
+        "optional": true,
+      },
       "rider_details": {
         "fieldType": {
           "type": "object",
