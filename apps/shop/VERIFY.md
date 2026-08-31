@@ -484,14 +484,49 @@ Security, from a REST client:
 
 ## Known not-done
 
-- **Referral capture from a QR deep link.** The code is entered by hand on
-  `/referral`. The link would carry it into the same verified mutation, with
-  the same one-credit-per-account guarantee - it is wiring, not new rules.
+**Paystack card payment.** Pay-on-delivery is complete end to end, for both the
+catalogue and clearance baskets. The card step needs the native SDK on a real
+device and is deliberately not faked: the quote is already recorded and the
+amount fixed, so it slots in without touching pricing. Port
+`PaystackPayment.tsx` behaviour-first, in its own commit, including the
+`AppState` background-to-active re-verification — that dance exists because real
+payments really do return through a backgrounded app.
 
-- **Paystack.** Pay-on-delivery is complete end to end. The card step needs the
-  native SDK on a real device and is not faked — the quote is already recorded
-  and the amount fixed, so it slots in without touching pricing.
+**Legal prose.** The three legal screens are replaced by links to the website
+(§12), which is the single copy. The paths in `lib/legal.ts` have never been
+checked against the live site — confirm them before shipping.
 
-- **Clearance** is now built (§17) as a separate basket and checkout, which is
-  what the data model requires: its own table, stock, expiry and delivery rule.
-  Card payment there is blocked by the same missing Paystack step.
+**Referral capture from a QR deep link.** The code is entered by hand on
+`/referral`. A link would carry it into the same verified mutation with the same
+one-credit-per-account guarantee: wiring, not new rules.
+
+**Crediting installs.** `incrementInstallCount` is internal and has no public
+replacement, deliberately. An install is not verifiable from a client, so
+crediting one has to be driven by something the server trusts (a store
+attribution callback, or nothing). Until that is decided, installs are counted
+but not credited — which is a product decision, not an oversight.
+
+**The customer shipment screens are not ported, on purpose.**
+`shipments.tsx` and `shipment-tracking/[shipmentId].tsx` in the old app read
+`tracking.getShipmentTracking`, `getRiderLocation`, `getDeliveryTimeline` and
+`getEstimatedDeliveryTime` — the four queries that returned whole rider and
+customer rows, and live rider GPS, to any caller holding a shipment id. Porting
+them would have meant reopening those. `/order/[id]/track` covers what a customer
+needs from the same data, owner-scoped.
+
+**Order-to-picker routing is now live for the first time.** Fixing the dead
+function references (§19) means `assignOrderToPicker` actually assigns and
+notifies. That is what the code was written to do, but it has never run — watch
+the picker queue after the first orders.
+
+**Two questions still open, both about money.**
+
+1. *Is VAT included in listed prices?* The quote records `tax: 0` explicitly so
+   the assumption is visible. The old code divided by 1.16 to back VAT out of a
+   VAT-inclusive price while writing `tax_amount: 0`, and `cart.ts` used
+   `taxRate = 0.0`. Whoever set the prices should confirm which is true.
+2. *Should a vendor's own service radius, or the platform limit, cap clearance
+   visibility?* Clearance uses its own `clearance_service_radius` setting, so a
+   deal can be visible where a catalogue product from the same shop is not. That
+   is the existing behaviour, kept deliberately, but it is worth confirming it is
+   intended.
