@@ -267,6 +267,23 @@ Security, from a REST client:
       `deleteMyAddress` unauthenticated → `Unauthorized`, and none of the three
       accepts a `clerkId` or `user_id`.
 - [ ] `data/legal_acceptances:recordAcceptance` accepts no version argument.
+## 14. Search
+
+- [ ] Run `data/products:backfillProductsSearchText` once before testing. Rows
+      created before the search field existed have no `searchText`, so they are
+      invisible to search however well they match.
+- [ ] Type one letter: nothing is searched. Two: results appear after a beat.
+      Watch the network panel — one request per settled term, not per keystroke.
+- [ ] A product stocked ONLY by a shop that cannot reach you must not appear.
+      This is the point of the query; the old autocomplete had no coverage
+      filter at all.
+- [ ] Set a location outside every radius and search → "no shops deliver here",
+      not "nothing found".
+- [ ] Search something absurd → "Nothing for X", distinct from both above.
+- [ ] A term that returned results appears under Recent; one that returned
+      nothing does not. Tapping a recent term re-runs it.
+- [ ] Clear removes them, and they stay gone after a force-quit.
+- [ ] The keyboard's Search key commits immediately rather than waiting.
 
 ---
 

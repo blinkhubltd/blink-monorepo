@@ -145,4 +145,6 @@ export const StorageKeys = {
   guestCart: "shop:guestCart:v1",
   /** Last known delivery point, so the catalogue can render before GPS resolves. */
   location: "shop:location:v1",
+  /** The last few search terms. Convenience only: losing them costs nothing. */
+  recentSearches: "shop:recentSearches:v1",
 } as const;

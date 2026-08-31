@@ -153,6 +153,48 @@ export const categoryTreeForShop = query({
   },
 });
 
+/** A covering vendor and how far it is from the customer. */
+type Covering = { vendor: Doc<"vendors">; distanceMeters: number };
+
+/**
+ * Active vendors whose service radius covers a point, nearest first, capped.
+ *
+ * Shared by the category listing and search, so the two cannot disagree about
+ * who delivers where — which they would the first time one of them was tuned.
+ * Kept local to this file rather than in `coverage.ts` because it applies the
+ * platform radius ceiling, which the older query does not.
+ */
+async function coveringVendors(
+  ctx: QueryCtx,
+  lat: number,
+  lng: number,
+): Promise<Covering[]> {
+  const radiusLimit = await readRadiusLimit(ctx);
+  const vendors = await ctx.db
+    .query("vendors")
+    .withIndex("by_status", (q) => q.eq("status", "Active"))
+    .collect();
+
+  return vendors
+    .map((vendor) => {
+      const origin = vendorOrigin(vendor);
+      const distanceMeters = haversineMetres(lat, lng, origin.lat, origin.lng);
+      // The platform limit caps what a vendor can claim. A vendor row saved
+      // before the limit existed is grandfathered in the admin UI, but must not
+      // out-reach the ceiling here or the limit is decorative.
+      const effectiveRadius =
+        radiusLimit === null
+          ? vendor.service_radius
+          : Math.min(vendor.service_radius, radiusLimit);
+      return distanceMeters <= effectiveRadius
+        ? { vendor, distanceMeters: Math.round(distanceMeters) }
+        : null;
+    })
+    .filter((c): c is Covering => c !== null)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    .slice(0, MAX_VENDORS);
+}
+
 /**
  * Products under a category subtree, restricted to vendors that deliver to the
  * given point and to `status === "Active"`.
@@ -196,37 +238,7 @@ export const productsInCategoryTreeByCoverage = query({
     );
 
     // ── 2. Coverage. If no vendor covers the point, read zero products. ──
-    const radiusLimit = await readRadiusLimit(ctx);
-    const vendors = await ctx.db
-      .query("vendors")
-      .withIndex("by_status", (q) => q.eq("status", "Active"))
-      .collect();
-
-    const covering = vendors
-      .map((vendor) => {
-        const origin = vendorOrigin(vendor);
-        const distanceMeters = haversineMetres(
-          args.lat,
-          args.lng,
-          origin.lat,
-          origin.lng,
-        );
-        // The platform limit caps what a vendor can claim. A vendor row saved
-        // before the limit existed is grandfathered in the admin UI, but must
-        // not out-reach the ceiling here or the limit is decorative.
-        const effectiveRadius =
-          radiusLimit === null
-            ? vendor.service_radius
-            : Math.min(vendor.service_radius, radiusLimit);
-        return distanceMeters <= effectiveRadius
-          ? { vendor, distanceMeters: Math.round(distanceMeters) }
-          : null;
-      })
-      .filter(
-        (c): c is { vendor: Doc<"vendors">; distanceMeters: number } => !!c,
-      )
-      .sort((a, b) => a.distanceMeters - b.distanceMeters)
-      .slice(0, MAX_VENDORS);
+    const covering = await coveringVendors(ctx, args.lat, args.lng);
 
     if (covering.length === 0) {
       return {
@@ -392,5 +404,148 @@ export const productsByIds = query({
           };
         }),
     );
+  },
+});
+
+/** One row the search screen renders. */
+interface SearchResult {
+  _id: Id<"products">;
+  name: string;
+  slug?: string;
+  price: number;
+  quantity: number;
+  unit_value?: number;
+  unit_type?: string;
+  requires_prescription: boolean;
+  category_id: Id<"categories">;
+  imageUrl: string | null;
+  vendor: { _id: Id<"vendors">; name: string; distanceMeters: number } | null;
+}
+
+/**
+ * How many search hits are read before coverage filtering.
+ *
+ * Convex's search index can filter on one value per field, so "vendor in this
+ * set of up to 25" cannot be expressed in the query — the alternative is 25
+ * separate searches per keystroke. So the best `SEARCH_SCAN` matches are read by
+ * relevance and filtered in memory.
+ *
+ * The honest cost: if every one of the top 200 matches belongs to a shop that
+ * cannot reach the customer, the screen shows nothing while matches exist
+ * further down. `truncated` is returned so the UI can say it is showing the
+ * closest matches rather than implying the catalogue is exhausted.
+ */
+const SEARCH_SCAN = 200;
+
+/** Results returned to the screen, whatever was scanned to find them. */
+const SEARCH_LIMIT = 30;
+
+/**
+ * Search products a customer can actually be delivered.
+ *
+ * ── Why not `products.searchProductsAutocomplete` ────────────────────────
+ *
+ * That query filters `status === "Active"` and stops there: no coverage. A
+ * customer could search, find a product stocked only by a shop 40km outside its
+ * own delivery radius, add it to the basket, and discover at checkout that
+ * nobody can bring it. The category browse flow has been coverage-aware since
+ * the first slice; search reaching around it made that guarantee decorative.
+ *
+ * It also returned `is_clearance: false` hardcoded on every row, and no stock,
+ * so the card could not render its own out-of-stock state.
+ *
+ * ── `coverageEmpty` is not "no results" ──────────────────────────────────
+ *
+ * Same distinction the category screen makes: "no shop delivers to your address
+ * yet" is about the address, "nothing matches shoes" is about the search. One
+ * message for both is what the old UI showed, and it sends the customer looking
+ * for a different search term when the problem is their location.
+ */
+export const searchProductsByCoverage = query({
+  args: {
+    term: v.string(),
+    lat: v.number(),
+    lng: v.number(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const term = args.term.trim();
+    const limit = Math.min(Math.max(args.limit ?? SEARCH_LIMIT, 1), SEARCH_LIMIT);
+
+    const empty = {
+      products: [] as SearchResult[],
+      coverageEmpty: false,
+      truncated: false,
+      vendorCount: 0,
+    };
+
+    // A blank term reads zero rows rather than returning the whole catalogue by
+    // relevance-of-nothing.
+    if (!term) return empty;
+
+    const covering = await coveringVendors(ctx, args.lat, args.lng);
+    if (covering.length === 0) {
+      return { ...empty, coverageEmpty: true };
+    }
+
+    const distanceByVendor = new Map<string, number>(
+      covering.map((c) => [c.vendor._id, c.distanceMeters]),
+    );
+    const vendorById = new Map<string, Doc<"vendors">>(
+      covering.map((c) => [c.vendor._id, c.vendor]),
+    );
+
+    const hits = await ctx.db
+      .query("products")
+      .withSearchIndex("search_text", (q) =>
+        q.search("searchText", term).eq("status", "Active"),
+      )
+      .take(SEARCH_SCAN);
+
+    const deliverable = hits.filter(
+      (p) => p.vendor_id && distanceByVendor.has(p.vendor_id),
+    );
+
+    const page = deliverable.slice(0, limit);
+
+    const products = await Promise.all(
+      page.map(async (product) => {
+        const images = await Promise.all(
+          (product.images ?? []).map((id) => ctx.storage.getUrl(id)),
+        );
+        const vendor = product.vendor_id
+          ? vendorById.get(product.vendor_id)
+          : undefined;
+        return {
+          _id: product._id,
+          name: product.name,
+          slug: product.slug,
+          price: product.price,
+          quantity: product.quantity,
+          unit_value: product.unit_value,
+          unit_type: product.unit_type,
+          requires_prescription: product.requires_prescription ?? false,
+          category_id: product.category_id,
+          imageUrl: images.find((u): u is string => !!u) ?? null,
+          vendor:
+            vendor && product.vendor_id
+              ? {
+                  _id: vendor._id,
+                  name: vendor.name,
+                  distanceMeters: distanceByVendor.get(product.vendor_id) ?? 0,
+                }
+              : null,
+        };
+      }),
+    );
+
+    return {
+      products,
+      coverageEmpty: false,
+      // True when the scan cap was reached, so hits beyond it were never
+      // considered — including deliverable ones.
+      truncated: hits.length >= SEARCH_SCAN,
+      vendorCount: covering.length,
+    };
   },
 });
