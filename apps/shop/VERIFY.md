@@ -311,6 +311,29 @@ Security, from a REST client - this is the one to actually try:
       and not somebody's feed.
 - [ ] Rider notifications still work - the rider app moved onto the same
       auth-derived queries in this change.
+## 16. Your details, and rating a delivery
+
+- [ ] Profile → tap your name. Change the first name, save: the header updates.
+      The name goes to Clerk and the phone to Convex, and they save separately -
+      confirm a failure in one does not report as a failure of both.
+- [ ] Save an invalid phone ("abc", "123") → refused with a reason. The server
+      applies the same rule, so this cannot be bypassed by a modified client.
+- [ ] Email is shown and not editable, with an explanation.
+- [ ] An undelivered order offers Track, not Rate.
+- [ ] Mark an order Delivered in admin. The order screen offers Rate; five
+      stars sends, and the screen then says you rated it.
+- [ ] Reopen it: the stars show your score and cannot be changed. Rating twice
+      is refused rather than overwriting.
+- [ ] The rating screen shows the rider's FIRST name only, and no phone number.
+
+Security, from a REST client:
+
+- [ ] `data/ratings:submitRiderRating` and `getRiderRatingContext` are gone from
+      the public function list. The first let anyone set a rider's score with
+      only an order id; the second returned the rider's full name and phone to
+      the same caller.
+- [ ] `rateMyDelivery` on an order you do not own → "Order not found", the same
+      answer as an id that does not exist.
 
 ---
 

@@ -212,10 +212,27 @@ export default function OrderScreen() {
         </View>
 
         <View className="gap-space-3">
-          <Button
-            label="Track this order"
-            onPress={() => router.push(`/order/${order._id}/track`)}
-          />
+          {/*
+            Rating is offered only once the order is actually delivered — the
+            screen behind it refuses anything else, so showing it earlier would
+            be a button that exists to be rejected.
+          */}
+          {order.order_status === "Delivered" ? (
+            <Button
+              label={
+                order.rider_rating
+                  ? "You rated this delivery"
+                  : "Rate your delivery"
+              }
+              variant={order.rider_rating ? "outline" : "default"}
+              onPress={() => router.push(`/order/${order._id}/rate`)}
+            />
+          ) : (
+            <Button
+              label="Track this order"
+              onPress={() => router.push(`/order/${order._id}/track`)}
+            />
+          )}
           <Button
             variant="outline"
             label="Keep shopping"

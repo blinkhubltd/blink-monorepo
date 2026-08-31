@@ -113,7 +113,13 @@ export default function ProfileScreen() {
       <ScreenHeader title="Profile" showCart={false} />
 
       <ScrollView contentContainerClassName="px-screen gap-space-5 pb-space-10">
-        <View className="gap-space-3 flex-row items-center">
+        {/* The header is the way into editing, which is where people look. */}
+        <Pressable
+          onPress={() => router.push("/edit-profile")}
+          accessibilityRole="button"
+          accessibilityLabel="Edit your details"
+          className="gap-space-3 flex-row items-center active:opacity-70"
+        >
           {/* The primitive renders the initial itself; no children needed. */}
           <Avatar uri={user?.imageUrl} fallback={initial} />
           <View className="gap-space-1 flex-1">
@@ -121,12 +127,17 @@ export default function ProfileScreen() {
               <Text size="base" weight="semibold">
                 {name}
               </Text>
-            ) : null}
+            ) : (
+              <Text size="base" weight="semibold">
+                Add your name
+              </Text>
+            )}
             <Text size="sm" variant="muted" numberOfLines={1}>
               {email}
             </Text>
           </View>
-        </View>
+          <ChevronRight size={18} color="#818A99" />
+        </Pressable>
 
         {/*
           Surfaced rather than swallowed: a signed-in customer with no `users`
