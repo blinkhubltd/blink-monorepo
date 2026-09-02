@@ -37,6 +37,8 @@ function read(...parts: string[]): string {
 }
 
 const payments = read("data", "payments.ts");
+const checkout = read("data", "checkout.ts");
+const orderWrite = read("data", "order_write.ts");
 const split = read("data", "payment_split.ts");
 const subaccounts = read("data", "paystack_subaccounts.ts");
 const webhook = read("webhooks", "paystack.ts");
@@ -57,6 +59,7 @@ function stripComments(source: string): string {
 const paymentsCode = stripComments(payments);
 const splitCode = stripComments(split);
 const subaccountsCode = stripComments(subaccounts);
+const checkoutCode = stripComments(checkout);
 
 /** Brace-matched `args:` block — see the note in cart-auth-api.test.ts. */
 function argsOf(body: string): string {
@@ -233,5 +236,149 @@ describe("vendor payout wiring", () => {
     expect(splitCode).toMatch(
       /internal\.data\.paystack_subaccounts\.upsert/,
     );
+  });
+});
+
+describe("settlement writes the orders, and only from server-held data", () => {
+  it("settlePaidCheckout is internal and takes only a reference", () => {
+    // A public mutation that writes paid orders from a reference is a public
+    // mutation that writes paid orders.
+    expect(checkoutCode).toMatch(
+      /export const settlePaidCheckout = internalMutation\(/,
+    );
+    const body = fnBody(checkout, "settlePaidCheckout");
+    expect(argsOf(body).replace(/[\s,]/g, "")).toBe("reference:v.string()");
+  });
+
+  it("it refuses anything that is not a verified, priced, deliverable checkout", () => {
+    const body = fnBody(checkout, "settlePaidCheckout");
+    // The one that matters: no Successful status, no orders.
+    expect(body).toMatch(/payment\.status !== "Successful"/);
+    expect(body).toMatch(/!payment\.quote/);
+    expect(body).toMatch(/!payment\.fulfilment/);
+    // Each refusal is named, so a stuck checkout is diagnosable from logs
+    // rather than by guessing.
+    for (const reason of ["no_payment", "not_paid", "no_quote", "no_fulfilment"]) {
+      expect(body, reason).toContain(`"${reason}" as const`);
+    }
+  });
+
+  it("it reads every figure off the stored quote, never off a product row", () => {
+    const body = fnBody(checkout, "settlePaidCheckout");
+    expect(body).toMatch(/quote: payment\.quote/);
+    // Re-pricing here would write an order that no longer matches the amount
+    // already captured.
+    expect(body).not.toMatch(/buildQuote|resolveMyBasket|readDeliveryPricing/);
+  });
+
+  it("both triggers converge on it", () => {
+    // The returning app...
+    expect(checkoutCode).toMatch(
+      /internal\.data\.checkout\.settlePaidCheckout/,
+    );
+    // ...and the verification edge, which the signed webhook also reaches.
+    expect(stripComments(payments)).toMatch(
+      /internal\.data\.checkout\.settlePaidCheckout/,
+    );
+  });
+
+  it("the writer is idempotent on the reference, before it inserts anything", () => {
+    // Paystack retries webhooks, and a returning app can race one. Two order
+    // sets for one payment is the failure this prevents.
+    const code = stripComments(orderWrite);
+    const guard = code.indexOf("by_payment_reference");
+    const insert = code.indexOf('ctx.db.insert("orders"');
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(insert);
+    expect(code).toMatch(/reused: true/);
+  });
+
+  it("the basket is emptied only after every order is written", () => {
+    const code = stripComments(orderWrite);
+    expect(code.indexOf('ctx.db.insert("orders"')).toBeLessThan(
+      code.indexOf('.query("cart")'),
+    );
+  });
+
+  it("item ids are validated against their table rather than cast", () => {
+    // A clearance id written into `order_items` points at a row of the wrong
+    // shape, and vice versa.
+    const code = stripComments(orderWrite);
+    expect(code).toMatch(/normalizeId\(\s*"clearance_products",/);
+    expect(code).toMatch(/normalizeId\("products", item\.productId\)/);
+    expect(code).not.toMatch(/as Id<"products">|as Id<"clearance_products">/);
+  });
+});
+
+describe("the customer-facing confirmation", () => {
+  it("confirmMyCardPayment carries a reference and no verdict", () => {
+    const body = fnBody(checkout, "confirmMyCardPayment");
+    expect(argsOf(body).replace(/[\s,]/g, "")).toBe("reference:v.string()");
+    // The old app's sheet called a public updatePaymentStatus({status:
+    // "Successful"}) from its own onSuccess. That is the shape being refused.
+    expect(argsOf(body)).not.toMatch(/successful|status|amount|paystackResponse/);
+  });
+
+  it("it checks the payment is the caller's before spending a request on it", () => {
+    const body = fnBody(checkout, "confirmMyCardPayment");
+    const ownership = body.indexOf("assertMyPayment");
+    const verify = body.indexOf("verifyPaystack");
+    expect(ownership).toBeGreaterThan(-1);
+    expect(ownership).toBeLessThan(verify);
+  });
+
+  it("assertMyPayment compares the payment's owner to the token's user", () => {
+    // Without this a reference is a bearer token for someone else's checkout.
+    const body = fnBody(checkout, "assertMyPayment");
+    expect(body).toMatch(/getAuthUser\(ctx\)/);
+    expect(body).toMatch(/payment\.user_id !== user\._id/);
+  });
+
+  it("a missing secret key reports unverifiable, not pending", () => {
+    // `verifyPaystack` returns `skipped: true` when PAYSTACK_SECRET_KEY is
+    // unset. The old client treated that exactly like a slow charge: 45s of
+    // polling, then silence. A misconfigured deployment must say so.
+    const body = fnBody(checkout, "confirmMyCardPayment");
+    expect(body).toMatch(/verification\.skipped/);
+    expect(body).toMatch(/state: "unverifiable"/);
+    const skipped = body.indexOf("verification.skipped");
+    const verified = body.indexOf("verification.verified");
+    expect(skipped).toBeLessThan(verified);
+  });
+
+  it("it distinguishes a terminal failure from a charge still in flight", () => {
+    const body = fnBody(checkout, "confirmMyCardPayment");
+    expect(body).toMatch(/"failed"/);
+    expect(body).toMatch(/"abandoned"/);
+    expect(body).toMatch(/"reversed"/);
+    expect(body).toMatch(/state: "pending"/);
+  });
+});
+
+describe("beginCheckout captures the address before the sheet opens", () => {
+  it("pay_now without fulfilment is refused", () => {
+    // The refusal has to come before capture. Afterwards there would be money
+    // taken and nowhere to deliver to.
+    const body = fnBody(checkout, "beginCheckout");
+    expect(body).toMatch(/args\.paymentMode === "pay_now" && !args\.fulfilment/);
+  });
+
+  it("the guard runs before pricing", () => {
+    const body = fnBody(checkout, "beginCheckout");
+    expect(body.indexOf("!args.fulfilment")).toBeLessThan(
+      body.indexOf("priceOrThrow"),
+    );
+  });
+
+  it("fulfilment is stored on the payment row, so the webhook needs no client", () => {
+    const body = fnBody(checkout, "beginCheckout");
+    expect(body).toMatch(/fulfilment: args\.fulfilment/);
+  });
+
+  it("the amount charged is the server's figure, not the client's", () => {
+    const body = fnBody(checkout, "beginCheckout");
+    expect(body).toMatch(/amount: quote\.total/);
+    // expectedTotal is compared, never stored.
+    expect(body).toMatch(/quoteMatchesExpected\(quote, args\.expectedTotal\)/);
   });
 });

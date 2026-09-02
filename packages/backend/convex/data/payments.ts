@@ -446,6 +446,25 @@ export const applyVerificationResult = internalMutation({
       updated_at: Date.now(),
     });
 
+    /*
+      The quote-first path: settle the checkout this payment belongs to.
+
+      This is the edge that turns money into orders, and it is reached from
+      both triggers — the paying customer's app coming back, and the Paystack
+      webhook with that app closed. `settlePaidCheckout` is idempotent on the
+      reference, so the two racing produces one order set.
+
+      Guarded on `!payment.order_id` because the legacy order-first rows below
+      already have their order and must not get a second one. Those creators
+      are all internal with no callers now, so in practice this branch is the
+      only live one.
+    */
+    if (nextStatus === "Successful" && !payment.order_id) {
+      await ctx.runMutation(internal.data.checkout.settlePaidCheckout, {
+        reference: args.reference,
+      });
+    }
+
     if (args.successful && payment.order_id) {
       await ctx.db.patch(payment.order_id, {
         payment_status: "Paid",

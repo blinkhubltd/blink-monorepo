@@ -2745,6 +2745,90 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         },
         "optional": false,
       },
+      "fulfilment": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "address": {
+              "fieldType": {
+                "type": "object",
+                "value": {
+                  "address_1": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "address_2": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "city": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "country": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "lat": {
+                    "fieldType": {
+                      "type": "number",
+                    },
+                    "optional": true,
+                  },
+                  "lng": {
+                    "fieldType": {
+                      "type": "number",
+                    },
+                    "optional": true,
+                  },
+                  "street": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                },
+              },
+              "optional": false,
+            },
+            "receiverContact": {
+              "fieldType": {
+                "type": "object",
+                "value": {
+                  "name": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": false,
+                  },
+                  "phone": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": false,
+                  },
+                },
+              },
+              "optional": true,
+            },
+            "specialInstructions": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": true,
+            },
+          },
+        },
+        "optional": true,
+      },
       "order_id": {
         "fieldType": {
           "tableName": "orders",

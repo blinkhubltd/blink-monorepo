@@ -896,6 +896,44 @@ export const PaymentsValidator = v.object({
   updated_at: v.number(),
 
   /**
+   * Where the delivery goes, captured before payment opens.
+   *
+   * This is the other half of what makes the card path safe, and it is here
+   * rather than on the finalising call for one reason: **the customer's app
+   * may never come back.** They pay in a webview, or approve an M-Pesa STK
+   * push, and the OS kills the app, or the network drops, or they simply
+   * close it. Paystack has the money either way.
+   *
+   * With the address held here, the Paystack webhook can write the orders on
+   * its own — it needs nothing from the client. The old app could not do
+   * that: `checkout.tsx` held the address in component state and handed it
+   * to the finaliser, so a customer who paid and vanished left a captured
+   * payment with no order, which is the state its Retry alert apologised
+   * for.
+   *
+   * Optional because a pay-on-delivery checkout has no reason to store it
+   * ahead of time — `placeMyOrder` is called by a client that is, by
+   * definition, still there. `beginCheckout` requires it for `pay_now`.
+   */
+  fulfilment: v.optional(
+    v.object({
+      address: v.object({
+        street: v.optional(v.string()),
+        address_1: v.optional(v.string()),
+        address_2: v.optional(v.string()),
+        city: v.optional(v.string()),
+        country: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+      }),
+      receiverContact: v.optional(
+        v.object({ name: v.string(), phone: v.string() }),
+      ),
+      specialInstructions: v.optional(v.string()),
+    }),
+  ),
+
+  /**
    * The basket as priced when this payment was initiated.
    *
    * Payment is authorised at initiation and orders are written after Paystack
