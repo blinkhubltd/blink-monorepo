@@ -99,7 +99,7 @@ export function CategoryImport({ categories, onClose }: CategoryImportProps) {
       let slug = generateSlug(String(row.name));
 
       // Ensure unique slug
-      let slugBase = slug;
+      const slugBase = slug;
       let counter = 1;
       while (existingSlugs.has(slug)) {
         slug = `${slugBase}-${counter}`;
