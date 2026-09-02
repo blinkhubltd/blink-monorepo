@@ -130,7 +130,10 @@ export const quoteMyClearanceBasket = query({
       .first();
     if (!user) return null;
 
-    const { lines, unavailable } = await resolveMyClearanceBasket(ctx, user._id);
+    const { lines, unavailable } = await resolveMyClearanceBasket(
+      ctx,
+      user._id,
+    );
     if (lines.length === 0) return null;
 
     const settings = await readClearanceDeliveryPricing(ctx);
@@ -152,12 +155,49 @@ export const quoteMyClearanceBasket = query({
  *
  * Idempotent on the reference, exactly as `beginCheckout` is: a retried tap must
  * not create a second payment row and must not re-price.
+ *
+ * ── Clearance is paid up front, always ──────────────────────────────────
+ *
+ * `paymentMode` is a single literal rather than the two-way union the
+ * catalogue checkout takes, so pay-on-delivery is not expressible here rather
+ * than rejected at runtime. Kept as an argument at all so the two checkouts
+ * read the same at the call site, and so the reason is stated where someone
+ * widening it would look.
+ *
+ * Clearance stock is finite, per-listing and short-dated, and the lines are
+ * already discounted. A cash-on-arrival refusal writes off inventory that was
+ * held out of the catalogue for the duration of the delivery, and there is no
+ * second unit behind it.
  */
+/** Same shape as the catalogue checkout's. Declared locally to avoid a cycle. */
+const clearanceFulfilmentArgs = {
+  address: v.object({
+    street: v.optional(v.string()),
+    address_1: v.optional(v.string()),
+    address_2: v.optional(v.string()),
+    city: v.optional(v.string()),
+    country: v.optional(v.string()),
+    lat: v.optional(v.number()),
+    lng: v.optional(v.number()),
+  }),
+  receiverContact: v.optional(
+    v.object({ name: v.string(), phone: v.string() }),
+  ),
+  specialInstructions: v.optional(v.string()),
+} as const;
+
 export const beginClearanceCheckout = mutation({
   args: {
     reference: v.string(),
-    paymentMode: v.union(v.literal("pay_now"), v.literal("pay_on_delivery")),
+    paymentMode: v.literal("pay_now"),
     expectedTotal: v.optional(v.float64()),
+    /**
+     * Required, unlike on the catalogue checkout, because every clearance
+     * checkout is a card checkout — and a card checkout that cannot be settled
+     * without the client coming back is the failure this stores against. See
+     * `PaymentsValidator.fulfilment`.
+     */
+    fulfilment: v.object(clearanceFulfilmentArgs),
   },
   handler: async (ctx, args) => {
     const { user } = await getAuthUser(ctx);
@@ -174,6 +214,7 @@ export const beginClearanceCheckout = mutation({
         reference: existing.reference,
         amount: existing.amount,
         quote: existing.quote ?? null,
+        customerEmail: existing.customerEmail,
         reused: true as const,
       };
     }
@@ -205,173 +246,31 @@ export const beginClearanceCheckout = mutation({
       reference: args.reference,
       amount: quote.total,
       customerEmail,
-      payment_method:
-        args.paymentMode === "pay_on_delivery" ? "Cash on Delivery" : "Card",
+      payment_method: "Card",
       status: "Pending",
       payment_date: now,
       updated_at: now,
       quote: quote as never,
+      fulfilment: args.fulfilment,
     });
 
     return {
       reference: args.reference,
       amount: quote.total,
       quote,
+      customerEmail,
       reused: false as const,
     };
   },
 });
 
-/**
- * Place a pay-on-delivery clearance order, one per vendor.
- *
- * Stock is decremented through the existing internal mutation, scheduled the way
- * `createClearanceOrder` did — clearance stock is finite and per-listing, and
- * that mutation is where the decrement rule lives.
- */
-export const placeMyClearanceOrder = mutation({
-  args: {
-    reference: v.string(),
-    address: v.object({
-      street: v.optional(v.string()),
-      address_1: v.optional(v.string()),
-      address_2: v.optional(v.string()),
-      city: v.optional(v.string()),
-      country: v.optional(v.string()),
-      lat: v.optional(v.number()),
-      lng: v.optional(v.number()),
-    }),
-    receiverContact: v.optional(
-      v.object({ name: v.string(), phone: v.string() }),
-    ),
-    specialInstructions: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { user } = await getAuthUser(ctx);
+/*
+  `placeMyClearanceOrder` was here.
 
-    const payment = await ctx.db
-      .query("payments")
-      .withIndex("by_reference", (q) => q.eq("reference", args.reference))
-      .first();
-    if (!payment) {
-      throw new ConvexError(
-        "No checkout was started for this order. Please try again.",
-      );
-    }
-    if (payment.user_id !== user._id) {
-      throw new ConvexError("This checkout belongs to a different customer");
-    }
-    if (payment.payment_method !== "Cash on Delivery") {
-      throw new ConvexError(
-        "This checkout was started for online payment. Complete the payment instead.",
-      );
-    }
-
-    const quote = payment.quote;
-    if (!quote) {
-      throw new ConvexError("This checkout has no price attached. Start again.");
-    }
-    if (!quote.isClearance) {
-      throw new ConvexError(
-        "This checkout is not a clearance basket. Use the regular checkout.",
-      );
-    }
-
-    // Idempotent on the reference.
-    const existing = await ctx.db
-      .query("orders")
-      .withIndex("by_payment_reference", (q) =>
-        q.eq("payment_reference", args.reference),
-      )
-      .collect();
-    if (existing.length > 0) {
-      return { orderIds: existing.map((o) => o._id), reused: true as const };
-    }
-
-    const now = Date.now();
-    const orderIds: Id<"orders">[] = [];
-
-    for (const leg of quote.legs) {
-      const orderId = await ctx.db.insert("orders", {
-        reference: `${args.reference}-${orderIds.length + 1}`,
-        order_date: now,
-        vendor_id: leg.vendorId,
-        user_id: user._id,
-        service_radius: 0,
-        payment_mode: "pay_on_delivery",
-        order_status: "Confirmed",
-        payment_status: "Unpaid",
-        payment_method: "Cash on Delivery",
-        subtotal_amount: leg.subtotal,
-        tax_amount: quote.tax,
-        discount_amount: 0,
-        delivery_fee: leg.deliveryFee,
-        total_amount: leg.total,
-        payment_reference: args.reference,
-        idempotency_key: args.reference,
-        address: args.address,
-        receiver_contact: args.receiverContact,
-        special_instructions: args.specialInstructions || undefined,
-        // One order per vendor, each flagged, so picking and dispatch can tell
-        // a clearance delivery from a catalogue one.
-        is_clearance: true,
-        updated_at: now,
-      });
-
-      for (const item of leg.lines) {
-        // Validated against the table rather than cast: a regular product id in
-        // a clearance quote would otherwise be written into
-        // `clearance_order_items`, pointing at a row of the wrong shape.
-        const clearanceProductId = ctx.db.normalizeId(
-          "clearance_products",
-          item.productId,
-        );
-        if (!clearanceProductId) {
-          throw new ConvexError(
-            "This checkout mixes catalogue items into a clearance basket.",
-          );
-        }
-
-        await ctx.db.insert("clearance_order_items", {
-          order_id: orderId,
-          clearance_product_id: clearanceProductId,
-          vendor_id: item.vendorId,
-          name: item.name,
-          sku: item.sku ?? "",
-          quantity: item.quantity,
-          // As quoted. A listing whose discount is edited afterwards must not
-          // rewrite a receipt the customer already has.
-          original_price: item.originalPrice ?? item.unitPrice,
-          clearance_price: item.unitPrice,
-          discount_percentage: item.discountPercentage ?? 0,
-          tax: 0,
-          total: item.lineTotal,
-          unit_type: item.unitType,
-          unit_value: item.unitValue,
-          is_picked: false,
-          picked_quantity: 0,
-        });
-
-        await ctx.scheduler.runAfter(
-          0,
-          internal.data.clearance_products.decrementStock,
-          { id: clearanceProductId, quantity: item.quantity },
-        );
-      }
-
-      orderIds.push(orderId);
-    }
-
-    // Emptied only after every order is written, so a failure part-way leaves
-    // the basket intact and the retry above finds what it did create.
-    const cart = await ctx.db
-      .query("clearance_cart")
-      .withIndex("by_user", (q) => q.eq("user_id", user._id))
-      .first();
-    if (cart) {
-      await ctx.db.patch(cart._id, { items: [], updated_at: now });
-    }
-
-    return { orderIds, reused: false as const };
-  },
-});
+  It existed only to write pay-on-delivery clearance orders, and clearance is
+  paid up front now, so there is nothing for it to do. Card settlement goes
+  through `checkout.settlePaidCheckout`, which reads `quote.isClearance` and
+  writes `clearance_order_items` and the stock decrements through the shared
+  `order_write` path — the same code the catalogue basket uses, so the two
+  cannot drift.
+*/

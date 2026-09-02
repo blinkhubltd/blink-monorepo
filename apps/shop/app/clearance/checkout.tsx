@@ -21,7 +21,6 @@ import {
   AddressPicker,
   DeliveryAddressSection,
   DeliveryInstructionsSection,
-  PaymentModeSection,
   ReceiverSection,
   SectionCard,
   type AddressForDisplay,
@@ -34,6 +33,8 @@ import {
   validateReceiver,
 } from "../../lib/checkout-rules";
 import { formatKES } from "../../lib/format";
+import { isCardPaymentConfigured } from "../../lib/paystack-config";
+import { useCardPayment } from "../../lib/use-card-payment";
 import { LEGAL_DOC_META, legalUrl, type LegalDoc } from "../../lib/legal";
 import { openExternal } from "../../lib/open-external";
 
@@ -65,14 +66,24 @@ export default function ClearanceCheckoutScreen() {
   const [instructions, setInstructions] = useState("");
   const [receiverName, setReceiverName] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
-  const [paymentMode, setPaymentMode] = useState<"pay_now" | "pay_on_delivery">(
-    "pay_on_delivery",
-  );
   const [pickingAddress, setPickingAddress] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [pendingReference, setPendingReference] = useState<string | null>(null);
+
+  /*
+    Clearance is paid up front, so this screen has no payment mode and no
+    pay-on-delivery path at all — see `beginClearanceCheckout`, whose
+    `paymentMode` is a single literal so the alternative is not expressible.
+  */
+  const cardConfigured = isCardPaymentConfigured();
+  const card = useCardPayment({
+    onSettled: (orderIds) => {
+      const first = orderIds[0];
+      router.replace(first ? `/order/${first}` : "/orders");
+    },
+  });
 
   const quoteResult = useQuery(
     api.data.clearance_checkout.quoteMyClearanceBasket,
@@ -88,9 +99,6 @@ export default function ClearanceCheckoutScreen() {
   );
   const beginClearanceCheckout = useMutation(
     api.data.clearance_checkout.beginClearanceCheckout,
-  );
-  const placeMyClearanceOrder = useMutation(
-    api.data.clearance_checkout.placeMyClearanceOrder,
   );
   const recordAcceptance = useMutation(
     api.data.legal_acceptances.recordAcceptance,
@@ -111,8 +119,7 @@ export default function ClearanceCheckoutScreen() {
     if (!addresses || !selectedLabel) return null;
     return (
       (addresses.find((a) => a.label === selectedLabel) as
-        | AddressForDisplay
-        | undefined) ?? null
+        AddressForDisplay | undefined) ?? null
     );
   }, [addresses, selectedLabel]);
 
@@ -158,41 +165,38 @@ export default function ClearanceCheckoutScreen() {
 
       const started = await beginClearanceCheckout({
         reference,
-        paymentMode,
+        paymentMode: "pay_now",
         expectedTotal: quote.total,
-      });
-
-      if (paymentMode === "pay_now") {
-        // Paystack needs the native SDK on a device, so it is not faked. The
-        // quote is recorded and the amount fixed, so the card step slots in
-        // without touching pricing.
-        setFailure(
-          `Card payment is not available in this build. Your total of ${formatKES(started.amount)} is confirmed and nothing has been charged — choose "Pay on delivery" to place the order now.`,
-        );
-        return;
-      }
-
-      const result = await placeMyClearanceOrder({
-        reference,
-        address: {
-          street: selectedAddress.address?.address_1,
-          address_1: selectedAddress.address?.address_1,
-          address_2: selectedAddress.address?.address_2,
-          city: selectedAddress.address?.city,
-          country: selectedAddress.address?.country,
-          // The address's own coordinates, not the device's.
-          lat: selectedAddress.coordinates.lat,
-          lng: selectedAddress.coordinates.lng,
+        fulfilment: {
+          address: {
+            street: selectedAddress.address?.address_1,
+            address_1: selectedAddress.address?.address_1,
+            address_2: selectedAddress.address?.address_2,
+            city: selectedAddress.address?.city,
+            country: selectedAddress.address?.country,
+            // The address's own coordinates, not the device's.
+            lat: selectedAddress.coordinates.lat,
+            lng: selectedAddress.coordinates.lng,
+          },
+          receiverContact:
+            receiver.required && receiverName.trim()
+              ? { name: receiverName.trim(), phone: receiverPhone.trim() }
+              : undefined,
+          specialInstructions: instructions.trim() || undefined,
         },
-        receiverContact:
-          receiver.required && receiverName.trim()
-            ? { name: receiverName.trim(), phone: receiverPhone.trim() }
-            : undefined,
-        specialInstructions: instructions.trim() || undefined,
       });
 
-      const first = result.orderIds[0];
-      router.replace(first ? `/order/${first}` : "/orders");
+      /*
+        The only path. Orders are written server-side once verification
+        confirms the charge, and the hook's `onSettled` navigates; if this app
+        never comes back the webhook settles it anyway. Stock is decremented
+        there too, through the same shared writer the catalogue basket uses.
+      */
+      card.start({
+        reference: started.reference,
+        amount: started.amount,
+        email: started.customerEmail,
+      });
     } catch (error) {
       setFailure(
         error instanceof Error
@@ -380,7 +384,18 @@ export default function ClearanceCheckoutScreen() {
             />
           ) : null}
 
-          <PaymentModeSection mode={paymentMode} onChange={setPaymentMode} />
+          {/*
+            No payment-mode choice: clearance is paid up front. Stated rather
+            than silently absent, because a customer who has used the
+            catalogue checkout has seen the option and will look for it.
+          */}
+          <SectionCard title="Payment">
+            <Text size="sm">
+              Clearance deals are paid now, by card, M-Pesa or bank. Stock is
+              limited and short-dated, so it is held for you only once payment
+              clears.
+            </Text>
+          </SectionCard>
 
           <View className="gap-space-2 flex-row flex-wrap items-baseline">
             <Text size="caption" variant="subtle">
@@ -392,6 +407,39 @@ export default function ClearanceCheckoutScreen() {
             </Text>
             <LegalLink doc="privacy" onFail={setFailure} />
           </View>
+
+          {/*
+            With no publishable key there is no way to pay for a clearance
+            basket at all, since there is no cash fallback. Said plainly
+            instead of failing on the button.
+          */}
+          {!cardConfigured ? (
+            <View className="bg-warning-soft p-space-4 rounded-md">
+              <Text size="sm">
+                Payments are not configured in this build, so a clearance order
+                cannot be placed. Nothing in your basket has been lost.
+              </Text>
+            </View>
+          ) : null}
+
+          {card.message ? (
+            <View
+              className={`p-space-4 rounded-md ${
+                card.state.kind === "failed"
+                  ? "bg-destructive-soft"
+                  : "bg-accent"
+              }`}
+            >
+              <Text
+                size="sm"
+                variant={
+                  card.state.kind === "failed" ? "destructive" : "default"
+                }
+              >
+                {card.message}
+              </Text>
+            </View>
+          ) : null}
 
           {failure ? (
             <View className="bg-destructive-soft p-space-4 rounded-md">
@@ -418,9 +466,7 @@ export default function ClearanceCheckoutScreen() {
         <View className="border-hairline border-border bg-card px-screen py-space-4 gap-space-2">
           <View className="flex-row items-baseline justify-between">
             <Text size="sm" variant="muted">
-              {paymentMode === "pay_on_delivery"
-                ? "Pay on delivery"
-                : "To pay now"}
+              To pay now
             </Text>
             <Text variant="price" size="priceLg">
               {formatKES(quote.total)}
@@ -429,13 +475,11 @@ export default function ClearanceCheckoutScreen() {
           <Button
             size="lg"
             full
-            loading={placing}
-            disabled={blockers.length > 0 || placing}
-            label={
-              paymentMode === "pay_on_delivery"
-                ? `Place order · ${formatKES(quote.total)}`
-                : `Pay ${formatKES(quote.total)}`
+            loading={placing || card.busy}
+            disabled={
+              blockers.length > 0 || placing || card.busy || !card.canPay
             }
+            label={`Pay ${formatKES(quote.total)}`}
             onPress={() => void place()}
           />
         </View>
