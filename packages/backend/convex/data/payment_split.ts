@@ -1,6 +1,6 @@
 import { v, ConvexError } from "convex/values";
-import { action } from "../_generated/server";
-import { api } from "../_generated/api";
+import { internalAction } from "../_generated/server";
+import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { getOptionalEnv, requireEnv } from "../lib/env";
 import { PAYSTACK_BASE_URL } from "../lib/paystack";
@@ -202,7 +202,7 @@ function nonNegativeInt(n: number): number {
 
 // Prepare Paystack split_code for a cart checkout payment reference.
 // This is called from the mobile client BEFORE opening Paystack popup.
-export const preparePaystackSplitForCheckout = action({
+export const preparePaystackSplitForCheckout = internalAction({
   args: {
     reference: v.string(),
     cartItems: v.array(
@@ -651,7 +651,7 @@ export const preparePaystackSplitForCheckout = action({
         subaccount_code: maskCode(subaccountCode),
       });
 
-      await ctx.runMutation(api.data.paystack_subaccounts.upsert, {
+      await ctx.runMutation(internal.data.paystack_subaccounts.upsert, {
         key: key as "primary" | "secondary",
         business_name,
         bank_code,
@@ -1037,7 +1037,7 @@ export const preparePaystackSplitForCheckout = action({
       split_code: splitCode,
     };
 
-    await ctx.runMutation(api.data.payments.setPaymentSplit, {
+    await ctx.runMutation(internal.data.payments.setPaymentSplit, {
       reference: args.reference,
       split_code: splitCode,
       breakdown,

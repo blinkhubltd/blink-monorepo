@@ -1,4 +1,9 @@
-import { mutation, query, action } from "../_generated/server";
+import {
+  internalAction,
+  internalMutation,
+  mutation,
+  query,
+} from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import {
   OrderItemValidator,
@@ -18,6 +23,7 @@ import {
 } from "../lib/json";
 import { PAYSTACK_BASE_URL } from "../lib/paystack";
 import { getPaystackCurrency, paystackRequest } from "./paystack_api";
+import { assertPermission } from "../auth.helpers";
 
 function computePaymentSearchText(payment: {
   reference?: string;
@@ -133,7 +139,16 @@ export const backfillPaymentsSearchText = mutation({
   },
 });
 
-export const createPayment = mutation({
+/**
+ * @deprecated Superseded by `checkout.beginCheckout`.
+ *
+ * Internal because it takes `amount` as a client argument, which is the hole
+ * `beginCheckout` was written to close: that mutation prices the caller's own
+ * basket and writes `amount` and `quote` in one transaction from one
+ * calculation. A public mutation that accepts a price is a public mutation that
+ * sets it.
+ */
+export const createPayment = internalMutation({
   args: {
     user_id: v.id("users"),
     reference: v.string(),
@@ -182,7 +197,14 @@ export const createPayment = mutation({
 });
 
 // New function to reserve stock for cart items during payment initialization
-export const createPaymentWithStockReservation = mutation({
+/**
+ * @deprecated Superseded by `checkout.beginCheckout`.
+ *
+ * Same client-supplied `amount` as `createPayment`, and it reserves stock — so
+ * an anonymous caller could hold real inventory against a price of their own
+ * choosing. No callers in any app.
+ */
+export const createPaymentWithStockReservation = internalMutation({
   args: {
     user_id: v.id("users"),
     reference: v.string(),
@@ -283,6 +305,19 @@ export const createPaymentWithStockReservation = mutation({
   },
 });
 
+/**
+ * Set a payment's status by hand.
+ *
+ * Stays public because the admin payments screen genuinely needs it — a
+ * reconciliation tool for a charge that Paystack and Blink disagree about. But
+ * it writes the field every downstream money decision reads, so it is gated.
+ *
+ * It was reachable with no authentication at all, which made the whole card flow
+ * decorative: a caller could mark their own reference `Successful` and then place
+ * a real order having paid nothing. Verified payments never come through here —
+ * they come from `applyVerificationResult`, which is internal and only ever
+ * reached after a server-to-server check against Paystack.
+ */
 export const updatePaymentStatus = mutation({
   args: {
     reference: v.string(),
@@ -290,6 +325,7 @@ export const updatePaymentStatus = mutation({
     paystackResponse: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "payments:UPDATE");
     const payment = await ctx.db
       .query("payments")
       .withIndex("by_reference", (q) => q.eq("reference", args.reference))
@@ -315,7 +351,14 @@ export const updatePaymentStatus = mutation({
   },
 });
 
-export const setPaymentSplit = mutation({
+/**
+ * Record the Paystack split for a payment.
+ *
+ * Internal: its only caller is `payment_split.preparePaystackSplitForCheckout`,
+ * which is itself backend-only. Public, it let anyone rewrite who gets paid what
+ * for any reference.
+ */
+export const setPaymentSplit = internalMutation({
   args: {
     reference: v.string(),
     split_code: v.string(),
@@ -356,7 +399,19 @@ export const setPaymentSplit = mutation({
   },
 });
 
-export const applyVerificationResult = mutation({
+/**
+ * Apply a verification outcome to a payment. THE state transition.
+ *
+ * Internal, and this is the most important guard in the payment path. Public, it
+ * took `successful: v.boolean()` from the caller — so any anonymous client could
+ * assert that any reference had been paid, and the finalisers only ever checked
+ * `payment.status === "Successful"`.
+ *
+ * The only caller is `verifyPaystack`, which reaches this after a
+ * server-to-server GET against Paystack. A client can ask us to ask Paystack; it
+ * cannot tell us the answer.
+ */
+export const applyVerificationResult = internalMutation({
   args: {
     reference: v.string(),
     paystackResponse: v.any(),
@@ -435,8 +490,20 @@ export const applyVerificationResult = mutation({
   },
 });
 
-// Server-side Paystack verification action to prevent client spoofing of success events.
-export const verifyPaystack = action({
+/**
+ * Verify a reference against Paystack, server to server, and apply the result.
+ *
+ * Internal. Reached by exactly two triggers, and neither is a client asserting an
+ * outcome:
+ *
+ *   - `webhooks/paystack.ts`, on a signature-checked charge event;
+ *   - `checkout.confirmMyCardPayment`, when the paying customer's app returns.
+ *
+ * The webhook's own comment said this could become internal "once the apps rely
+ * on this webhook instead of polling". They do now: the only app that called it
+ * directly was `blink-ecommerce`, which runs on its own deployment.
+ */
+export const verifyPaystack = internalAction({
   args: { reference: v.string() },
   handler: async (
     ctx,
@@ -504,7 +571,7 @@ export const verifyPaystack = action({
       }
 
       // Apply verification results via helper mutation
-      await ctx.runMutation(api.data.payments.applyVerificationResult, {
+      await ctx.runMutation(internal.data.payments.applyVerificationResult, {
         reference,
         paystackResponse: body,
         successful,
@@ -553,7 +620,18 @@ export const getPaymentsByOrder = query({
 });
 
 // Helper mutation to persist initiated payment (includes payer audit fields)
-export const persistInitiatedPaystackPayment = mutation({
+/**
+ * @deprecated Order-first, and writes no quote.
+ *
+ * Internal. It inserts a SECOND payments row for an order that already exists,
+ * carrying no `quote` — and `applyQuoteToOrder` returns the order unchanged when
+ * the quote is absent, so a payment created this way finalises on whatever
+ * numbers the client sent. It also took `userId` and `amount` as arguments.
+ *
+ * Kept rather than deleted: the direct-charge STK shape is what a rider-side
+ * cash-collection flow would want.
+ */
+export const persistInitiatedPaystackPayment = internalMutation({
   args: {
     orderId: v.id("orders"),
     userId: v.id("users"),
@@ -621,7 +699,15 @@ type InitiatePaystackResult =
       status: string;
     };
 
-export const initiatePaystackTransactionAction = action({
+/**
+ * @deprecated Order-first, M-Pesa-only, and returns nothing a webview can open.
+ *
+ * Internal. It requires an existing order, which the quote-first flow does not
+ * have at payment time; it hard-defaults to `mobile_money` with no card branch;
+ * and it returns `authorizationUrl: null` and `accessCode: null`. The client card
+ * step does not need it — the SDK initialises against the public key.
+ */
+export const initiatePaystackTransactionAction = internalAction({
   args: {
     orderId: v.id("orders"),
     payerEmail: v.string(),
@@ -776,7 +862,7 @@ export const initiatePaystackTransactionAction = action({
         : uniqueRef;
 
     const paymentId = await ctx.runMutation(
-      api.data.payments.persistInitiatedPaystackPayment,
+      internal.data.payments.persistInitiatedPaystackPayment,
       {
         orderId: args.orderId,
         userId: order.user_id,

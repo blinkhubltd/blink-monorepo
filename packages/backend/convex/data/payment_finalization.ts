@@ -1,5 +1,5 @@
 import { v, ConvexError } from "convex/values";
-import { mutation, type MutationCtx } from "../_generated/server";
+import { internalMutation, type MutationCtx } from "../_generated/server";
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { OrderItemWithoutOrderId, OrdersValidator } from "../validators";
@@ -133,7 +133,7 @@ async function callerFinalising(ctx: MutationCtx) {
 
 // Create orders and order_items AFTER a verified successful payment.
 // Input includes grouped vendor order payloads so multiple vendor orders can be created from a single cart payment.
-export const finalizePaidOrders = mutation({
+export const finalizePaidOrders = internalMutation({
   args: {
     reference: v.string(),
     payment_method: v.union(
@@ -348,7 +348,7 @@ export const finalizePaidOrders = mutation({
 // Finalize orders for pay_on_delivery (no upfront payment). Allows creating one or more
 // vendor orders directly with payment_status = Unpaid and order_status Confirmed.
 // Useful for cash/card on delivery flows where stock reservation may have been handled separately.
-export const finalizePayOnDeliveryOrders = mutation({
+export const finalizePayOnDeliveryOrders = internalMutation({
   args: {
     /**
      * Required. See OrdersValidator.idempotency_key — and the note on the
@@ -550,7 +550,7 @@ const ClearanceOrderGroup = v.object({
  * Finalize Paystack-paid clearance orders (one or more vendor groups).
  * Verifies payment server-side, creates orders, decrements stock, assigns pickers.
  */
-export const finalizePaidClearanceOrders = mutation({
+export const finalizePaidClearanceOrders = internalMutation({
   args: {
     reference: v.string(),
     orders: v.array(ClearanceOrderGroup),
@@ -729,7 +729,7 @@ export const finalizePaidClearanceOrders = mutation({
  * Finalize pay-on-delivery clearance orders (one or more vendor groups).
  * No upfront payment; orders are marked Confirmed immediately.
  */
-export const finalizePayOnDeliveryClearanceOrders = mutation({
+export const finalizePayOnDeliveryClearanceOrders = internalMutation({
   args: {
     /**
      * Required. See OrdersValidator.idempotency_key.

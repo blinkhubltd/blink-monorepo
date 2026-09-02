@@ -66,6 +66,15 @@ function publicMutations(source: string): { name: string; body: string }[] {
   }));
 }
 
+function internalMutations(source: string): { name: string; body: string }[] {
+  const pattern =
+    /export const (\w+) = internalMutation\(\{([\s\S]*?)\n\}\);/g;
+  return [...source.matchAll(pattern)].map((m) => ({
+    name: m[1]!,
+    body: m[2]!,
+  }));
+}
+
 describe("the delivery-code surface", () => {
   it("generateDeliveryCode is internal, so it cannot disclose the code", () => {
     // The early return hands back `order.delivery_code` when one already exists.
@@ -100,15 +109,34 @@ describe("the delivery-code surface", () => {
 });
 
 describe("payment finalisation — the real order-creating path", () => {
-  const mutations = publicMutations(finalization);
+  /*
+    All four are `internalMutation` now, which is a stronger guarantee than
+    the authentication this block originally asserted: not reachable over the
+    public API at all, rather than reachable and then refused.
 
-  it("finds all four (the extractor is not silently broken)", () => {
+    They were superseded by `checkout.placeMyOrder` (pay on delivery) and
+    `checkout.settlePaidCheckout` (card), both of which build the orders
+    server-side from the stored quote instead of accepting a client-assembled
+    `orders` array. Closing them was safe precisely because nothing in this
+    monorepo called them — `blink-ecommerce` did, and runs on its own Convex
+    deployment.
+
+    The body assertions below are kept rather than deleted. They are now
+    defence in depth, and they are what makes re-publishing one of these a
+    deliberate act: a future `internalMutation` -> `mutation` flip fails the
+    first test here, and the ones after it still hold the line on identity.
+  */
+  const mutations = internalMutations(finalization);
+
+  it("all four are internal, not public", () => {
     expect(mutations.map((m) => m.name).sort()).toEqual([
       "finalizePaidClearanceOrders",
       "finalizePaidOrders",
       "finalizePayOnDeliveryClearanceOrders",
       "finalizePayOnDeliveryOrders",
     ]);
+    // Not merely absent from the internal list — absent from the public one.
+    expect(publicMutations(finalization).map((m) => m.name)).toEqual([]);
   });
 
   it("every finaliser authenticates", () => {

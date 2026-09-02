@@ -1,4 +1,4 @@
-import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
 import {
   extractReference,
@@ -114,7 +114,7 @@ export const paystackWebhook = httpAction(async (ctx, request) => {
     // (hooks/usePayment.ts, components/payments/PaystackPayment.tsx). Once the
     // apps rely on this webhook instead of polling, it can become an
     // internalAction and this becomes `internal.`.
-    await ctx.runAction(api.data.payments.verifyPaystack, { reference });
+    await ctx.runAction(internal.data.payments.verifyPaystack, { reference });
     console.log(`[paystack] verified ${payload.event} for ${reference}`);
     return new Response(null, { status: 200 });
   } catch (error) {
