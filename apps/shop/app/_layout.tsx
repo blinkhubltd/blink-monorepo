@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PortalHost } from "@rn-primitives/portal";
+import { PaystackProvider } from "react-native-paystack-webview";
 import { useColorScheme } from "nativewind";
 import {
   Rubik_400Regular,
@@ -21,6 +22,11 @@ import {
 import { ConvexClerkProvider } from "../providers/ConvexClerkProvider";
 import { LocationProvider } from "../providers/LocationProvider";
 import { CartProvider } from "../providers/CartProvider";
+import {
+  PAYSTACK_CHANNELS,
+  PAYSTACK_CURRENCY,
+  PAYSTACK_PUBLIC_KEY,
+} from "../lib/paystack-config";
 
 /**
  * ── The navigator is mounted unconditionally. This is the refresh fix. ─────
@@ -78,20 +84,38 @@ export default function RootLayout() {
         <ConvexClerkProvider>
           <LocationProvider>
             <CartProvider>
-              <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
               {/*
+                Mounted unconditionally, even with no publishable key.
+
+                `usePaystack()` throws without a provider above it, and a hook
+                that throws on some renders and not others changes the hook
+                count between renders — which unmounts the tree rather than
+                degrading. The old app's component wrapped that call in a
+                try/catch IIFE, which is precisely that bug.
+
+                A missing key is handled where it belongs instead: the
+                checkout screens do not offer pay-now at all. See
+                `lib/paystack-config.ts`.
+              */}
+              <PaystackProvider
+                publicKey={PAYSTACK_PUBLIC_KEY}
+                currency={PAYSTACK_CURRENCY}
+                defaultChannels={[...PAYSTACK_CHANNELS]}
+              >
+                <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+                {/*
               headerShown off for the whole app; screens render their own
               headers. The catalogue's collapsing headers cannot be expressed as
               native header options, and leaving the native one on as well gives
               two stacked headers on every detail screen.
             */}
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="product/[productId]" />
-                <Stack.Screen name="cart" />
-                <Stack.Screen name="checkout" />
-                <Stack.Screen name="order/[orderId]" />
-                {/*
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="product/[productId]" />
+                  <Stack.Screen name="cart" />
+                  <Stack.Screen name="checkout" />
+                  <Stack.Screen name="order/[orderId]" />
+                  {/*
                 Auth is a MODAL over whatever route you are on, never a
                 redirect to an auth route. Two reasons: the URL does not change,
                 so signing in mid-checkout cannot lose your place on a reload;
@@ -99,20 +123,21 @@ export default function RootLayout() {
                 users elsewhere" as its job, which is what removes two of the
                 eight refresh-to-home causes rather than patching them.
               */}
-                <Stack.Screen
-                  name="(auth)"
-                  options={{
-                    presentation: "modal",
-                    animation: "slide_from_bottom",
-                  }}
-                />
-              </Stack>
-              {/*
+                  <Stack.Screen
+                    name="(auth)"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                    }}
+                  />
+                </Stack>
+                {/*
               Sheets and dialogs render through here. There is no
               @gorhom/bottom-sheet in this monorepo — the pattern is
               @rn-primitives/dialog over this host, which is what rider ships.
             */}
-              <PortalHost />
+                <PortalHost />
+              </PaystackProvider>
             </CartProvider>
           </LocationProvider>
         </ConvexClerkProvider>

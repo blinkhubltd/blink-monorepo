@@ -263,10 +263,33 @@ export function ReceiverSection({
 export function PaymentModeSection({
   mode,
   onChange,
+  allowPayNow = true,
 }: {
   mode: "pay_now" | "pay_on_delivery";
   onChange: (next: "pay_now" | "pay_on_delivery") => void;
+  /**
+   * False when this build has no Paystack publishable key.
+   *
+   * The option is removed rather than shown-and-refused. The old app offered
+   * it always and answered a tap with "Configuration Error · Paystack public
+   * key is missing" — a developer's message, to a shopper, after they had
+   * committed to paying.
+   */
+  allowPayNow?: boolean;
 }) {
+  if (!allowPayNow) {
+    return (
+      <SectionCard title="Payment">
+        <ModeOption
+          label="Pay on delivery"
+          helper="Pay the rider when your order arrives. Nothing is charged now."
+          selected
+          onPress={() => onChange("pay_on_delivery")}
+        />
+      </SectionCard>
+    );
+  }
+
   return (
     <SectionCard title="Payment">
       <View className="gap-space-2">

@@ -39,6 +39,8 @@ import {
 } from "../../lib/checkout-rules";
 import { PrescriptionUploadSection } from "../../components/checkout/prescription-upload";
 import { formatKES } from "../../lib/format";
+import { isCardPaymentConfigured } from "../../lib/paystack-config";
+import { useCardPayment } from "../../lib/use-card-payment";
 import { LEGAL_DOC_META, legalUrl, type LegalDoc } from "../../lib/legal";
 import { openExternal } from "../../lib/open-external";
 
@@ -77,8 +79,13 @@ export default function CheckoutScreen() {
   const [instructions, setInstructions] = useState("");
   const [receiverName, setReceiverName] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
+  /*
+    Defaults to pay-now, unless this build cannot take one — in which case
+    offering it and then refusing would be the old app's behaviour.
+  */
+  const cardConfigured = isCardPaymentConfigured();
   const [paymentMode, setPaymentMode] = useState<"pay_now" | "pay_on_delivery">(
-    "pay_now",
+    cardConfigured ? "pay_now" : "pay_on_delivery",
   );
   const [pickingAddress, setPickingAddress] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
@@ -88,6 +95,23 @@ export default function CheckoutScreen() {
   // Held so a retry after a failure reuses the same reference, which is what
   // makes both beginCheckout and placeMyOrder idempotent.
   const [pendingReference, setPendingReference] = useState<string | null>(null);
+
+  /*
+    The card sheet, and what happens when the server confirms.
+
+    `onSettled` fires exactly once per payment — the hook latches it — so this
+    cannot navigate twice or place a second order. The old screen had five
+    paths that each called its finaliser, unguarded.
+  */
+  const card = useCardPayment({
+    onSettled: (orderIds) => {
+      const first = orderIds[0];
+      // To the order itself when we have it. When we do not, the payment
+      // succeeded and settlement is idempotent server-side, so the orders
+      // list is the honest destination rather than an error.
+      router.replace(first ? `/order/${first}` : "/orders");
+    },
+  });
 
   const quoteResult = useQuery(
     api.data.checkout.quoteMyBasket,
@@ -107,6 +131,26 @@ export default function CheckoutScreen() {
   );
   const beginCheckout = useMutation(api.data.checkout.beginCheckout);
   const placeMyOrder = useMutation(api.data.checkout.placeMyOrder);
+
+  /*
+    Switching payment mode starts a fresh reference.
+
+    `beginCheckout` is idempotent on the reference and returns the existing row
+    untouched — including its `payment_method`. So reusing a reference that was
+    opened for pay-on-delivery and then paying by card would settle orders
+    stamped "Cash on Delivery" for money already taken, and the reverse would
+    ask a customer to pay a rider for a card charge. Nothing has been charged at
+    this point either way, so dropping the reference is free.
+  */
+  useEffect(() => {
+    setPendingReference(null);
+    setFailure(null);
+    card.reset();
+    // `card.reset` is stable (useCallback with no deps) and deliberately not a
+    // dependency: including it would re-run this on every render that produced
+    // a new closure, wiping a reference mid-payment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMode]);
 
   useEffect(() => {
     // Present sign-in over checkout rather than redirecting, so the URL — and a
@@ -225,25 +269,14 @@ export default function CheckoutScreen() {
       // appends a second row, which is correct for an append-only consent log.
       await recordAcceptance({});
 
-      const started = await beginCheckout({
-        reference,
-        paymentMode,
-        expectedTotal: quote!.total,
-      });
+      /*
+        The delivery details, built once and sent to whichever path follows.
 
-      if (paymentMode === "pay_now") {
-        // Paystack takes over here: it needs the native SDK and a real device,
-        // so it is deliberately not faked. The quote is already recorded, so
-        // whenever the payment step lands it charges `started.amount` and
-        // finalisation replays this exact quote.
-        setFailure(
-          `Card payment is not available in this build. Your total of ${formatKES(started.amount)} is confirmed and nothing has been charged — choose "Pay on delivery" to place the order now.`,
-        );
-        return;
-      }
-
-      const result = await placeMyOrder({
-        reference,
+        For a card payment these go to `beginCheckout`, which stores them on
+        the payment row — and that is what lets the Paystack webhook write the
+        orders with this app closed. See `PaymentsValidator.fulfilment`.
+      */
+      const fulfilment = {
         address: {
           street: selectedAddress.address?.address_1,
           address_1: selectedAddress.address?.address_1,
@@ -262,7 +295,38 @@ export default function CheckoutScreen() {
             ? { name: receiverName.trim(), phone: receiverPhone.trim() }
             : undefined,
         specialInstructions: instructions.trim() || undefined,
+      };
+
+      const started = await beginCheckout({
+        reference,
+        paymentMode,
+        expectedTotal: quote!.total,
+        fulfilment,
       });
+
+      if (paymentMode === "pay_now") {
+        /*
+          Hand over to Paystack.
+
+          `started.amount` is the server's figure in MAJOR units and the SDK
+          multiplies by 100 itself, so nothing is converted here. `started.email`
+          is the address the server validated, rather than this client's own copy
+          from Clerk, so the charge and the receipt agree.
+
+          Nothing below this runs: the orders are written server-side when
+          verification confirms the charge, and the hook's `onSettled`
+          navigates. If the customer never comes back, the webhook still
+          settles it.
+        */
+        card.start({
+          reference: started.reference,
+          amount: started.amount,
+          email: started.customerEmail,
+        });
+        return;
+      }
+
+      const result = await placeMyOrder({ reference, ...fulfilment });
 
       const first = result.orderIds[0];
       if (first) {
@@ -485,7 +549,11 @@ export default function CheckoutScreen() {
             />
           ) : null}
 
-          <PaymentModeSection mode={paymentMode} onChange={setPaymentMode} />
+          <PaymentModeSection
+            mode={paymentMode}
+            onChange={setPaymentMode}
+            allowPayNow={cardConfigured}
+          />
 
           {/*
             The agreement, stated where the commitment is made rather than
@@ -508,6 +576,33 @@ export default function CheckoutScreen() {
             <View className="bg-destructive-soft p-space-4 rounded-md">
               <Text size="sm" variant="destructive">
                 {failure}
+              </Text>
+            </View>
+          ) : null}
+
+          {/*
+            The card lifecycle, in the customer's words.
+
+            `pending` is styled as information, not as an error, because it is
+            not one: the charge went through and the webhook settles it
+            server-side. Colouring it red would tell a customer who has paid
+            that something is wrong.
+          */}
+          {card.message ? (
+            <View
+              className={`p-space-4 rounded-md ${
+                card.state.kind === "failed"
+                  ? "bg-destructive-soft"
+                  : "bg-accent"
+              }`}
+            >
+              <Text
+                size="sm"
+                variant={
+                  card.state.kind === "failed" ? "destructive" : "default"
+                }
+              >
+                {card.message}
               </Text>
             </View>
           ) : null}
@@ -546,8 +641,19 @@ export default function CheckoutScreen() {
           <Button
             size="lg"
             full
-            loading={placing}
-            disabled={blockers.length > 0 || placing}
+            loading={placing || card.busy}
+            /*
+              `card.busy` and `!card.canPay` both matter. The old screen gated
+              only on its own `finalizing` flag and left the Pay button live
+              while the payment settled, so a second tap reopened the sheet on
+              a reference already being charged.
+            */
+            disabled={
+              blockers.length > 0 ||
+              placing ||
+              card.busy ||
+              (paymentMode === "pay_now" && !card.canPay)
+            }
             label={
               paymentMode === "pay_on_delivery"
                 ? `Place order · ${formatKES(quote.total)}`
