@@ -252,7 +252,7 @@ export const createPaymentWithStockReservation = internalMutation({
       try {
         // Call the stock reservation function directly
         const reservation: Id<"stockReservation"> | Doc<"stockReservation"> =
-          await ctx.runMutation(api.data.stock_reservation.reserveStock, {
+          await ctx.runMutation(internal.data.stock_reservation.reserveStock, {
             productId: item.productId,
             quantity: item.quantity,
             orderReference: args.reference,
@@ -269,7 +269,7 @@ export const createPaymentWithStockReservation = internalMutation({
 
         // Release any successful reservations
         try {
-          await ctx.runMutation(api.data.stock_reservation.releaseStock, {
+          await ctx.runMutation(internal.data.stock_reservation.releaseStock, {
             orderReference: args.reference,
           });
         } catch (releaseError) {

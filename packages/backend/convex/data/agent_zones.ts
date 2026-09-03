@@ -1,9 +1,21 @@
 import { v, ConvexError } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "../_generated/server";
 import {
   AgentZonesValidator,
   agentZoneEarningTypes,
 } from "../validators";
+import { assertPermission } from "../auth.helpers";
+
+/**
+ * Agent zones — and unlike banners/industries, gated on reads too.
+ *
+ * A zone carries commission structure (`fixed_amount`,
+ * `install_commission_rate`, `registration_commission_rate`) — Blink's own
+ * payout economics, not customer-facing catalogue content, so the "reads stay
+ * public" policy used for `products.ts`/`banners.ts` does not apply here.
+ * `getZones`/`getAllZones` have live admin callers and are gated;
+ * `getZone`/`countAgentsInZone` have none and become internal.
+ */
 
 export const getZones = query({
   args: {
@@ -12,6 +24,7 @@ export const getZones = query({
     search: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "agents:READ");
     const limit = Math.max(1, Math.min(200, args.limit));
     const search = args.search?.trim();
 
@@ -63,11 +76,13 @@ export const getZones = query({
 export const getAllZones = query({
   args: {},
   handler: async (ctx) => {
+    await assertPermission(ctx, "agents:READ");
     return await ctx.db.query("agent_zones").collect();
   },
 });
 
-export const getZone = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getZone = internalQuery({
   args: { id: v.id("agent_zones") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
@@ -77,6 +92,7 @@ export const getZone = query({
 export const createZone = mutation({
   args: AgentZonesValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "agents:CREATE");
     const existing = await ctx.db
       .query("agent_zones")
       .withIndex("by_name", (q) => q.eq("name", args.name))
@@ -112,6 +128,7 @@ export const updateZone = mutation({
     registration_commission_rate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "agents:UPDATE");
     const { id, ...fields } = args;
 
     if (fields.name) {
@@ -136,6 +153,7 @@ export const updateZone = mutation({
 export const deleteZone = mutation({
   args: { id: v.id("agent_zones") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "agents:DELETE");
     const assignedAgents = await ctx.db
       .query("agents")
       .withIndex("by_zone", (q) => q.eq("zone_id", args.id))
@@ -151,7 +169,8 @@ export const deleteZone = mutation({
   },
 });
 
-export const countAgentsInZone = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const countAgentsInZone = internalQuery({
   args: { id: v.id("agent_zones") },
   handler: async (ctx, args) => {
     const agents = await ctx.db

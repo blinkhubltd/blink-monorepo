@@ -1,8 +1,33 @@
-import { query, mutation, QueryCtx, MutationCtx } from "../_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+  QueryCtx,
+  MutationCtx,
+} from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { internal, api } from "../_generated/api";
 import { hasRoleName, isPicker, isRider, SYSTEM_ROLES } from "../lib/roles";
+import { assertSelfOrPermission } from "../auth.helpers";
+
+/**
+ * Picker order actions. Every export took `pickerId` as a plain argument and
+ * verified it only by loading THAT record and checking its role/vendor — never
+ * against the caller's own identity. Any authenticated caller could pass
+ * another picker's id to view their queue, mark their items picked, or hand
+ * their order to a rider.
+ *
+ * `assertSelfOrPermission(ctx, args.pickerId, "pickers:...")` closes that: the
+ * caller must either BE that picker, or hold staff override. It runs
+ * alongside the existing `hasRoleName`/`assertPickerOwnsOrder` checks rather
+ * than replacing them — those still verify the picker owns the specific order,
+ * which is a different question from who is allowed to act as the picker.
+ *
+ * `updatePickerOrderStatus`, `handOverToRider`, `getPickerCompletedOrders` and
+ * `getAvailableRiders` have no caller in any app and become internal.
+ */
 import {
   orderStatus,
 } from "../validators";
@@ -119,6 +144,7 @@ export const getPickerOrders = query({
     ),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "pickers:READ");
     // Get picker details
     const picker = await ctx.db.get(args.pickerId);
     if (!picker || !(await hasRoleName(ctx, picker, "Picker"))) {
@@ -188,6 +214,7 @@ export const getPickerOrderDetails = query({
     pickerId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "pickers:READ");
     const order = await ctx.db.get(args.orderId);
     if (!order) return null;
 
@@ -256,8 +283,8 @@ export const getPickerOrderDetails = query({
   },
 });
 
-// Update order status for picker actions
-export const updatePickerOrderStatus = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const updatePickerOrderStatus = internalMutation({
   args: {
     orderId: v.id("orders"),
     pickerId: v.id("users"),
@@ -307,7 +334,7 @@ export const updatePickerOrderStatus = mutation({
           .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
           .collect();
 
-        await ctx.runMutation(api.data.incentives.logPickerActivity, {
+        await ctx.runMutation(internal.data.incentives.logPickerActivity, {
           picker_id: args.pickerId,
           order_id: args.orderId,
           items_picked: orderItems.length,
@@ -347,6 +374,7 @@ export const startPicking = mutation({
     pickerId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "pickers:UPDATE");
     // Verify picker has access
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Order not found");
@@ -397,6 +425,7 @@ export const markReadyForPickup = mutation({
     pickerId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "pickers:UPDATE");
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Order not found");
 
@@ -432,7 +461,7 @@ export const markReadyForPickup = mutation({
         .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
         .collect();
 
-      await ctx.runMutation(api.data.incentives.logPickerActivity, {
+      await ctx.runMutation(internal.data.incentives.logPickerActivity, {
         picker_id: args.pickerId,
         order_id: args.orderId,
         items_picked: orderItems.length,
@@ -486,6 +515,7 @@ export const markItemPicked = mutation({
     isPicked: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "pickers:UPDATE");
     console.log("markItemPicked called with:", args);
 
     const order = await ctx.db.get(args.orderId);
@@ -522,8 +552,8 @@ export const markItemPicked = mutation({
   },
 });
 
-// Hand over order to rider
-export const handOverToRider = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const handOverToRider = internalMutation({
   args: {
     orderId: v.id("orders"),
     pickerId: v.id("users"),
@@ -594,8 +624,8 @@ export const handOverToRider = mutation({
   },
 });
 
-// Get completed orders for a picker
-export const getPickerCompletedOrders = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getPickerCompletedOrders = internalQuery({
   args: {
     pickerId: v.id("users"),
   },
@@ -660,8 +690,8 @@ export const getPickerCompletedOrders = query({
   },
 });
 
-// Get available riders for handover
-export const getAvailableRiders = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getAvailableRiders = internalQuery({
   args: {},
   handler: async (ctx) => {
     const riderRole = await ctx.db
@@ -698,6 +728,7 @@ export const scanItem = mutation({
     pickerId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "pickers:UPDATE");
     await assertPickerOwnsOrder(ctx, args.orderId, args.pickerId);
 
     const product = await ctx.db
@@ -791,6 +822,7 @@ export const recordItemPick = mutation({
     delta: v.union(v.literal(1), v.literal(-1)),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "pickers:UPDATE");
     await assertPickerOwnsOrder(ctx, args.orderId, args.pickerId);
 
     const item = await ctx.db.get(args.itemId);

@@ -7,10 +7,20 @@ import {
   IndustryValidator,
   recordStatus,
 } from "../validators";
+import { assertPermission } from "../auth.helpers";
+
+/**
+ * Industry CRUD. Same policy as `data/products.ts`/`data/categories.ts`: the
+ * five admin writes are gated, the catalogue-style reads
+ * (`getAllIndustries`, `getIndustries`, `getActiveIndustries`,
+ * `getIndustryById`) stay public — `getActiveIndustries` in particular is
+ * already a live customer-facing call from `apps/shop`'s clearance screen.
+ */
 
 export const createIndustry = mutation({
   args: IndustryValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "industries:CREATE");
     const searchText = [args.name, args.description ?? ""].join(" ").trim();
     return await ctx.db.insert("industry", {
       ...args,
@@ -100,6 +110,7 @@ export const getIndustries = query({
 export const backfillIndustrySearchText = mutation({
   args: {},
   handler: async (ctx) => {
+    await assertPermission(ctx, "industries:UPDATE");
     const industries = await ctx.db.query("industry").collect();
 
     let updatedCount = 0;
@@ -190,6 +201,7 @@ export const updateIndustry = mutation({
     updates: IndustryUpdateValidator,
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "industries:UPDATE");
     const existingIndustry = await ctx.db.get(args.id);
     if (!existingIndustry) {
       throw new Error("Industry not found");
@@ -213,6 +225,7 @@ export const deleteIndustry = mutation({
     id: v.id("industry"),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "industries:DELETE");
     const existingIndustry = await ctx.db.get(args.id);
     if (!existingIndustry) {
       throw new Error("Industry not found");
@@ -228,6 +241,7 @@ export const updateIndustryStatus = mutation({
     status: v.union(...recordStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "industries:UPDATE");
     const existingIndustry = await ctx.db.get(args.id);
     if (!existingIndustry) {
       throw new Error("Industry not found");

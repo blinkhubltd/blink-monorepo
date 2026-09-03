@@ -1,9 +1,21 @@
-import { mutation, query } from "../_generated/server";
+import { internalMutation, mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import {
   transactionStatus,
   transactionTypes,
 } from "../validators";
+import { assertPermission } from "../auth.helpers";
+
+/**
+ * The full transaction ledger, gated.
+ *
+ * `getTransactions`, `getTransaction` and `updateTransactionStatus` had no
+ * auth of any kind, despite being wired live into the admin finance page —
+ * any Convex client could list every transaction on the platform or flip one
+ * to `refunded` with a raw function call, bypassing the admin UI entirely.
+ * `backfillTransactionsSearchText` has no caller anywhere and becomes
+ * internal.
+ */
 
 // ── Status Transition Guard ──────────────────────────────────────────────────
 //
@@ -55,6 +67,7 @@ export const getTransactions = query({
     typeFilter: v.optional(v.union(...transactionTypes.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "transactions:READ");
     const limit = Math.max(1, Math.min(200, args.limit));
     const search = args.search?.trim();
 
@@ -117,6 +130,7 @@ export const getTransactions = query({
 export const getTransaction = query({
   args: { id: v.id("transactions") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "transactions:READ");
     const txn = await ctx.db.get(args.id);
     if (!txn) return null;
     const order = await ctx.db.get(txn.order_id);
@@ -132,6 +146,7 @@ export const updateTransactionStatus = mutation({
     status: v.union(...transactionStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "transactions:UPDATE");
     const txn = await ctx.db.get(args.id);
     if (!txn) throw new Error("Transaction not found.");
 
@@ -172,7 +187,8 @@ export const updateTransactionStatus = mutation({
   },
 });
 
-export const backfillTransactionsSearchText = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const backfillTransactionsSearchText = internalMutation({
   args: {},
   handler: async (ctx) => {
     const transactions = await ctx.db.query("transactions").collect();

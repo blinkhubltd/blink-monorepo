@@ -1,6 +1,6 @@
 import { v, ConvexError } from "convex/values";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { OrderItemWithoutOrderId, OrdersValidator } from "../validators";
 import { paymentMethodFromChannel } from "../lib/paystack";
@@ -175,7 +175,7 @@ export const finalizePaidOrders = internalMutation({
 
     // 2. Confirm stock reservations (make them permanent after successful payment)
     try {
-      await ctx.runMutation(api.data.stock_reservation.confirmPaymentReservation, {
+      await ctx.runMutation(internal.data.stock_reservation.confirmPaymentReservation, {
         orderReference: args.reference,
       });
       console.log("Stock reservations confirmed for payment:", args.reference);
@@ -279,7 +279,7 @@ export const finalizePaidOrders = internalMutation({
       // Check if this order has an approved prescription and assign to picker
       if (approvedPrescription) {
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: grpWithNormalizedOrder.order.vendor_id,
             type: "order",
@@ -294,7 +294,7 @@ export const finalizePaidOrders = internalMutation({
       } else {
         // No approved prescription, use round-robin assignment
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: grpWithNormalizedOrder.order.vendor_id,
             type: "order",
@@ -465,7 +465,7 @@ export const finalizePayOnDeliveryOrders = internalMutation({
 
       if (approvedPrescription) {
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: base.vendor_id,
             type: "order",
@@ -480,7 +480,7 @@ export const finalizePayOnDeliveryOrders = internalMutation({
       } else {
         // No approved prescription, use round-robin assignment
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: base.vendor_id,
             type: "order",
@@ -657,7 +657,7 @@ export const finalizePaidClearanceOrders = internalMutation({
       }
 
       try {
-        await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+        await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
           orderId,
           vendorId: grp.order.vendor_id,
           type: "order",
@@ -697,7 +697,7 @@ export const finalizePaidClearanceOrders = internalMutation({
       // Multi-vendor checkout → instant batch with all order IDs
       const orderIds = created.map((c) => c.orderId);
       try {
-        await ctx.runMutation(api.data.clearance_batching.createAndDispatchBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.createAndDispatchBatch, {
           orderIds,
           vendorId: created[0].vendor,
         });
@@ -707,7 +707,7 @@ export const finalizePaidClearanceOrders = internalMutation({
     } else if (created.length === 1) {
       // Single-vendor → add to pending batch or create new one
       try {
-        await ctx.runMutation(api.data.clearance_batching.addOrderToBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.addOrderToBatch, {
           orderId: created[0].orderId,
           vendorId: created[0].vendor,
         });
@@ -817,7 +817,7 @@ export const finalizePayOnDeliveryClearanceOrders = internalMutation({
       }
 
       try {
-        await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+        await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
           orderId,
           vendorId: grp.order.vendor_id,
           type: "order",
@@ -852,7 +852,7 @@ export const finalizePayOnDeliveryClearanceOrders = internalMutation({
     if (created.length > 1) {
       const orderIds = created.map((c) => c.orderId);
       try {
-        await ctx.runMutation(api.data.clearance_batching.createAndDispatchBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.createAndDispatchBatch, {
           orderIds,
           vendorId: created[0].vendor,
         });
@@ -861,7 +861,7 @@ export const finalizePayOnDeliveryClearanceOrders = internalMutation({
       }
     } else if (created.length === 1) {
       try {
-        await ctx.runMutation(api.data.clearance_batching.addOrderToBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.addOrderToBatch, {
           orderId: created[0].orderId,
           vendorId: created[0].vendor,
         });

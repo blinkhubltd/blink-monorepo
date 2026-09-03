@@ -1,4 +1,23 @@
-import { query, mutation } from "../_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "../_generated/server";
+import { assertSelfOrPermission } from "../auth.helpers";
+
+/**
+ * This module mixes an already-broken gate with a fully unauthed one. The
+ * ten `createBaseEarnings`/`updateIncentiveConfigNew`/etc mutations below
+ * check `roleName !== "Admin"` — no production role is literally named
+ * "Admin" (see `auth.helpers.ts`), so that gate denies everyone rather than
+ * granting unauthorized access. Fixing it is a widening of access and needs
+ * product sign-off, so it is left alone here.
+ *
+ * The seven functions this pass DOES touch had no gate of any kind:
+ * `getUserTargets`/`setUserTargets`, `getIncentiveDashboard` and
+ * `getPickerItemStats` took the target user's id as a plain argument with no
+ * check the caller IS that user — the rider app always passes its own —
+ * gated with `assertSelfOrPermission`. `getIncentiveConfig`/
+ * `setIncentiveConfig` and `getUserTargets` (read) have no caller and become
+ * internal; `logPickerActivity` is reached only server-side from
+ * `picker_orders.ts` and becomes internal too.
+ */
 import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { QueryCtx, MutationCtx } from "../_generated/server";
@@ -28,7 +47,8 @@ const startOfMonth = (date = new Date()) => {
 };
 
 // CONFIG
-export const getIncentiveConfig = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getIncentiveConfig = internalQuery({
   args: { role: v.union(...incentiveRoles.map((e) => v.literal(e))) },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -38,7 +58,8 @@ export const getIncentiveConfig = query({
   },
 });
 
-export const setIncentiveConfig = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const setIncentiveConfig = internalMutation({
   args: {
     role: v.union(...incentiveRoles.map((e) => v.literal(e))),
     threshold_daily: v.number(),
@@ -66,7 +87,8 @@ export const setIncentiveConfig = mutation({
 });
 
 // USER TARGETS
-export const getUserTargets = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getUserTargets = internalQuery({
   args: { user_id: v.id("users") },
   handler: async (ctx, args) => {
     const week_start = startOfWeek();
@@ -97,6 +119,7 @@ export const setUserTargets = mutation({
     monthly_target: v.number(),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.user_id, "payroll:UPDATE");
     const week_start = startOfWeek();
     const month_start = startOfMonth();
     const existing = await ctx.db
@@ -126,6 +149,7 @@ export const getIncentiveDashboard = query({
     role: v.union(...incentiveRoles.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.user_id, "payroll:READ");
     const now = new Date();
     const dayStart = startOfDay(now);
     const weekStart = startOfWeek(now);
@@ -298,8 +322,8 @@ export const getIncentiveDashboard = query({
   },
 });
 
-// Record picker activity (for now internal use; could be called when picker completes picking)
-export const logPickerActivity = mutation({
+// Reached only server-side from picker_orders.ts.
+export const logPickerActivity = internalMutation({
   args: {
     picker_id: v.id("users"),
     order_id: v.id("orders"),
@@ -679,6 +703,7 @@ export const deleteIncentiveConfigNew = mutation({
 export const getPickerItemStats = query({
   args: { pickerId: v.id("users") },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.pickerId, "payroll:READ");
     const now = new Date();
     const dayStart = startOfDay(now);
     const weekStart = startOfWeek(now);

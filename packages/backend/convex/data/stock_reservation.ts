@@ -1,9 +1,23 @@
-import { mutation, query, internalMutation } from "../_generated/server";
+import { internalMutation, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
-import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
+
+/**
+ * Stock reservation — the internal plumbing behind a paid order, made
+ * internal in fact rather than only in name.
+ *
+ * All seven exports here had no auth and no caller in any app — they are
+ * reached only from `orders.ts`, `payments.ts` and
+ * `payment_finalization.ts` via `ctx.runMutation`. Live as public
+ * mutations, `confirmPaymentReservation`, `fulfillStock` and `releaseStock`
+ * keyed entirely off a client-suppliable `orderReference` string with no
+ * ownership check — any caller who could guess or enumerate a reference
+ * could lock, fulfil or release another customer's reserved stock directly,
+ * without going through a real order at all.
+ */
 
 // Check stock availability for multiple cart items
-export const checkCartStockAvailability = query({
+export const checkCartStockAvailability = internalQuery({
   args: {
     cartItems: v.array(
       v.object({
@@ -89,7 +103,7 @@ export const checkCartStockAvailability = query({
   },
 });
 
-export const reserveStock = mutation({
+export const reserveStock = internalMutation({
   args: {
     productId: v.id("products"),
     quantity: v.number(),
@@ -151,7 +165,7 @@ export const reserveStock = mutation({
   },
 });
 
-export const confirmPaymentReservation = mutation({
+export const confirmPaymentReservation = internalMutation({
   args: {
     orderReference: v.string(),
   },
@@ -193,7 +207,7 @@ export const confirmPaymentReservation = mutation({
   },
 });
 
-export const fulfillStock = mutation({
+export const fulfillStock = internalMutation({
   args: {
     orderReference: v.string(),
   },
@@ -238,7 +252,7 @@ export const fulfillStock = mutation({
   },
 });
 
-export const releaseStock = mutation({
+export const releaseStock = internalMutation({
   args: {
     orderReference: v.string(),
   },
@@ -313,7 +327,7 @@ export const cleanupExpiredReservations = internalMutation({
   },
 });
 
-export const getAvailableStock = query({
+export const getAvailableStock = internalQuery({
   args: {
     productId: v.id("products"),
   },
@@ -354,7 +368,7 @@ export const getAvailableStock = query({
   },
 });
 
-export const batchReserveStock = mutation({
+export const batchReserveStock = internalMutation({
   args: {
     cartItems: v.array(
       v.object({
@@ -390,7 +404,7 @@ export const batchReserveStock = mutation({
     for (const item of args.cartItems) {
       try {
         const reservation = await ctx.runMutation(
-          api.data.stock_reservation.reserveStock,
+          internal.data.stock_reservation.reserveStock,
           {
             productId: item.productId,
             quantity: item.quantity,

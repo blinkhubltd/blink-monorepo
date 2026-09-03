@@ -1,10 +1,40 @@
-import { mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { isAccountComplete } from "../lib/account_completion";
+import { getAuthUser } from "../auth.helpers";
+
+/**
+ * File uploads and rider documents.
+ *
+ * ── `generateUploadUrl`: authenticated, not permission-gated ──────────────
+ *
+ * It has callers across every app — admin catalogue screens, and the shop
+ * app's own prescription upload (`apps/shop/lib/use-prescription-upload.ts`).
+ * Gating it on a staff permission would lock out the one customer-facing
+ * caller. It returns a one-time Convex storage upload URL and names no record
+ * to attach to, so the only thing worth requiring is that the caller is a
+ * signed-in Blink user at all, closing it to anonymous callers without
+ * touching any legitimate one.
+ *
+ * `getImageUrl` resolves an already-known storage id to a URL for content that
+ * is public by design — banners, category and clearance images — so it stays
+ * open.
+ *
+ * ── The rider-document functions: internal, because nothing calls them ────
+ *
+ * `uploadUserIdDocument`/`uploadUserLicenseDocument`/`getUserDocuments`/
+ * `deleteDocument` all took an arbitrary `userId` as a plain argument with no
+ * check that the caller IS that user — so, live, any caller could overwrite or
+ * delete another rider's ID or licence image, or read the URLs of anyone's.
+ * They have zero callers in any app; rider onboarding never got wired to them.
+ * `internal*` closes them until a real caller exists, at which point the fix is
+ * an auth-derived `getMy*`/`uploadMy*` pair, not restoring these as-is.
+ */
 
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    await getAuthUser(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -16,7 +46,8 @@ export const getImageUrl = query({
   },
 });
 
-export const uploadUserIdDocument = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const uploadUserIdDocument = internalMutation({
   args: {
     userId: v.id("users"),
     storageId: v.id("_storage"),
@@ -61,7 +92,8 @@ export const uploadUserIdDocument = mutation({
   },
 });
 
-export const uploadUserLicenseDocument = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const uploadUserLicenseDocument = internalMutation({
   args: {
     userId: v.id("users"),
     storageId: v.id("_storage"),
@@ -106,7 +138,8 @@ export const uploadUserLicenseDocument = mutation({
   },
 });
 
-export const getUserDocuments = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getUserDocuments = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get(userId);
@@ -138,7 +171,8 @@ export const getUserDocuments = query({
   },
 });
 
-export const deleteDocument = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const deleteDocument = internalMutation({
   args: {
     userId: v.id("users"),
     documentType: v.union(v.literal("id"), v.literal("license")),

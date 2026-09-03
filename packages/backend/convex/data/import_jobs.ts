@@ -9,11 +9,13 @@ import type { Id } from "../_generated/dataModel";
 import {
   importJobStatus,
 } from "../validators";
+import { assertPermission } from "../auth.helpers";
 
 // ── Public: create a pending job and return its id ─────────────
 export const createImportJob = mutation({
   args: { file_storage_id: v.id("_storage"), vendor_id: v.id("vendors") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:CREATE");
     const now = Date.now();
     return await ctx.db.insert("import_jobs", {
       type: "products",
@@ -35,12 +37,13 @@ export const createImportJob = mutation({
 export const getImportJob = query({
   args: { id: v.id("import_jobs") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "products:READ");
     return await ctx.db.get(args.id);
   },
 });
 
-// ── Public: recent jobs (last 10) ─────────────────────────────
-export const getRecentImportJobs = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getRecentImportJobs = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await ctx.db

@@ -1,4 +1,4 @@
-import { mutation, query } from "../_generated/server";
+import { internalMutation, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import {
   OrderItemUpdateValidator,
@@ -6,8 +6,21 @@ import {
   OrderItemWithoutOrderId,
   OrdersValidator,
 } from "../validators";
+import { assertPermission } from "../auth.helpers";
 
-export const createItem = mutation({
+/**
+ * Order line items — one gated read, four functions with no caller closed.
+ *
+ * `createItem`, `updateItem`, `deleteItem` and `createOrderWithItems` had no
+ * auth and no caller anywhere in this monorepo — `createOrderWithItems` in
+ * particular writes a full order plus its items from client-supplied prices,
+ * the same shape the checkout rewrite replaced with a server-priced quote.
+ * `listByOrder` is the one with a live caller (the admin shipment and receipt
+ * views) and is gated instead.
+ */
+
+/** @deprecated No caller anywhere in this monorepo. */
+export const createItem = internalMutation({
   args: { item: OrderItemValidator },
   handler: async (ctx, args) => {
     return await ctx.db.insert("order_items", args.item);
@@ -17,6 +30,7 @@ export const createItem = mutation({
 export const listByOrder = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "orders:READ");
     const items = await ctx.db
       .query("order_items")
       .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
@@ -38,7 +52,8 @@ export const listByOrder = query({
   },
 });
 
-export const updateItem = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const updateItem = internalMutation({
   args: {
     id: v.id("order_items"),
     updates: OrderItemUpdateValidator,
@@ -49,7 +64,8 @@ export const updateItem = mutation({
   },
 });
 
-export const deleteItem = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const deleteItem = internalMutation({
   args: { id: v.id("order_items") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);
@@ -59,7 +75,12 @@ export const deleteItem = mutation({
   },
 });
 
-export const createOrderWithItems = mutation({
+/**
+ * @deprecated No caller anywhere in this monorepo, and superseded regardless:
+ * it writes an order from client-supplied `order`/`items` payloads, exactly the
+ * shape `data/checkout.ts` replaced with a server-priced stored quote.
+ */
+export const createOrderWithItems = internalMutation({
   args: {
     order: OrdersValidator,
     items: v.array(OrderItemWithoutOrderId),

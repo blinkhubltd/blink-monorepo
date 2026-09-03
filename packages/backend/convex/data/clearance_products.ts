@@ -1,5 +1,6 @@
 import { query, mutation, internalMutation } from "../_generated/server";
 import { api, internal } from "../_generated/api";
+import { assertPermission } from "../auth.helpers";
 import { v, ConvexError } from "convex/values";
 import {
   ClearanceProductUpdateValidator,
@@ -46,6 +47,12 @@ const generateSlug = (name: string): string => {
  */
 const MAX_CLEARANCE_SCAN = 2000;
 
+/**
+ * Clearance product CRUD. Same policy as `data/products.ts`: writes are
+ * gated, catalogue-style reads (`getById`, `getAll`, `getActiveByCoverage`,
+ * ...) stay public — `getActiveByCoverage` is a live customer-facing call
+ * from `apps/shop`'s clearance screen.
+ */
 export const create = mutation({
   args: {
     name: v.string(),
@@ -68,6 +75,7 @@ export const create = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "clearance:CREATE");
     // Validate prices
     if (args.clearance_price >= args.original_price) {
       throw new ConvexError("Clearance price must be less than original price");
@@ -149,6 +157,7 @@ export const create = mutation({
 export const update = mutation({
   args: ClearanceProductUpdateValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "clearance:UPDATE");
     const { id, ...updates } = args;
     const existing = await ctx.db.get(id);
     if (!existing) {
@@ -215,6 +224,7 @@ export const update = mutation({
 export const deactivate = mutation({
   args: { id: v.id("clearance_products") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "clearance:UPDATE");
     const product = await ctx.db.get(args.id);
     if (!product) {
       throw new Error("Clearance product not found");

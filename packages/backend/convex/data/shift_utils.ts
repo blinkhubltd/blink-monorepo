@@ -1,11 +1,23 @@
 import { v } from "convex/values";
-import { mutation, query, QueryCtx, MutationCtx } from "../_generated/server";
+import { internalMutation, internalQuery, QueryCtx, MutationCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
 import {
   isRider as checkIsRider,
   isPicker as checkIsPicker,
 } from "../lib/roles";
 import { isAccountComplete } from "../lib/account_completion";
+
+/**
+ * Shift status and overtime toggling.
+ *
+ * All four exports here took an arbitrary `userId` with no check that the
+ * caller IS that user, and none has a live caller in any app — the rider app
+ * never got a shift or overtime screen wired to them. `internal*` closes
+ * them until one exists; the fix at that point is an auth-derived
+ * `getMyShiftStatus`/`enableMyOvertimeMode` pair (self-service, since a rider
+ * going into or out of overtime is exactly the kind of action that should be
+ * theirs alone), not restoring these as-is.
+ */
 
 // Helper function to parse time string (e.g., "09:00") to minutes since midnight
 function timeToMinutes(timeStr: string): number {
@@ -111,7 +123,8 @@ export function checkShiftStatus(
   };
 }
 
-export const getUserShiftStatus = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getUserShiftStatus = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     const schedule = await ctx.db
@@ -150,8 +163,8 @@ export const getUserShiftStatus = query({
   },
 });
 
-// Mutation to automatically update status based on shift
-export const autoUpdateStatusByShift = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const autoUpdateStatusByShift = internalMutation({
   args: {
     userId: v.id("users"),
   },
@@ -233,8 +246,8 @@ export const autoUpdateStatusByShift = mutation({
   },
 });
 
-// Mutation to enable overtime mode
-export const enableOvertimeMode = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const enableOvertimeMode = internalMutation({
   args: {
     userId: v.id("users"),
   },
@@ -298,8 +311,8 @@ export const enableOvertimeMode = mutation({
   },
 });
 
-// Mutation to disable overtime mode
-export const disableOvertimeMode = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const disableOvertimeMode = internalMutation({
   args: {
     userId: v.id("users"),
   },

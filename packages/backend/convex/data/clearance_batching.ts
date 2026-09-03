@@ -1,4 +1,4 @@
-import { mutation, internalMutation } from "../_generated/server";
+import { internalMutation } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
@@ -8,12 +8,18 @@ import { getRoleIdByName, SYSTEM_ROLES } from "../lib/roles";
 const MAX_PENDING_ORDERS_PER_RIDER = 3;
 
 /**
+ * `addOrderToBatch` and `createAndDispatchBatch` have no caller anywhere in
+ * this monorepo — clearance order batching is meant to be triggered
+ * server-side, alongside `processBatchTimeout`/`dispatchBatch` below, which
+ * are already internal. Both convert to internal to match.
+ */
+/**
  * Add a clearance order to a batch.
  * - If a "Pending" batch exists for this vendor, add the order to it.
  *   If that pushes the batch to max capacity, dispatch immediately.
  * - If no pending batch exists, create one and schedule a timeout.
  */
-export const addOrderToBatch = mutation({
+export const addOrderToBatch = internalMutation({
   args: {
     orderId: v.id("orders"),
     vendorId: v.id("vendors"),
@@ -80,7 +86,7 @@ export const addOrderToBatch = mutation({
 /**
  * Create a batch immediately and dispatch it (used for multi-vendor orders).
  */
-export const createAndDispatchBatch = mutation({
+export const createAndDispatchBatch = internalMutation({
   args: {
     orderIds: v.array(v.id("orders")),
     vendorId: v.id("vendors"),

@@ -1,5 +1,35 @@
-import { query } from "../_generated/server";
+import { internalQuery } from "../_generated/server";
 import { v } from "convex/values";
+
+/**
+ * The platform-wide analytics module, superseded and never wired up.
+ *
+ * ── Why every export here is internal ─────────────────────────────────────
+ *
+ * None of these 15 queries call any auth guard, and several accept vendor
+ * scope as an OPTIONAL client argument — omit it and `getSalesAnalytics`,
+ * `getOrdersSummary`, `getDetailedOrdersInsights` and three others return
+ * full-platform revenue, commission and order data to whoever asks.
+ * `getVendorBreakdown` takes an arbitrary `vendorId` with no ownership check,
+ * handing one vendor their competitor's commission rate and contact details.
+ * `getDetailedUsersInsights` and `getRiderPerformance` have no scoping
+ * mechanism at all and return the full user roster (names, emails) or full
+ * rider roster unconditionally.
+ *
+ * `insights_dashboard.ts` and `insights_domain.ts` are the real, live modules
+ * — every query in both calls `resolveScope(ctx)`, which derives the caller's
+ * vendor restriction from `getAuthUser` rather than trusting an argument, and
+ * `apps/admin`'s insights pages are wired to those, not to this file.
+ * `apps/admin/tests/insights-scope.test.ts` already asserts statically that
+ * nothing in `apps/` calls any export here — confirmed again by grep across
+ * all three apps during this audit: zero call sites.
+ *
+ * A public function with zero callers and no ownership check on the data it
+ * returns is not a feature waiting to be wired up; it is the same shape as the
+ * agent-payout hole this auth pass started from. `internalQuery` closes it
+ * without deleting 1800 lines of a module that predates the scoped one, in
+ * case anything here is still read by an internal script.
+ */
 
 export const TimeRange = v.union(
   v.literal("today"),
@@ -13,7 +43,7 @@ export const TimeRange = v.union(
   v.literal("all"),
 );
 
-export const getSalesAnalytics = query({
+export const getSalesAnalytics = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
     vendorId: v.optional(v.id("vendors")),
@@ -176,7 +206,7 @@ export const getSalesAnalytics = query({
 });
 
 // Get rider performance metrics
-export const getRiderPerformance = query({
+export const getRiderPerformance = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
   },
@@ -270,7 +300,7 @@ export const getRiderPerformance = query({
 });
 
 // Get product performance metrics
-export const getProductPerformance = query({
+export const getProductPerformance = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
     limit: v.optional(v.number()),
@@ -371,7 +401,7 @@ export const getProductPerformance = query({
 });
 
 // Get order status distribution
-export const getOrderStatusDistribution = query({
+export const getOrderStatusDistribution = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
   },
@@ -469,7 +499,7 @@ export const getOrderStatusDistribution = query({
   },
 });
 
-export const getVendorBreakdown = query({
+export const getVendorBreakdown = internalQuery({
   args: {
     vendorId: v.id("vendors"),
     timeRange: v.optional(TimeRange),
@@ -715,7 +745,7 @@ export const getVendorBreakdown = query({
 });
 
 // Get growth rate compared to previous period
-export const getGrowthRate = query({
+export const getGrowthRate = internalQuery({
   args: {
     metric: v.union(v.literal("revenue"), v.literal("orders")),
     currentPeriod: TimeRange,
@@ -854,7 +884,7 @@ export const getGrowthRate = query({
 });
 
 // Get comprehensive growth metrics
-export const getGrowthMetrics = query({
+export const getGrowthMetrics = internalQuery({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
@@ -958,7 +988,7 @@ export const getGrowthMetrics = query({
 });
 
 // Get revenue by category
-export const getRevenueByCategory = query({
+export const getRevenueByCategory = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
   },
@@ -1045,7 +1075,7 @@ export const getRevenueByCategory = query({
 });
 
 // Get total Blink revenue from commissions
-export const getTotalBlinkRevenue = query({
+export const getTotalBlinkRevenue = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
   },
@@ -1242,7 +1272,7 @@ function computeDateRange(timeRange?: string): {
 }
 
 // ── Orders summary by industry, vendor, category ───────────────
-export const getOrdersSummary = query({
+export const getOrdersSummary = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
     vendorIds: v.optional(v.array(v.id("vendors"))),
@@ -1359,7 +1389,7 @@ export const getOrdersSummary = query({
 });
 
 // ── Detailed orders insights ───────────────────────────────────
-export const getDetailedOrdersInsights = query({
+export const getDetailedOrdersInsights = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
     vendorIds: v.optional(v.array(v.id("vendors"))),
@@ -1439,7 +1469,7 @@ export const getDetailedOrdersInsights = query({
 });
 
 // ── Detailed shipments insights ────────────────────────────────
-export const getDetailedShipmentsInsights = query({
+export const getDetailedShipmentsInsights = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
     vendorIds: v.optional(v.array(v.id("vendors"))),
@@ -1522,7 +1552,7 @@ export const getDetailedShipmentsInsights = query({
 });
 
 // ── Detailed products insights ─────────────────────────────────
-export const getDetailedProductsInsights = query({
+export const getDetailedProductsInsights = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
     vendorIds: v.optional(v.array(v.id("vendors"))),
@@ -1648,7 +1678,7 @@ export const getDetailedProductsInsights = query({
 });
 
 // ── Detailed users insights ────────────────────────────────────
-export const getDetailedUsersInsights = query({
+export const getDetailedUsersInsights = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
   },
@@ -1731,7 +1761,7 @@ export const getDetailedUsersInsights = query({
 });
 
 // ── Detailed industries insights ───────────────────────────────
-export const getDetailedIndustriesInsights = query({
+export const getDetailedIndustriesInsights = internalQuery({
   args: {
     timeRange: v.optional(TimeRange),
   },

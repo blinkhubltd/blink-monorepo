@@ -10,7 +10,7 @@ import { Id } from "../_generated/dataModel";
 import {
   prescriptionStatus,
 } from "../validators";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 
 /*
  * NOTE ON THE FUNCTION REFERENCES IN THIS FILE
@@ -376,7 +376,7 @@ async function routePrescription(
   let result: AssignmentResult = null;
   try {
     result = await ctx.runMutation(
-      api.data.picker_assignment.assignPrescriptionToPicker,
+      internal.data.picker_assignment.assignPrescriptionToPicker,
       { prescriptionId, vendorId },
     );
   } catch (error) {
