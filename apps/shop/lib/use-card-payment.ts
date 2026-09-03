@@ -49,6 +49,16 @@ import {
  *     it could never be true when read.
  *   - five separate paths delivering success to the parent with nothing marking
  *     that success had already been delivered.
+ *
+ * ── The vendor split ───────────────────────────────────────────────────
+ *
+ * Before the sheet opens, `prepareMyPaymentSplit` turns the checkout's stored
+ * quote into a Paystack split and returns its `split_code`, which is what
+ * actually routes each vendor's share to their own subaccount rather than all
+ * of it landing in the platform's account. This is not optional or
+ * best-effort: without it, a card payment collects the vendor's money and
+ * gives the vendor none of it. A failure here fails the whole attempt before
+ * the sheet ever opens — nothing has been charged yet, so refusing is safe.
  */
 
 /** Long enough for Paystack to settle, short enough not to feel stalled. */
@@ -76,6 +86,7 @@ export function useCardPayment(opts: {
 
   const { popup } = usePaystack();
   const confirm = useAction(api.data.checkout.confirmMyCardPayment);
+  const prepareSplit = useAction(api.data.payment_split.prepareMyPaymentSplit);
 
   // The reference currently in flight. A ref because the AppState listener and
   // the verify timer both need the latest value without re-subscribing.
@@ -176,30 +187,49 @@ export function useCardPayment(opts: {
       referenceRef.current = params.reference;
       dispatch({ type: "open" });
 
-      try {
-        popup.newTransaction({
-          email: params.email,
-          // Major units. See the note on `CardPaymentParams.amount`.
-          amount,
-          // The server's reference, so the quote, the charge and the orders all
-          // key on one string.
-          reference: params.reference,
-          onSuccess: () => dispatch({ type: "sheetSucceeded" }),
-          onCancel: () => dispatch({ type: "sheetCancelled" }),
-          onError: (error) =>
-            dispatch({ type: "sheetErrored", message: error?.message }),
-        });
-      } catch (error) {
-        dispatch({
-          type: "sheetErrored",
-          message:
-            error instanceof Error
-              ? error.message
-              : "The payment window could not be opened.",
-        });
-      }
+      void (async () => {
+        // The split has to be ready before the sheet opens — it is what
+        // actually routes the vendor's share to them, not a nicety layered on
+        // afterwards. Nothing has been charged yet, so failing here is safe.
+        let splitCode: string | undefined;
+        try {
+          const prepared = await prepareSplit({ reference: params.reference });
+          splitCode = prepared.split_code;
+        } catch (error) {
+          dispatch({
+            type: "sheetErrored",
+            message:
+              "This order can't be paid for online right now. Please try again shortly, or choose pay on delivery.",
+          });
+          return;
+        }
+
+        try {
+          popup.newTransaction({
+            email: params.email,
+            // Major units. See the note on `CardPaymentParams.amount`.
+            amount,
+            // The server's reference, so the quote, the charge and the orders
+            // all key on one string.
+            reference: params.reference,
+            split_code: splitCode,
+            onSuccess: () => dispatch({ type: "sheetSucceeded" }),
+            onCancel: () => dispatch({ type: "sheetCancelled" }),
+            onError: (error) =>
+              dispatch({ type: "sheetErrored", message: error?.message }),
+          });
+        } catch (error) {
+          dispatch({
+            type: "sheetErrored",
+            message:
+              error instanceof Error
+                ? error.message
+                : "The payment window could not be opened.",
+          });
+        }
+      })();
     },
-    [popup, state],
+    [popup, state, prepareSplit],
   );
 
   const reset = useCallback(() => {

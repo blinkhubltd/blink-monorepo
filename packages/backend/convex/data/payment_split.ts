@@ -1,31 +1,56 @@
 import { v, ConvexError } from "convex/values";
-import { internalAction } from "../_generated/server";
+import { action, internalQuery } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { getOptionalEnv, requireEnv } from "../lib/env";
-import { PAYSTACK_BASE_URL } from "../lib/paystack";
+import { PAYSTACK_BASE_URL, toMinorUnits } from "../lib/paystack";
 import { getNestedString, isRecord } from "../lib/json";
 import { getPaystackCurrency, paystackRequest } from "./paystack_api";
+import { computeVendorSplit, type SplitLeg } from "../lib/vendor_split";
 
 /**
- * Multi-vendor Paystack split preparation.
+ * Paystack split preparation, rebuilt around the stored quote.
  *
- * Lifted verbatim out of `data/payments.ts`, where it was a single 858-line
- * action handler — 33% of that file and the largest function in the codebase. It
- * did settings lookup, vendor grouping, commission arithmetic, two Paystack API
- * calls and persistence in one body, with a 25-line inline return-type
- * annotation.
+ * ── What this replaces ────────────────────────────────────────────────────
  *
- * It has **zero callers in any app**, yet 12 of 102 rows in the live `payments`
- * table carry a `paystack_split_breakdown` — so splits have executed, by some
- * path other than this function. Confirm which before changing behaviour here.
+ * The previous version re-derived everything from live product prices: it
+ * re-fetched every product in the cart, recomputed vendor weights, and
+ * inferred the delivery fee as `payment.amount - itemsTotal`. That is the same
+ * shape of bug the checkout rewrite closed everywhere else in this codebase —
+ * a figure recomputed after the fact can disagree with the one actually
+ * charged. It also had zero callers in any app.
  *
- * This commit only moves it. Breaking the handler into settings / grouping /
- * commission / API / persistence stages is the next step, and the commission
- * arithmetic is the piece that wants extracting to a pure, tested `lib/`
- * module first.
+ * The stored quote already carries the exact per-vendor breakdown this needs
+ * (`quote.legs[n].subtotal`), priced once at `checkout.beginCheckout` and never
+ * re-derived. `lib/vendor_split.ts` turns that, plus each vendor's commission
+ * terms, into a split — see that module for the arithmetic and its own tests.
+ *
+ * ── Delivery fee stays with the platform ─────────────────────────────────
+ *
+ * A rider delivers the basket, not the vendor, so no leg's `deliveryFee` is
+ * ever included in a vendor's share — every one settles to the platform,
+ * alongside commission.
+ *
+ * ── Who can call this, and when ──────────────────────────────────────────
+ *
+ * A real `action`, not internal: the client calls it after `beginCheckout` and
+ * before opening the Paystack sheet, so the resulting `split_code` can be
+ * passed into the transaction itself. `assertMyPayment` (via `runQuery`) is
+ * the ownership check — a reference is otherwise a bearer token for someone
+ * else's checkout, and this is the first authenticated action in the flow
+ * that would have been reachable with one.
+ *
+ * Only ever needed for `pay_now`: a pay-on-delivery order never touches
+ * Paystack, so there is nothing here for the rider to collect through it —
+ * vendor payout for a cash order is a separate settlement question entirely.
+ *
+ * ── The everything-below-this-comment machinery is unchanged ─────────────
+ *
+ * Subaccount creation and reuse, the industry-commission routing, the
+ * currency-mismatch retry against Paystack's own API quirks — all of that
+ * operates on vendor and business records, not on how the basket was priced,
+ * so none of it needed to change for the redesign above.
  */
-
 async function logPaystackSubaccountCurrencies(
   secret: string,
   subaccountCodes: string[],
@@ -191,26 +216,17 @@ function maskCode(code: string): string {
   return `${trimmed.slice(0, 3)}***${trimmed.slice(-3)}`;
 }
 
-function toMinorUnits(amountMajor: number): number {
-  return Math.round(Number(amountMajor) * 100);
-}
-
 function nonNegativeInt(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.round(n));
 }
 
-// Prepare Paystack split_code for a cart checkout payment reference.
-// This is called from the mobile client BEFORE opening Paystack popup.
-export const preparePaystackSplitForCheckout = internalAction({
+// Prepare a Paystack split for a checkout reference, from its stored quote.
+// Called from the client after `checkout.beginCheckout`, before opening the
+// Paystack sheet — the resulting split_code is passed into the transaction.
+export const prepareMyPaymentSplit = action({
   args: {
     reference: v.string(),
-    cartItems: v.array(
-      v.object({
-        productId: v.id("products"),
-        quantity: v.number(),
-      }),
-    ),
   },
   handler: async (
     ctx,
@@ -222,7 +238,6 @@ export const preparePaystackSplitForCheckout = internalAction({
       commission_minor: number;
       delivery_fee_minor: number;
       vendor_minor: number;
-      vendor_id?: Id<"vendors">;
       vendors?: Array<{
         vendor_id: Id<"vendors">;
         vendor_minor: number;
@@ -233,9 +248,14 @@ export const preparePaystackSplitForCheckout = internalAction({
     } | null;
     reused: boolean;
   }> => {
-    console.log("[Split] preparePaystackSplitForCheckout:start", {
+    // Ownership first: never spend a Paystack subaccount lookup, let alone
+    // create one, on someone else's checkout.
+    await ctx.runQuery(internal.data.checkout.assertMyPayment, {
       reference: args.reference,
-      cartItemsCount: args.cartItems.length,
+    });
+
+    console.log("[Split] prepareMyPaymentSplit:start", {
+      reference: args.reference,
     });
 
     const secret = process.env.PAYSTACK_SECRET_KEY;
@@ -250,9 +270,10 @@ export const preparePaystackSplitForCheckout = internalAction({
       );
     }
 
-    const payment = await ctx.runQuery(api.data.payments.getPaymentByReference, {
-      reference: args.reference,
-    });
+    const payment = await ctx.runQuery(
+      internal.data.payments.getPaymentByReference,
+      { reference: args.reference },
+    );
     if (!payment) throw new Error("Payment not found for reference");
     if (payment.status !== "Pending") {
       throw new Error("Payment is not pending; cannot prepare split");
@@ -269,32 +290,21 @@ export const preparePaystackSplitForCheckout = internalAction({
       };
     }
 
-    const vendorWeightMajorById = new Map<Id<"vendors">, number>();
-    let computedItemsTotalMajor = 0;
-    for (const item of args.cartItems) {
-      const product = await ctx.runQuery(api.data.products.getProductsById, {
-        id: item.productId,
-      });
-      if (!product) throw new Error(`Product not found: ${item.productId}`);
-      if (!product.vendor_id) {
-        throw new Error(`Product missing vendor_id: ${item.productId}`);
-      }
-      const vendorId = product.vendor_id;
-      const lineTotal = Number(product.price) * Number(item.quantity);
-      vendorWeightMajorById.set(
-        vendorId,
-        (vendorWeightMajorById.get(vendorId) || 0) + lineTotal,
+    const quote = payment.quote;
+    if (!quote) {
+      throw new ConvexError(
+        "This checkout has no price attached. Start again.",
       );
-      computedItemsTotalMajor += lineTotal;
+    }
+    if (quote.legs.length === 0) {
+      throw new Error("No vendors found in this checkout");
     }
 
-    const vendorIds = Array.from(vendorWeightMajorById.keys());
-    if (vendorIds.length === 0) throw new Error("No vendors found in cart");
+    const vendorIds = quote.legs.map((leg) => leg.vendorId);
 
     console.log("[Split] vendors resolved", {
       reference: args.reference,
       vendorCount: vendorIds.length,
-      computedItemsTotalMajor,
     });
 
     const primaryBusinessName = requireEnv("PRIMARY_BUSINESS_NAME");
@@ -334,57 +344,6 @@ export const preparePaystackSplitForCheckout = internalAction({
       shouldUseTestPlatformDetails,
       currency,
     });
-
-    // Infer delivery fee from the charged amount so dynamic fee policies
-    // (including clearance extra-vendor fees) are reflected in split math.
-    const inferredDeliveryFeeMajor = Number.isFinite(Number(payment.amount))
-      ? Math.max(0, Number(payment.amount) - computedItemsTotalMajor)
-      : Number.NaN;
-    const deliveryFeeMajor = Number.isFinite(inferredDeliveryFeeMajor)
-      ? inferredDeliveryFeeMajor
-      : vendorIds.length > 0
-        ? 1
-        : 0;
-    const deliveryFeeMinor = nonNegativeInt(toMinorUnits(deliveryFeeMajor));
-
-    // Compute overall totals (prefer payment.amount from client to keep in sync).
-    const orderTotalMajor = Number(
-      payment.amount ?? computedItemsTotalMajor + deliveryFeeMajor,
-    );
-    const totalMinor = nonNegativeInt(toMinorUnits(orderTotalMajor));
-
-    console.log("[Split] totals", {
-      reference: args.reference,
-      orderTotalMajor,
-      totalMinor,
-      deliveryFeeMajor,
-      deliveryFeeMinor,
-    });
-
-    const chargedItemsTotalMajor = orderTotalMajor - deliveryFeeMajor;
-    if (chargedItemsTotalMajor < 0) {
-      throw new ConvexError("Order total cannot be less than delivery fee");
-    }
-
-    // Allocate the charged (non-delivery) total across vendors proportionally to weights.
-    const vendorChargedMajorById = new Map<Id<"vendors">, number>();
-    if (computedItemsTotalMajor > 0) {
-      for (const vid of vendorIds) {
-        const weight = vendorWeightMajorById.get(vid) || 0;
-        vendorChargedMajorById.set(
-          vid,
-          (chargedItemsTotalMajor * weight) / computedItemsTotalMajor,
-        );
-      }
-    } else {
-      // Fallback: split equally if weights are unavailable.
-      for (const vid of vendorIds) {
-        vendorChargedMajorById.set(
-          vid,
-          chargedItemsTotalMajor / vendorIds.length,
-        );
-      }
-    }
 
     type VendorForSplit = Doc<"vendors"> & { hub_manager?: unknown };
     type VendorBusinessDetails = {
@@ -482,52 +441,56 @@ export const preparePaystackSplitForCheckout = internalAction({
       })),
     });
 
-    let commissionTotalMinor = 0;
-    const vendorNetMinorById = new Map<Id<"vendors">, number>();
-    const vendorCommissionMinorById = new Map<Id<"vendors">, number>();
-    for (const { vendor } of vendors) {
-      const vendorGrossMajor = vendorChargedMajorById.get(vendor._id) || 0;
-      let commissionMajor = 0;
-      if (vendor.commission_type === "percentage") {
-        commissionMajor = (vendorGrossMajor * Number(vendor.commission)) / 100;
-      } else if (vendor.commission_type === "fixed") {
-        commissionMajor = Number(vendor.commission);
-      }
-      const commissionMinor = nonNegativeInt(toMinorUnits(commissionMajor));
-      const vendorGrossMinor = nonNegativeInt(toMinorUnits(vendorGrossMajor));
-      const vendorNetMinor = vendorGrossMinor - commissionMinor;
-      if (vendorNetMinor < 0) {
-        throw new Error(
-          `Invalid split amounts for vendor ${vendor._id}: commission exceeds vendor gross`,
-        );
-      }
-      vendorCommissionMinorById.set(vendor._id, commissionMinor);
-      vendorNetMinorById.set(vendor._id, vendorNetMinor);
-      commissionTotalMinor += commissionMinor;
-    }
-
-    // Sanity check: vendor nets + commission + delivery should not exceed total.
-    const vendorNetSum = Array.from(vendorNetMinorById.values()).reduce(
-      (s, n) => s + n,
-      0,
+    const commissionByVendor = new Map(
+      vendors.map(({ vendor }) => [
+        vendor._id,
+        {
+          commission_type: vendor.commission_type,
+          commission: Number(vendor.commission),
+        },
+      ]),
     );
-    const expected = vendorNetSum + commissionTotalMinor + deliveryFeeMinor;
-    const delta = totalMinor - expected;
-    if (delta !== 0) {
-      // If we have a small rounding drift, adjust the first vendor's share so sums match exactly.
-      if (Math.abs(delta) > 1) {
-        throw new Error(
-          `Invalid split totals: expected ${expected} but total is ${totalMinor}`,
-        );
-      }
-      const firstVendorId = vendorIds[0];
-      const current = vendorNetMinorById.get(firstVendorId) || 0;
-      const adjusted = current + delta;
-      if (adjusted < 0) {
-        throw new Error("Rounding adjustment would make vendor share negative");
-      }
-      vendorNetMinorById.set(firstVendorId, adjusted);
-    }
+
+    const vendorSplit = computeVendorSplit(
+      quote.legs.map(
+        (leg: (typeof quote.legs)[number]): SplitLeg => ({
+          vendorId: leg.vendorId,
+          subtotal: leg.subtotal,
+        }),
+      ),
+      quote.legs.map((leg: (typeof quote.legs)[number]) => leg.deliveryFee),
+      (vendorId) => {
+        const terms = commissionByVendor.get(vendorId);
+        if (!terms) throw new Error(`Vendor not found: ${vendorId}`);
+        return terms;
+      },
+    );
+
+    const deliveryFeeMinor = nonNegativeInt(
+      toMinorUnits(vendorSplit.deliveryFeeTotalMajor),
+    );
+    const totalMinor = nonNegativeInt(
+      toMinorUnits(vendorSplit.itemsTotalMajor + vendorSplit.deliveryFeeTotalMajor),
+    );
+    const commissionTotalMinor = nonNegativeInt(
+      toMinorUnits(vendorSplit.commissionTotalMajor),
+    );
+    const vendorChargedMajorById = new Map(
+      vendorSplit.vendors.map((v) => [v.vendorId, v.grossMajor] as const),
+    );
+    const vendorCommissionMinorById = new Map(
+      vendorSplit.vendors.map((v) => [v.vendorId, nonNegativeInt(toMinorUnits(v.commissionMajor))] as const),
+    );
+    const vendorNetMinorById = new Map(
+      vendorSplit.vendors.map((v) => [v.vendorId, nonNegativeInt(toMinorUnits(v.netMajor))] as const),
+    );
+
+    console.log("[Split] totals", {
+      reference: args.reference,
+      totalMinor,
+      deliveryFeeMinor,
+      commissionTotalMinor,
+    });
 
     // Ensure (or create) Paystack subaccounts.
     const getOrCreatePlatformSubaccount = async (
@@ -733,7 +696,7 @@ export const preparePaystackSplitForCheckout = internalAction({
         subaccount_code: maskCode(subaccountCode),
       });
 
-      await ctx.runMutation(api.data.vendors.setVendorPaystackSubaccountCode, {
+      await ctx.runMutation(internal.data.vendors.setVendorPaystackSubaccountCode, {
         vendorId: vendor._id,
         subaccountCode,
       });
@@ -846,18 +809,9 @@ export const preparePaystackSplitForCheckout = internalAction({
         subaccount_code: maskCode(subaccountCode),
       });
 
-      await ctx.runMutation(api.data.industry.updateIndustry, {
+      await ctx.runMutation(internal.data.industry.setIndustryPaystackSubaccountCode, {
         id: industryId,
-        updates: {
-          bank_details: {
-            business_name,
-            bank_code,
-            account_number,
-            paystack_subaccount_code: subaccountCode,
-            kra_pin:
-              typeof details.kra_pin === "string" ? details.kra_pin : undefined,
-          },
-        },
+        subaccountCode,
       });
 
       return subaccountCode;
@@ -1059,4 +1013,3 @@ export const preparePaystackSplitForCheckout = internalAction({
   },
 });
 
-// Helper mutation to apply verification results

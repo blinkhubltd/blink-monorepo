@@ -1,5 +1,5 @@
 import { Id } from "../_generated/dataModel";
-import { mutation, query } from "../_generated/server";
+import { internalMutation, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
 import {
@@ -181,6 +181,38 @@ export const getIndustryById = query({
         ? await ctx.storage.getUrl(industry.image)
         : null,
     };
+  },
+});
+
+/**
+ * Set an industry's commission-payout subaccount code, on its existing
+ * `bank_details`.
+ *
+ * Internal: its only caller is `payment_split.ts`, reached from an
+ * authenticated customer action mid-checkout — the customer holds no
+ * `industries:UPDATE` permission, and this write should not require one. It
+ * only ever touches `paystack_subaccount_code`; every other `bank_details`
+ * field is admin-entered and stays that way, through `updateIndustry`.
+ */
+export const setIndustryPaystackSubaccountCode = internalMutation({
+  args: {
+    id: v.id("industry"),
+    subaccountCode: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const industry = await ctx.db.get(args.id);
+    if (!industry) throw new Error("Industry not found");
+    if (!industry.bank_details) {
+      throw new Error("Industry has no bank_details to attach a code to");
+    }
+
+    await ctx.db.patch(args.id, {
+      bank_details: {
+        ...industry.bank_details,
+        paystack_subaccount_code: args.subaccountCode,
+      },
+      updated_at: new Date().toISOString(),
+    });
   },
 });
 

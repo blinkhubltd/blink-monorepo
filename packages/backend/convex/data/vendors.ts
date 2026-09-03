@@ -1,4 +1,4 @@
-import { mutation, query } from "../_generated/server";
+import { internalMutation, mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { haversineMeters } from "../lib/geo";
 import {
@@ -382,7 +382,13 @@ export const updateVendor = mutation({
   },
 });
 
-export const setVendorPaystackSubaccountCode = mutation({
+/**
+ * Internal: its only caller is `payment_split.ts`, reached from an authenticated
+ * customer action mid-checkout — a customer holds no vendor-management
+ * permission, and this write should not require one. Public, it also let
+ * anyone repoint which bank account a vendor's share settles to.
+ */
+export const setVendorPaystackSubaccountCode = internalMutation({
   args: {
     vendorId: v.id("vendors"),
     subaccountCode: v.string(),
