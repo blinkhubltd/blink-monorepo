@@ -1,6 +1,26 @@
-import { query, mutation, QueryCtx, MutationCtx } from "../_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+  QueryCtx,
+  MutationCtx,
+} from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
+import { assertSelfOrPermission } from "../auth.helpers";
+
+/**
+ * Rider analytics. Every export took an arbitrary `riderId` with no check
+ * that the caller IS that rider. `updateRiderOnlineStatus` and
+ * `getRiderDashboard` have live callers in `apps/rider` — a rider viewing or
+ * changing their OWN status — so they are gated with
+ * `assertSelfOrPermission`: the rider themselves, or staff holding
+ * `riders:READ`/`riders:UPDATE`, matching the note from an earlier session
+ * that "nowhere should the rider see info that does not concern them" — the
+ * flip side being nowhere should another rider see or change THEIRS. The
+ * five with no caller become internal.
+ */
 
 async function isRider(
   ctx: QueryCtx | MutationCtx,
@@ -24,7 +44,8 @@ const isOrder = (
 };
 
 // Get rider's daily statistics
-export const getRiderDailyStats = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getRiderDailyStats = internalQuery({
   args: { riderId: v.id("users") },
   handler: async (ctx, args) => {
     const today = new Date();
@@ -77,7 +98,8 @@ export const getRiderDailyStats = query({
 });
 
 // Get rider's performance statistics
-export const getRiderPerformanceStats = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getRiderPerformanceStats = internalQuery({
   args: { riderId: v.id("users") },
   handler: async (ctx, args) => {
     const allDeliveries = await ctx.db
@@ -118,7 +140,8 @@ export const getRiderPerformanceStats = query({
 });
 
 // Get rider's weekly statistics
-export const getRiderWeeklyStats = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getRiderWeeklyStats = internalQuery({
   args: { riderId: v.id("users") },
   handler: async (ctx, args) => {
     const now = new Date();
@@ -161,6 +184,7 @@ export const updateRiderOnlineStatus = mutation({
     isOnline: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.riderId, "riders:UPDATE");
     const rider = await ctx.db.get(args.riderId);
     if (!rider || !(await isRider(ctx, rider))) {
       throw new Error("Rider not found");
@@ -190,7 +214,8 @@ export const updateRiderOnlineStatus = mutation({
 });
 
 // Get rider's recent activity
-export const getRiderRecentActivity = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getRiderRecentActivity = internalQuery({
   args: {
     riderId: v.id("users"),
     limit: v.optional(v.number()),
@@ -229,7 +254,8 @@ export const getRiderRecentActivity = query({
 });
 
 // Get delivery time analytics
-export const getDeliveryTimeStats = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getDeliveryTimeStats = internalQuery({
   args: { riderId: v.id("users") },
   handler: async (ctx, args) => {
     const completedDeliveries = await ctx.db
@@ -301,7 +327,8 @@ export const getDeliveryTimeStats = query({
 });
 
 // Get comprehensive active hours breakdown
-export const getActiveHoursBreakdown = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getActiveHoursBreakdown = internalQuery({
   args: { riderId: v.id("users") },
   handler: async (ctx, args) => {
     const rider = await ctx.db.get(args.riderId);
@@ -390,6 +417,7 @@ export const getActiveHoursBreakdown = query({
 export const getRiderDashboard = query({
   args: { riderId: v.id("users") },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.riderId, "riders:READ");
     // Get rider details
     const rider = await ctx.db.get(args.riderId);
     if (!rider || !(await isRider(ctx, rider))) {

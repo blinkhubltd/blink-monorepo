@@ -1,11 +1,21 @@
 import { v } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "../_generated/server";
 import { SchedulesValidator, ScheduleUpdateValidator } from "../validators";
 import { Doc } from "../_generated/dataModel";
+import { assertPermission, assertSelfOrPermission } from "../auth.helpers";
+
+/**
+ * Staff and rider schedules. `getUserSchedule` and `createOrUpdateSchedule`
+ * have callers in both `apps/admin` (assigning a schedule to someone) and
+ * `apps/rider` (a rider reading or setting their OWN) — gated with
+ * `assertSelfOrPermission` so either can act, but a rider cannot read or
+ * write another rider's shift. Everything else here is admin-only.
+ */
 
 export const getAllSchedules = query({
   args: {},
   handler: async (ctx) => {
+    await assertPermission(ctx, "schedules:READ");
     const schedules = await ctx.db.query("schedules").collect();
 
     // Fetch user and vendor details for each schedule
@@ -31,6 +41,7 @@ export const getAllSchedules = query({
 export const getUserSchedule = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.userId, "schedules:READ");
     const schedule = await ctx.db
       .query("schedules")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -40,7 +51,8 @@ export const getUserSchedule = query({
   },
 });
 
-export const getVendorSchedules = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getVendorSchedules = internalQuery({
   args: { vendorId: v.id("vendors") },
   handler: async (ctx, args) => {
     const schedules = await ctx.db
@@ -67,6 +79,7 @@ export const getVendorSchedules = query({
 export const createOrUpdateSchedule = mutation({
   args: SchedulesValidator,
   handler: async (ctx, args) => {
+    await assertSelfOrPermission(ctx, args.userId, "schedules:UPDATE");
     // Check if a schedule already exists for this user
     const existingSchedule = await ctx.db
       .query("schedules")
@@ -150,6 +163,7 @@ export const createBulkSchedules = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "schedules:UPDATE");
     const createdSchedules = [];
     const updatedSchedules = [];
     const errors = [];
@@ -193,8 +207,8 @@ export const createBulkSchedules = mutation({
   },
 });
 
-// Mutation to update a schedule
-export const updateSchedule = mutation({
+/** @deprecated No caller anywhere in this monorepo. */
+export const updateSchedule = internalMutation({
   args: ScheduleUpdateValidator,
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
@@ -218,6 +232,7 @@ export const updateSchedule = mutation({
 export const deleteSchedule = mutation({
   args: { id: v.id("schedules") },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "schedules:DELETE");
     const schedule = await ctx.db.get(args.id);
     if (!schedule) {
       throw new Error("Schedule not found");
@@ -235,6 +250,7 @@ export const getVendorStaffWithSchedules = query({
     role: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "schedules:READ");
     let staffMembers: Doc<"users">[] = [];
 
     if (args.role) {

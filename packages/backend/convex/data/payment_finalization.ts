@@ -279,7 +279,7 @@ export const finalizePaidOrders = internalMutation({
       // Check if this order has an approved prescription and assign to picker
       if (approvedPrescription) {
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: grpWithNormalizedOrder.order.vendor_id,
             type: "order",
@@ -294,7 +294,7 @@ export const finalizePaidOrders = internalMutation({
       } else {
         // No approved prescription, use round-robin assignment
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: grpWithNormalizedOrder.order.vendor_id,
             type: "order",
@@ -465,7 +465,7 @@ export const finalizePayOnDeliveryOrders = internalMutation({
 
       if (approvedPrescription) {
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: base.vendor_id,
             type: "order",
@@ -480,7 +480,7 @@ export const finalizePayOnDeliveryOrders = internalMutation({
       } else {
         // No approved prescription, use round-robin assignment
         try {
-          await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+          await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
             orderId,
             vendorId: base.vendor_id,
             type: "order",
@@ -657,7 +657,7 @@ export const finalizePaidClearanceOrders = internalMutation({
       }
 
       try {
-        await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+        await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
           orderId,
           vendorId: grp.order.vendor_id,
           type: "order",
@@ -817,7 +817,7 @@ export const finalizePayOnDeliveryClearanceOrders = internalMutation({
       }
 
       try {
-        await ctx.runMutation(api.data.picker_assignment.assignOrderToPicker, {
+        await ctx.runMutation(internal.data.picker_assignment.assignOrderToPicker, {
           orderId,
           vendorId: grp.order.vendor_id,
           type: "order",

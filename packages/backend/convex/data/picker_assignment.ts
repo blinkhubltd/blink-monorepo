@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import {
-  mutation,
-  query,
+  internalMutation,
+  internalQuery,
   type MutationCtx,
   type QueryCtx,
 } from "../_generated/server";
@@ -83,16 +83,23 @@ async function nextPickerForVendor(
   return pickers[nextIndex]!._id;
 }
 
-// Store picker assignment state for round-robin
-export const getNextPickerForVendor = query({
+/**
+ * @deprecated No caller anywhere - `nextPickerForVendor` above is called
+ * directly by the two mutations below, and nothing else in this monorepo
+ * reaches this query.
+ */
+export const getNextPickerForVendor = internalQuery({
   args: {
     vendorId: v.id("vendors"),
   },
   handler: async (ctx, args) => await nextPickerForVendor(ctx, args.vendorId),
 });
 
-// Assign an order to a picker using round-robin
-export const assignOrderToPicker = mutation({
+/**
+ * Internal: reached only server-side, from payment_finalization.ts, when an
+ * order is confirmed. No client has a reason to assign a picker directly.
+ */
+export const assignOrderToPicker = internalMutation({
   args: {
     orderId: v.id("orders"),
     vendorId: v.id("vendors"),
@@ -165,8 +172,11 @@ export const assignOrderToPicker = mutation({
   },
 });
 
-// Assign a prescription to a picker using round-robin
-export const assignPrescriptionToPicker = mutation({
+/**
+ * Internal: reached only server-side, from prescriptions.ts, when a
+ * prescription is uploaded.
+ */
+export const assignPrescriptionToPicker = internalMutation({
   args: {
     prescriptionId: v.id("prescriptions"),
     vendorId: v.id("vendors"),
@@ -201,7 +211,8 @@ export const assignPrescriptionToPicker = mutation({
 });
 
 // Get orders assigned to a specific picker
-export const getPickerAssignedOrders = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getPickerAssignedOrders = internalQuery({
   args: {
     pickerId: v.id("users"),
   },
@@ -242,7 +253,8 @@ export const getPickerAssignedOrders = query({
 });
 
 // Get prescriptions assigned to a specific picker
-export const getPickerAssignedPrescriptions = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getPickerAssignedPrescriptions = internalQuery({
   args: {
     pickerId: v.id("users"),
   },
@@ -277,7 +289,8 @@ export const getPickerAssignedPrescriptions = query({
 });
 
 // Get assignment statistics for a vendor
-export const getVendorAssignmentStats = query({
+/** @deprecated No caller anywhere in this monorepo. */
+export const getVendorAssignmentStats = internalQuery({
   args: {
     vendorId: v.id("vendors"),
   },
