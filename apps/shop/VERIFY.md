@@ -675,9 +675,18 @@ Set `EXPO_PUBLIC_LEGAL_BASE_URL` once a real site exists, and confirm the three
 paths (`/legal/terms-of-service`, `/legal/privacy-policy`, `/legal/eula`)
 actually resolve on it before shipping.
 
-**Referral capture from a QR deep link.** The code is entered by hand on
-`/referral`. A link would carry it into the same verified mutation with the same
-one-credit-per-account guarantee: wiring, not new rules.
+**Referral capture from a QR deep link is built.** The agent dashboard
+(`/agent`) shows a QR code for `blink://referral?code=<their code>`; scanning
+it opens `/referral` with the code pre-filled and, once signed in, submitted
+automatically — still through the same `attributeMyRegistration`, unchanged. A
+custom scheme rather than a universal `https://` link, deliberately: there is
+no real website yet (see the legal-links fix), so a universal link would 404
+or land on the wrong site for anyone scanning without the app already
+installed. **To verify:** scan the code from a second device with the app
+installed, confirm it opens `/referral` with the code filled in, and that a
+signed-in scan credits automatically. Revisit the custom-scheme choice once a
+real domain exists — a universal link degrades gracefully to a web page where
+this does not.
 
 **Crediting installs.** `incrementInstallCount` is internal and has no public
 replacement, deliberately. An install is not verifiable from a client, so

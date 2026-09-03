@@ -90,3 +90,22 @@ export function payoutRequestProblem(input: {
   }
   return null;
 }
+
+/**
+ * The QR/share deep link for an agent's referral code.
+ *
+ * A custom `blink://` scheme, not a universal `https://` link. `app.config.ts`'s
+ * `associatedDomains` point at `blink.app`, which redirects to an unrelated
+ * company (see `lib/legal.ts`'s comment on the same domain) — there is no real
+ * website to fall back to yet, so a universal link would 404 or land on
+ * somebody else's site for anyone who scans it without the app already
+ * installed. The custom scheme at least resolves correctly for the one
+ * audience it can serve today: someone who already has the app.
+ *
+ * Revisit once a real domain exists — a universal link degrades gracefully
+ * (falls through to a web page) where a custom scheme does not (nothing
+ * happens if the app is not installed).
+ */
+export function referralDeepLink(code: string): string {
+  return `blink://referral?code=${encodeURIComponent(code)}`;
+}

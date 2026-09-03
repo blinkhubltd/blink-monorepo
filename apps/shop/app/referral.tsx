@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { useMutation } from "convex/react";
@@ -26,9 +26,22 @@ import { SectionCard } from "../components/checkout/sections";
  * ever, and refuses to credit an agent for their own sign-up.
  *
  * So the credit needs a real customer to enter the code, which is what this
- * screen is. Capturing it from a QR deep link is the obvious next step and is not
- * built here — the link would carry the code into the same mutation, with the
- * same guarantees.
+ * screen is.
+ *
+ * ── The QR deep link carries the code, not the credit ────────────────────
+ *
+ * `blink://referral?code=<CODE>` (see `app/agent/index.tsx` for where it's
+ * generated) opens this exact screen with the code param already in the URL.
+ * A universal `https://` link is deliberately not used: `app.config.ts`'s
+ * `associatedDomains` point at `blink.app`, which redirects to an unrelated
+ * company (see `lib/legal.ts`'s comment on the same domain) — there is no real
+ * website to fall back to yet, so the custom scheme is the only link that
+ * actually resolves anywhere right now.
+ *
+ * The link pre-fills the field and, once signed in, submits it automatically
+ * — the whole point of scanning a code is not typing it. It still goes through
+ * `attributeMyRegistration` and its one-per-account guarantee unchanged; the
+ * deep link is wiring, not a new door into the mutation.
  *
  * ── Outcomes are reported honestly ──────────────────────────────────────
  *
@@ -40,13 +53,37 @@ import { SectionCard } from "../components/checkout/sections";
 export default function ReferralScreen() {
   const { isLoaded, isSignedIn } = useAuth();
   const attribute = useMutation(api.data.marketing.attributeMyRegistration);
+  const { code: linkedCode } = useLocalSearchParams<{ code?: string }>();
 
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(linkedCode ?? "");
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
-  if (isLoaded && !isSignedIn) {
+  // A deep link with a code deserves the sign-in prompt without an extra tap
+  // — the whole point of scanning is not doing the rest by hand. A plain
+  // visit to /referral keeps the manual button below; nothing about that
+  // path changed.
+  useEffect(() => {
+    if (isLoaded && !isSignedIn && linkedCode) {
+      router.push("/(auth)/sign-in");
+    }
+  }, [isLoaded, isSignedIn, linkedCode]);
+
+  // Submits once per deep-linked code, the moment a session exists to credit
+  // it against. A ref rather than state: this must survive the sign-in modal
+  // dismissing and this screen re-rendering, without re-arming on every
+  // unrelated render the way a dependency-array effect would risk.
+  const autoSubmitted = useRef(false);
+
+  useEffect(() => {
+    if (!linkedCode || !isSignedIn || autoSubmitted.current) return;
+    autoSubmitted.current = true;
+    void submit(linkedCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedCode, isSignedIn]);
+
+  if (isLoaded && !isSignedIn && !linkedCode) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
         <ScreenHeader title="Referral code" showCart={false} />
@@ -66,12 +103,12 @@ export default function ReferralScreen() {
     );
   }
 
-  async function submit() {
+  async function submit(value: string = code) {
     setBusy(true);
     setOutcome(null);
     setFailed(false);
     try {
-      const result = await attribute({ agentCode: code });
+      const result = await attribute({ agentCode: value });
       if (result.attributed) {
         setOutcome("Thank you — your referral has been recorded.");
       } else if (result.reason === "already") {
