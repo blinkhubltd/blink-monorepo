@@ -16,6 +16,7 @@ import { Input } from "@repo/mobile-ui/components/ui/input";
 import { OtpInput } from "@repo/mobile-ui/components/ui/otp-input";
 
 import { useSignInFlow } from "../../lib/auth/use-sign-in-flow";
+import { useSocialSignIn } from "../../lib/auth/use-social-sign-in";
 
 /**
  * Sign-in, presented as a modal over whatever route the customer was on.
@@ -31,6 +32,7 @@ import { useSignInFlow } from "../../lib/auth/use-sign-in-flow";
  */
 export default function SignInScreen() {
   const flow = useSignInFlow(() => router.back());
+  const social = useSocialSignIn(() => router.back());
 
   // Autosubmit once six digits are in. A screen that makes you press a button
   // after typing the final digit is asking for a redundant tap.
@@ -113,29 +115,73 @@ export default function SignInScreen() {
           </View>
 
           {flow.step === "identifier" ? (
-            <View className="gap-space-4">
-              <Input
-                value={flow.email}
-                onChangeText={flow.setEmail}
-                placeholder="you@example.com"
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                autoComplete="email"
-                autoFocus
-                onSubmitEditing={() => void flow.submitIdentifier()}
-                returnKeyType="go"
-                editable={!flow.busy}
-              />
-              <Button
-                label="Continue"
-                size="lg"
-                full
-                loading={flow.busy}
-                disabled={!flow.isLoaded || flow.email.trim().length === 0}
-                onPress={() => void flow.submitIdentifier()}
-              />
+            <View className="gap-space-6">
+              <View className="gap-space-3">
+                <Button
+                  label="Continue with Google"
+                  variant="outline"
+                  size="lg"
+                  full
+                  loading={social.pending === "google"}
+                  disabled={social.pending !== null}
+                  onPress={() => void social.signInWith("google")}
+                />
+                {/*
+                  Apple only — Sign in with Apple is an iOS convention (and an
+                  App Store requirement once another social option is offered,
+                  guideline 4.8), not an Android one. Clerk's OAuth strategy
+                  could technically render on Android too, but nobody expects
+                  the button there.
+                */}
+                {Platform.OS === "ios" ? (
+                  <Button
+                    label="Continue with Apple"
+                    variant="outline"
+                    size="lg"
+                    full
+                    loading={social.pending === "apple"}
+                    disabled={social.pending !== null}
+                    onPress={() => void social.signInWith("apple")}
+                  />
+                ) : null}
+                {social.error ? (
+                  <Text size="sm" variant="destructive">
+                    {social.error}
+                  </Text>
+                ) : null}
+              </View>
+
+              <View className="flex-row items-center gap-space-3">
+                <View className="border-t-hairline border-border flex-1" />
+                <Text size="caption" variant="subtle">
+                  or continue with email
+                </Text>
+                <View className="border-t-hairline border-border flex-1" />
+              </View>
+
+              <View className="gap-space-4">
+                <Input
+                  value={flow.email}
+                  onChangeText={flow.setEmail}
+                  placeholder="you@example.com"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  autoComplete="email"
+                  onSubmitEditing={() => void flow.submitIdentifier()}
+                  returnKeyType="go"
+                  editable={!flow.busy}
+                />
+                <Button
+                  label="Continue"
+                  size="lg"
+                  full
+                  loading={flow.busy}
+                  disabled={!flow.isLoaded || flow.email.trim().length === 0}
+                  onPress={() => void flow.submitIdentifier()}
+                />
+              </View>
             </View>
           ) : null}
 

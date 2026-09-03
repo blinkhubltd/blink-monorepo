@@ -22,6 +22,7 @@ import {
   describePayoutStatus,
   payoutRequestProblem,
   playStoreInstallLink,
+  referralDeepLink,
 } from "../../lib/agent";
 
 /**
@@ -210,6 +211,19 @@ export default function AgentDashboardScreen() {
               {summary.code}
             </Text>
           </View>
+
+          {/*
+            Scanning this opens the app straight to /referral with the code
+            already filled in — see lib/agent.ts's referralDeepLink for why
+            it's a blink:// link and not a website URL.
+          */}
+          <View className="bg-card border-hairline border-border items-center gap-space-2 rounded-md p-space-4">
+            <QRCodeSvg value={referralDeepLink(summary.code)} size={160} />
+            <Text size="caption" variant="subtle" className="text-center">
+              Only works for someone who already has the app installed.
+            </Text>
+          </View>
+
           <View className="gap-space-2 flex-row">
             <Button
               size="sm"
@@ -218,7 +232,7 @@ export default function AgentDashboardScreen() {
               icon={<Copy size={16} color="#0A0E16" />}
               onPress={() => {
                 void Share.share({
-                  message: `Shop on Blink and use my code ${summary.code} when you sign up.`,
+                  message: `Shop on Blink and use my code ${summary.code} when you sign up: ${referralDeepLink(summary.code)}`,
                 });
               }}
             />

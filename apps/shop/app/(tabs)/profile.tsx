@@ -30,7 +30,7 @@ import { useCart } from "../../providers/CartProvider";
 import { useLocation } from "../../providers/LocationProvider";
 import {
   LEGAL_DOC_META,
-  legalBaseUrl,
+  isLegalConfigured,
   legalUrl,
   type LegalDoc,
 } from "../../lib/legal";
@@ -59,8 +59,18 @@ export default function ProfileScreen() {
   const { point, request } = useLocation();
 
   const [linkFailed, setLinkFailed] = useState(false);
+  const [linkUnconfigured, setLinkUnconfigured] = useState(false);
 
   async function openLegal(doc: LegalDoc) {
+    // Checked before attempting to open, not after — a `.invalid` placeholder
+    // URL still "succeeds" by openExternal's own contract (the browser tab
+    // does launch), so waiting for the open to fail would never catch this.
+    if (!isLegalConfigured()) {
+      setLinkUnconfigured(true);
+      setLinkFailed(false);
+      return;
+    }
+    setLinkUnconfigured(false);
     setLinkFailed(!(await openExternal(legalUrl(doc))));
   }
 
@@ -270,9 +280,15 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {linkUnconfigured ? (
+          <Text size="caption" variant="destructive">
+            Legal documents aren't available in this build yet.
+          </Text>
+        ) : null}
+
         {linkFailed ? (
           <Text size="caption" variant="destructive">
-            Could not open your browser. The documents are at {legalBaseUrl()}.
+            Could not open your browser.
           </Text>
         ) : null}
 
