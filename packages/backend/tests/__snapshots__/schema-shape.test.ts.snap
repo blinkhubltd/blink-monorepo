@@ -2745,6 +2745,90 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         },
         "optional": false,
       },
+      "fulfilment": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "address": {
+              "fieldType": {
+                "type": "object",
+                "value": {
+                  "address_1": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "address_2": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "city": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "country": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                  "lat": {
+                    "fieldType": {
+                      "type": "number",
+                    },
+                    "optional": true,
+                  },
+                  "lng": {
+                    "fieldType": {
+                      "type": "number",
+                    },
+                    "optional": true,
+                  },
+                  "street": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": true,
+                  },
+                },
+              },
+              "optional": false,
+            },
+            "receiverContact": {
+              "fieldType": {
+                "type": "object",
+                "value": {
+                  "name": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": false,
+                  },
+                  "phone": {
+                    "fieldType": {
+                      "type": "string",
+                    },
+                    "optional": false,
+                  },
+                },
+              },
+              "optional": true,
+            },
+            "specialInstructions": {
+              "fieldType": {
+                "type": "string",
+              },
+              "optional": true,
+            },
+          },
+        },
+        "optional": true,
+      },
       "order_id": {
         "fieldType": {
           "tableName": "orders",
@@ -2902,6 +2986,210 @@ exports[`table shapes > matches the committed snapshot 1`] = `
       "paystack_split_code": {
         "fieldType": {
           "type": "string",
+        },
+        "optional": true,
+      },
+      "quote": {
+        "fieldType": {
+          "type": "object",
+          "value": {
+            "deliveryFee": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+            "freeDeliveryApplied": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "freeDeliveryThreshold": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+            "grossDeliveryFee": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+            "isClearance": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": true,
+            },
+            "itemCount": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+            "legs": {
+              "fieldType": {
+                "type": "array",
+                "value": {
+                  "type": "object",
+                  "value": {
+                    "deliveryFee": {
+                      "fieldType": {
+                        "type": "number",
+                      },
+                      "optional": false,
+                    },
+                    "lines": {
+                      "fieldType": {
+                        "type": "array",
+                        "value": {
+                          "type": "object",
+                          "value": {
+                            "discountPercentage": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": true,
+                            },
+                            "lineTotal": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": false,
+                            },
+                            "name": {
+                              "fieldType": {
+                                "type": "string",
+                              },
+                              "optional": false,
+                            },
+                            "originalPrice": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": true,
+                            },
+                            "productId": {
+                              "fieldType": {
+                                "type": "union",
+                                "value": [
+                                  {
+                                    "tableName": "products",
+                                    "type": "id",
+                                  },
+                                  {
+                                    "tableName": "clearance_products",
+                                    "type": "id",
+                                  },
+                                ],
+                              },
+                              "optional": false,
+                            },
+                            "quantity": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": false,
+                            },
+                            "requiresPrescription": {
+                              "fieldType": {
+                                "type": "boolean",
+                              },
+                              "optional": false,
+                            },
+                            "sku": {
+                              "fieldType": {
+                                "type": "string",
+                              },
+                              "optional": true,
+                            },
+                            "unitPrice": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": false,
+                            },
+                            "unitType": {
+                              "fieldType": {
+                                "type": "string",
+                              },
+                              "optional": true,
+                            },
+                            "unitValue": {
+                              "fieldType": {
+                                "type": "number",
+                              },
+                              "optional": true,
+                            },
+                            "vendorId": {
+                              "fieldType": {
+                                "tableName": "vendors",
+                                "type": "id",
+                              },
+                              "optional": false,
+                            },
+                          },
+                        },
+                      },
+                      "optional": false,
+                    },
+                    "subtotal": {
+                      "fieldType": {
+                        "type": "number",
+                      },
+                      "optional": false,
+                    },
+                    "total": {
+                      "fieldType": {
+                        "type": "number",
+                      },
+                      "optional": false,
+                    },
+                    "vendorId": {
+                      "fieldType": {
+                        "tableName": "vendors",
+                        "type": "id",
+                      },
+                      "optional": false,
+                    },
+                  },
+                },
+              },
+              "optional": false,
+            },
+            "requiresPrescription": {
+              "fieldType": {
+                "type": "boolean",
+              },
+              "optional": false,
+            },
+            "subtotal": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+            "tax": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+            "total": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+            "vendorCount": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": false,
+            },
+          },
         },
         "optional": true,
       },
@@ -5125,6 +5413,13 @@ exports[`table shapes > matches the committed snapshot 1`] = `
       "push_token": {
         "fieldType": {
           "type": "string",
+        },
+        "optional": true,
+      },
+      "referred_by_agent_id": {
+        "fieldType": {
+          "tableName": "agents",
+          "type": "id",
         },
         "optional": true,
       },

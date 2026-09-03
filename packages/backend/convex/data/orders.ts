@@ -1,4 +1,9 @@
-import { mutation, query } from "../_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "../_generated/server";
 import { internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
 import { api } from "../_generated/api";
@@ -8,9 +13,11 @@ import {
   orderPaymentStatus,
   orderStatus,
 } from "../validators";
-import { getUserByClerkId } from "../auth.helpers";
+import { getAuthUser, getUserByClerkId } from "../auth.helpers";
 import { syncShipmentStatusForOrder } from "./shipments";
 import { generateDeliveryCode as createDeliveryCode } from "../lib/delivery_code";
+import { priceClearanceDelivery } from "../lib/delivery_fee";
+import { readClearanceDeliveryPricing } from "./platform_settings";
 
 const computeOrderSearchText = (order: {
   reference?: string;
@@ -633,8 +640,25 @@ export const updatePaymentStatus = mutation({
   },
 });
 
-// Generate delivery code for pay_now orders
-export const generateDeliveryCode = mutation({
+/**
+ * Mint (or re-read) the code that authorises a handover.
+ *
+ * `internalMutation`, and that is a security fix rather than tidying. As a
+ * public mutation this **disclosed the delivery code to any anonymous caller**:
+ * the early return below hands back `order.delivery_code` whenever a code
+ * already exists and is unverified, so `generateDeliveryCode({ orderId })` was
+ * enough to obtain the secret that releases someone else's goods. No guessing
+ * required.
+ *
+ * `lib/delivery_code.ts` reasons that "guessing is bounded by the order lookup
+ * rather than by entropy" — which was true, and was the problem: the order
+ * lookup was not authenticated either.
+ *
+ * Calling it also re-sent the code by push/SMS, so it doubled as a way to spam
+ * a customer. Both callers are server-side (`notifications.ts`, `payments.ts`),
+ * so nothing legitimate is lost.
+ */
+export const generateDeliveryCode = internalMutation({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
@@ -678,17 +702,46 @@ export const generateDeliveryCode = mutation({
   },
 });
 
-// Verify delivery code
+/**
+ * Confirm a handover against the code the customer reads out.
+ *
+ * ── Why the caller is now checked ────────────────────────────────────────
+ *
+ * This was public, unauthenticated, and took `riderId` as an OPTIONAL ARGUMENT
+ * that it never used for anything. So an anonymous caller could mark somebody
+ * else's order Delivered by supplying an order id and the right six digits —
+ * and because a wrong code returned `{ verified: false }` instead of throwing,
+ * it was also its own brute-force oracle.
+ *
+ * `riderId` is now derived from the auth token and the argument is **removed**
+ * rather than accepted-and-ignored: an ignored parameter invites a future change
+ * to start honouring it, which is precisely how it got here.
+ *
+ * A wrong code still returns `{ verified: false }` rather than throwing — a
+ * rider mistyping at a doorstep is an ordinary event, and the rider app
+ * distinguishes it from a failure. The brute-force concern is answered by the
+ * caller having to BE the assigned rider, not by making a typo fatal.
+ */
 export const verifyDeliveryCode = mutation({
   args: {
     orderId: v.id("orders"),
     code: v.string(),
-    riderId: v.optional(v.id("users")), // for rider verification
   },
   handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
     const order = await ctx.db.get(args.orderId);
     if (!order) {
       throw new Error("Order not found");
+    }
+
+    // Only the rider actually carrying this order may close it. Checked against
+    // the order's own `rider_id`, so a signed-in rider cannot confirm a
+    // delivery assigned to a colleague.
+    if (!order.rider_id || order.rider_id !== user._id) {
+      throw new ConvexError(
+        "Only the rider assigned to this delivery can verify its code",
+      );
     }
 
     // Only applicable for pay_now orders
@@ -788,8 +841,20 @@ export const getOrdersAwaitingVerification = query({
   },
 });
 
-// Check delivery code without verifying (for UI validation)
-export const checkDeliveryCode = query({
+/**
+ * Test a code without consuming it.
+ *
+ * `internalQuery`: as a public query with no auth this was a free, unlimited,
+ * side-effect-free oracle for brute-forcing a six-digit code — it answered
+ * "is this the right code for this order" to anybody who asked, without even
+ * the audit trail a mutation would leave. 900,000 candidates is nothing against
+ * an endpoint that cheap.
+ *
+ * It has no callers in any app, so it is closed rather than gated. If a rider
+ * screen ever wants live validation, it should go through the same
+ * assigned-rider check `verifyDeliveryCode` now performs.
+ */
+export const checkDeliveryCode = internalQuery({
   args: {
     orderId: v.id("orders"),
     code: v.string(),
@@ -1309,7 +1374,15 @@ export const getUserOrdersPaginated = query({
 
 // ─── Clearance Order ────────────────────────────────────────────────────────────
 
-export const createClearanceOrder = mutation({
+/**
+ * @internal Zero callers, no auth, and it accepted a whole client-built order
+ * including its prices. Worse than the regular creator in one respect: it wrote
+ * ONE order for a basket whose items could span several vendors, computing the
+ * fee from the distinct vendor count while attributing the whole order to a
+ * single `vendor_id` — so a two-shop clearance basket became one order that one
+ * shop was expected to fulfil in full. Use `clearance_checkout`.
+ */
+export const createClearanceOrder = internalMutation({
   args: {
     order: OrdersValidator,
     clearance_items: v.array(
@@ -1338,35 +1411,23 @@ export const createClearanceOrder = mutation({
       searchText: "",
     };
 
-    const [clearanceDeliverySetting, extraVendorSetting] = await Promise.all([
-      ctx.db
-        .query("platform_settings")
-        .withIndex("by_key", (q) => q.eq("key", "clearance_delivery_fee"))
-        .first(),
-      ctx.db
-        .query("platform_settings")
-        .withIndex("by_key", (q) => q.eq("key", "clearance_extra_vendor_fee"))
-        .first(),
-    ]);
-
-    const parseNonNegative = (raw: string | undefined, fallback: number) => {
-      const parsed = Number.parseFloat(raw ?? "");
-      return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-    };
-
-    const baseClearanceDeliveryFee = parseNonNegative(
-      clearanceDeliverySetting?.value,
-      150,
-    );
-    const extraVendorFee = parseNonNegative(extraVendorSetting?.value, 50);
+    // Reads through the shared reader rather than two inline `by_key` lookups
+    // with their own local defaults. The duplication this replaces is exactly
+    // the drift the key-constant pattern exists to stop: this file had its own
+    // `parseNonNegative` with 150/50 baked in, so a settings change reached the
+    // quote and not the charge.
+    const clearancePricing = await readClearanceDeliveryPricing(ctx);
     const vendorCount = new Set(args.clearance_items.map((i) => i.vendor_id))
       .size;
 
-    const computedDeliveryFee =
-      vendorCount > 0
-        ? baseClearanceDeliveryFee +
-          Math.max(0, vendorCount - 1) * extraVendorFee
-        : 0;
+    // Clearance is deliberately excluded from the free-delivery threshold —
+    // those items are already discounted, and waiving delivery on top erodes
+    // the margin twice. `priceClearanceDelivery` takes no subtotal, so the
+    // threshold cannot leak in by accident.
+    const computedDeliveryFee = priceClearanceDelivery(
+      vendorCount,
+      clearancePricing,
+    );
 
     const subtotal = Number(orderData.subtotal_amount || 0);
     const tax = Number(orderData.tax_amount || 0);
@@ -1440,5 +1501,142 @@ export const createClearanceOrder = mutation({
     }
 
     return { success: true, orderId };
+  },
+});
+
+/**
+ * One of the caller's own orders, with its items.
+ *
+ * Auth-derived and ownership-checked. `getOrderById` and `getOrderWithItems`
+ * take only an order id with no auth at all, and the latter joins the customer
+ * row — so an order id was enough to read somebody's name, and the order carries
+ * their address and phone. Order ids are sequential-ish Convex ids, not secrets.
+ *
+ * Returns null rather than throwing for an order that is not the caller's, so
+ * the screen shows "not found" and does not confirm that the id exists.
+ */
+export const getMyOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return null;
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order || order.user_id !== user._id) return null;
+
+    const [vendor, items] = await Promise.all([
+      ctx.db.get(order.vendor_id),
+      ctx.db
+        .query("order_items")
+        .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
+        .collect(),
+    ]);
+
+    // Deliberately no customer join: the caller IS the customer, so returning
+    // their own name adds nothing and widens what a leak would expose.
+    return {
+      ...order,
+      vendor: vendor ? { _id: vendor._id, name: vendor.name } : null,
+      items,
+    };
+  },
+});
+
+/**
+ * Every order in one basket, by the reference they share.
+ *
+ * A basket spanning several shops becomes several orders. The confirmation
+ * screen shows all of them, because a customer who bought one basket should not
+ * have to work out that it became three deliveries.
+ */
+export const getMyOrdersByReference = query({
+  args: { reference: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return [];
+
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_payment_reference", (q) =>
+        q.eq("payment_reference", args.reference),
+      )
+      .collect();
+
+    return orders.filter((o) => o.user_id === user._id);
+  },
+});
+
+/**
+ * The caller's own order history, newest first.
+ *
+ * Auth-derived. `getUserOrders` and `getUserOrdersPaginated` above take the user
+ * id as an ARGUMENT, so an order id or a user id was enough to read somebody's
+ * history — which carries their address, their phone and everything they have
+ * ever bought.
+ *
+ * Bounded rather than paginated: a customer's history is small enough that a
+ * cursor is more machinery than the screen needs, and `take` keeps the read off
+ * the per-query document ceiling regardless of how long they have been a
+ * customer.
+ */
+export const getMyOrders = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return [];
+
+    const limit = Math.min(Math.max(args.limit ?? 30, 1), 100);
+
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .order("desc")
+      .take(limit);
+
+    return Promise.all(
+      orders.map(async (order) => {
+        const vendor = await ctx.db.get(order.vendor_id);
+        const items = await ctx.db
+          .query("order_items")
+          .withIndex("by_order", (q) => q.eq("order_id", order._id))
+          .collect();
+
+        return {
+          _id: order._id,
+          reference: order.reference,
+          // The basket reference, so the list can group several deliveries that
+          // came from one checkout.
+          paymentReference: order.payment_reference ?? null,
+          orderDate: order.order_date,
+          orderStatus: order.order_status,
+          paymentStatus: order.payment_status,
+          paymentMode: order.payment_mode ?? null,
+          total: order.total_amount,
+          deliveryFee: order.delivery_fee,
+          vendorName: vendor?.name ?? null,
+          itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
+          // A couple of names, so a row is recognisable without opening it.
+          previewNames: items.slice(0, 2).map((i) => i.name),
+        };
+      }),
+    );
   },
 });

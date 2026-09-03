@@ -4,6 +4,8 @@ import { ChevronLeft, ShoppingBag } from "lucide-react-native";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 
+import { useCart } from "../providers/CartProvider";
+
 /**
  * Header for a pushed catalogue screen: back, breadcrumb, title.
  *
@@ -23,6 +25,8 @@ export function ScreenHeader({
   subtitle?: string;
   showCart?: boolean;
 }) {
+  const { count } = useCart();
+
   return (
     <View className="gap-space-2 px-screen pb-space-4 pt-space-2">
       <View className="flex-row items-center justify-between">
@@ -40,10 +44,20 @@ export function ScreenHeader({
           <Pressable
             onPress={() => router.push("/cart")}
             accessibilityRole="button"
-            accessibilityLabel="Basket"
+            accessibilityLabel={
+              count > 0 ? `Basket, ${count} items` : "Basket, empty"
+            }
             className="size-control -mr-space-2 rounded-pill items-center justify-center active:opacity-70"
           >
             <ShoppingBag size={24} color="#0A0E16" />
+            {/* Same badge as the catalogue header: one basket, one count. */}
+            {count > 0 ? (
+              <View className="bg-primary right-space-1 top-space-1 min-w-[18px] rounded-pill absolute items-center justify-center px-[4px]">
+                <Text size="caption" weight="bold" variant="onBrand">
+                  {count > 99 ? "99+" : count}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         ) : null}
       </View>

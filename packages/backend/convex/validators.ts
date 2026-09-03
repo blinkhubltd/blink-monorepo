@@ -531,6 +531,16 @@ export const UsersValidator = v.object({
   push_token: v.optional(v.string()),
   role_id: v.optional(v.id("roles")),
   isStaff: v.optional(v.boolean()),
+  /**
+   * Which agent, if any, this account was registered through.
+   *
+   * Set once and never cleared, which is what makes referral crediting
+   * idempotent: the previous `incrementRegistrationCount` was a public,
+   * unauthenticated mutation keyed on the agent code printed on the poster, so
+   * it could be replayed indefinitely and each call credited money. One credit
+   * per real account, ever, is enforced by the presence of this field.
+   */
+  referred_by_agent_id: v.optional(v.id("agents")),
   updated_at: v.optional(v.number()),
 });
 
@@ -884,6 +894,112 @@ export const PaymentsValidator = v.object({
   payment_date: v.number(),
   status: v.union(...paymentStatus.map((e) => v.literal(e))),
   updated_at: v.number(),
+
+  /**
+   * Where the delivery goes, captured before payment opens.
+   *
+   * This is the other half of what makes the card path safe, and it is here
+   * rather than on the finalising call for one reason: **the customer's app
+   * may never come back.** They pay in a webview, or approve an M-Pesa STK
+   * push, and the OS kills the app, or the network drops, or they simply
+   * close it. Paystack has the money either way.
+   *
+   * With the address held here, the Paystack webhook can write the orders on
+   * its own — it needs nothing from the client. The old app could not do
+   * that: `checkout.tsx` held the address in component state and handed it
+   * to the finaliser, so a customer who paid and vanished left a captured
+   * payment with no order, which is the state its Retry alert apologised
+   * for.
+   *
+   * Optional because a pay-on-delivery checkout has no reason to store it
+   * ahead of time — `placeMyOrder` is called by a client that is, by
+   * definition, still there. `beginCheckout` requires it for `pay_now`.
+   */
+  fulfilment: v.optional(
+    v.object({
+      address: v.object({
+        street: v.optional(v.string()),
+        address_1: v.optional(v.string()),
+        address_2: v.optional(v.string()),
+        city: v.optional(v.string()),
+        country: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+      }),
+      receiverContact: v.optional(
+        v.object({ name: v.string(), phone: v.string() }),
+      ),
+      specialInstructions: v.optional(v.string()),
+    }),
+  ),
+
+  /**
+   * The basket as priced when this payment was initiated.
+   *
+   * Payment is authorised at initiation and orders are written after Paystack
+   * confirms — two separate moments, between which the basket can change. So
+   * the basket is priced ONCE, stored here, the customer is charged exactly
+   * `amount`, and finalisation writes orders from this rather than re-deriving.
+   * The race stops being a case to handle and becomes impossible.
+   *
+   * It also makes a retried finalisation idempotent: it replays identical
+   * numbers instead of re-pricing against a basket that may since have emptied.
+   *
+   * Optional because rows written before this existed do not have one;
+   * finalisation falls back to its previous behaviour when it is absent.
+   */
+  quote: v.optional(
+    v.object({
+      subtotal: v.float64(),
+      grossDeliveryFee: v.float64(),
+      deliveryFee: v.float64(),
+      freeDeliveryApplied: v.boolean(),
+      // Recorded so a later settings change cannot make a past order look wrong.
+      freeDeliveryThreshold: v.float64(),
+      tax: v.float64(),
+      total: v.float64(),
+      requiresPrescription: v.boolean(),
+      vendorCount: v.float64(),
+      itemCount: v.float64(),
+      // A clearance basket. Its lines are `clearance_products`, its orders
+      // carry `is_clearance`, and no free-delivery waiver was available.
+      isClearance: v.optional(v.boolean()),
+      legs: v.array(
+        v.object({
+          vendorId: v.id("vendors"),
+          subtotal: v.float64(),
+          deliveryFee: v.float64(),
+          total: v.float64(),
+          lines: v.array(
+            v.object({
+              // Either table: a clearance line references
+              // `clearance_products`, which is a separate table from the
+              // regular catalogue rather than a flag on it.
+              productId: v.union(
+                v.id("products"),
+                v.id("clearance_products"),
+              ),
+              vendorId: v.id("vendors"),
+              name: v.string(),
+              quantity: v.float64(),
+              // The price AS QUOTED. Never re-read — this is what was agreed.
+              unitPrice: v.float64(),
+              lineTotal: v.float64(),
+              requiresPrescription: v.boolean(),
+              // Clearance lines only. Recorded so the receipt keeps the
+              // discount the customer was shown, even if the listing is later
+              // edited or expires.
+              originalPrice: v.optional(v.float64()),
+              discountPercentage: v.optional(v.float64()),
+              sku: v.optional(v.string()),
+              unitType: v.optional(v.string()),
+              unitValue: v.optional(v.float64()),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
 });
 
 export const StockReservationValidator = v.object({

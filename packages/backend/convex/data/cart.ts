@@ -9,6 +9,8 @@ import type { Id } from "../_generated/dataModel";
 import { AddToCartValidator } from "../validators";
 import { getUserByClerkId } from "../auth.helpers";
 import { checkVendorSchedule } from "../lib/schedule";
+import { priceBasketDelivery } from "../lib/delivery_fee";
+import { readDeliveryPricing } from "./platform_settings";
 
 /**
  * @deprecated Accepts a caller-supplied `clerkId` / `user_id` as an ARGUMENT
@@ -736,7 +738,13 @@ export const getCartSummary = query({
     // Calculate fees (you can customize these calculations)
     const taxRate = 0.0; // 0% tax for now
     const tax = subtotal * taxRate;
-    const deliveryFee = subtotal >= 2000 ? 0 : 250; // Free delivery over KES 2000
+    // The 250 / free-over-2000 literal that used to live here has been removed.
+    // It was the only place either number existed anywhere in the codebase, no
+    // screen ever called this query, and checkout charged a flat fee — so the
+    // "free delivery" it implied was never actually offered to anyone. The rule
+    // now lives in lib/delivery_fee.ts, driven by platform settings, and is
+    // read through cart.getMyTotals below.
+    const deliveryFee = 0;
     const total = subtotal + tax + deliveryFee;
 
     return {
@@ -1281,5 +1289,102 @@ export const mergeIntoMyCart = mutation({
     }
 
     return { ok: true, lines: products.length };
+  },
+});
+
+/**
+ * What the caller's own basket costs.
+ *
+ * The one query the shop's basket screen reads its money from, so the figure on
+ * screen and the figure an order is written with come from a single calculation
+ * (`lib/delivery_fee.ts`) over a single settings read.
+ *
+ * This is what `getCartSummary` should have been. That one hardcoded
+ * `subtotal >= 2000 ? 0 : 250`, was never called by any screen, and disagreed
+ * with the flat fee checkout actually charged — three numbers, no agreement, and
+ * the customer shown none of them.
+ *
+ * Prices come from the CURRENT product rows, never from anything the client
+ * sends and never from anything stored on the device: a basket that remembers
+ * last week's price is a pricing dispute waiting to happen.
+ */
+export const getMyTotals = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await callerUser(ctx);
+    const empty = {
+      itemCount: 0,
+      subtotal: 0,
+      deliveryFee: 0,
+      grossDeliveryFee: 0,
+      freeDeliveryApplied: false,
+      freeDeliveryThreshold: 0,
+      total: 0,
+      vendorCount: 0,
+      unavailableCount: 0,
+    };
+    if (!user) return empty;
+
+    const cart = await ctx.db
+      .query("cart")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+    if (!cart || cart.products.length === 0) {
+      // Still report the threshold, so an empty basket can say what it takes to
+      // earn free delivery.
+      const pricing = await readDeliveryPricing(ctx);
+      return { ...empty, freeDeliveryThreshold: pricing.freeThreshold };
+    }
+
+    const pricing = await readDeliveryPricing(ctx);
+
+    // Group by vendor, skipping lines that are no longer sellable. They are
+    // counted so the screen can say so, but they must not earn delivery weight
+    // or count toward the free-delivery threshold — otherwise an out-of-stock
+    // line could tip a basket over it.
+    const byVendor = new Map<string, number>();
+    let subtotal = 0;
+    let itemCount = 0;
+    let unavailableCount = 0;
+
+    for (const line of cart.products) {
+      const product = await ctx.db.get(line.product);
+      if (!product) {
+        unavailableCount += 1;
+        continue;
+      }
+      const purchasable = product.status === "Active" && product.quantity > 0;
+      if (!purchasable || !product.vendor_id) {
+        unavailableCount += 1;
+        continue;
+      }
+      const lineTotal = product.price * line.quantity;
+      subtotal += lineTotal;
+      itemCount += line.quantity;
+      byVendor.set(
+        product.vendor_id,
+        (byVendor.get(product.vendor_id) ?? 0) + lineTotal,
+      );
+    }
+
+    const priced = priceBasketDelivery(
+      [...byVendor.entries()].map(([vendorId, vendorSubtotal]) => ({
+        vendorId,
+        subtotal: vendorSubtotal,
+      })),
+      pricing,
+    );
+
+    return {
+      itemCount,
+      subtotal: priced.basketSubtotal,
+      deliveryFee: priced.basketDeliveryFee,
+      grossDeliveryFee: priced.grossDeliveryFee,
+      freeDeliveryApplied: priced.waived,
+      freeDeliveryThreshold: pricing.freeThreshold,
+      total: priced.basketSubtotal + priced.basketDeliveryFee,
+      vendorCount: priced.legs.length,
+      unavailableCount,
+    };
   },
 });

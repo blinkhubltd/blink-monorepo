@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
-    "./utils": "./src/utils.ts"
+    "./utils": "./src/utils.ts",
+    "./auth": "./src/auth/sign-in.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",

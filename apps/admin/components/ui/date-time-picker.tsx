@@ -78,7 +78,7 @@ export function DateTimePicker({
       return;
     }
 
-    let newDate = new Date(date);
+    const newDate = new Date(date);
 
     // If we have a time value, apply it to the selected date
     if (timeValue) {

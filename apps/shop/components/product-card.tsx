@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { Minus, Plus } from "lucide-react-native";
+import { Heart, Minus, Plus } from "lucide-react-native";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
@@ -64,6 +64,8 @@ export function ProductCard({
   onAdd,
   onIncrement,
   onDecrement,
+  saved,
+  onToggleSave,
 }: {
   product: ProductForCard;
   quantityInCart: number;
@@ -71,6 +73,15 @@ export function ProductCard({
   onAdd: () => void;
   onIncrement: () => void;
   onDecrement: () => void;
+  /**
+   * Whether this product is on the customer's saved list. `undefined` means the
+   * answer has not arrived yet, and the heart stays neutral rather than drawing
+   * as unsaved — which is what made a saved product flash empty on every mount
+   * in the app this replaces, and unsave itself if tapped in that window.
+   */
+  saved?: boolean;
+  /** Omit to hide the heart entirely — the related rail on detail does. */
+  onToggleSave?: () => void;
 }) {
   const outOfStock = product.quantity <= 0;
   const lowStock = !outOfStock && product.quantity <= LOW_STOCK_THRESHOLD;
@@ -105,6 +116,32 @@ export function ProductCard({
             </Text>
           </View>
         )}
+
+        {/*
+          Saving, top-right. A translucent circle over the image rather than a
+          row below it, so it costs no vertical space and cannot be hit while
+          reaching for the add control in the opposite corner.
+        */}
+        {onToggleSave ? (
+          <Pressable
+            onPress={onToggleSave}
+            accessibilityRole="button"
+            accessibilityState={{ selected: saved === true }}
+            accessibilityLabel={
+              saved === true
+                ? `Remove ${product.name} from saved items`
+                : `Save ${product.name}`
+            }
+            hitSlop={6}
+            className="right-space-2 top-space-2 bg-card size-[34px] rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+          >
+            <Heart
+              size={17}
+              color={saved === true ? "#D83A34" : "#5A6372"}
+              fill={saved === true ? "#D83A34" : "transparent"}
+            />
+          </Pressable>
+        ) : null}
 
         {/* At most one badge, by priority. */}
         <View className="left-space-2 top-space-2 absolute">

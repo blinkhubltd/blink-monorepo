@@ -331,7 +331,7 @@ function generateOptimalHubPositions(
 
     // Select optimal points using greedy algorithm
     const selectedHubs: OptimizedHub[] = [];
-    let uncoveredFeature = wardFeature;
+    const uncoveredFeature = wardFeature;
     let iteration = 0;
     const maxIterations = 10; // Prevent infinite loops
 

@@ -37,6 +37,15 @@ const generateSlug = (name: string): string => {
     .concat("-", Date.now().toString(36));
 };
 
+/**
+ * Ceiling on one clearance scan.
+ *
+ * The coverage filter is distance-based and cannot be expressed as an index, so
+ * the listings are read and filtered in memory. Bounded rather than collected:
+ * the document limit throws instead of degrading.
+ */
+const MAX_CLEARANCE_SCAN = 2000;
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -353,11 +362,17 @@ export const getActiveByCoverage = query({
 
     const now = Date.now();
 
-    // Get active clearance products that haven't expired
-    let products = await ctx.db
+    // Bounded read. `.collect()` here was unbounded by construction: Convex
+    // throws past its per-query document limit rather than degrading, so a
+    // listing count that grows past it takes the whole clearance screen out.
+    // The cap is reported below so the UI can say it is showing the newest
+    // rather than implying it has shown everything.
+    const scanned = await ctx.db
       .query("clearance_products")
       .withIndex("by_status", (q) => q.eq("status", "Active"))
-      .collect();
+      .take(MAX_CLEARANCE_SCAN);
+    const truncated = scanned.length >= MAX_CLEARANCE_SCAN;
+    let products = scanned;
 
     // Filter by display_end_date and quantity
     products = products.filter(
@@ -433,6 +448,9 @@ export const getActiveByCoverage = query({
       total,
       hasMore,
       nextOffset: hasMore ? offset + limit : null,
+      // True when the scan cap was reached, so `total` is a floor rather than
+      // a count.
+      truncated,
     };
   },
 });

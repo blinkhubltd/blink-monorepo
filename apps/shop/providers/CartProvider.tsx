@@ -66,6 +66,18 @@ type CartState = {
   subtotal: number;
   isGuest: boolean;
   loading: boolean;
+  /**
+   * Signed in, but the backend has no `users` row for this customer yet.
+   *
+   * Worth surfacing rather than swallowing: in this state the basket reads as
+   * empty and every write fails, so signing in makes things WORSE than staying
+   * a guest. A screen showing "setting up your account" is recoverable; a
+   * silently empty basket is not.
+   */
+  accountMissing: boolean;
+  /** Last failed write, for a screen to show. Cleared on the next success. */
+  writeError: string | null;
+  dismissWriteError: () => void;
   quantityOf: (productId: Id<"products">) => number;
   add: (productId: Id<"products">, quantity?: number) => void;
   increment: (productId: Id<"products">) => void;
@@ -95,11 +107,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // Synchronous restore: the basket badge must be correct on the first frame,
   // not one frame late.
   const [localLines, setLocalLines] = useState<CartLine[]>(() => readLocal());
+  const [writeError, setWriteError] = useState<string | null>(null);
 
   const serverCart = useQuery(
     api.data.cart.getMyCart,
     isSignedIn ? {} : "skip",
   );
+  // Three-state, not two: "signed out", "signed in but no users row yet", and
+  // "has a row". The middle one is real — a customer's row is created by the
+  // Clerk webhook and NOTHING else (there is no self-provisioning mutation
+  // anywhere in the backend), so a webhook that has not fired leaves a signed-in
+  // customer whose basket silently reads as empty and whose every write throws.
+  const access = useQuery(
+    api.user.access.getMyAccess,
+    isSignedIn ? {} : "skip",
+  );
+  // Explicitly false while the query is in flight: `undefined` must not read
+  // as "account missing" and put a setup message in front of a customer whose
+  // row is perfectly fine and simply has not loaded yet.
+  const accountMissing =
+    isSignedIn === true &&
+    access?.signedIn === true &&
+    access.hasUser === false;
   const setServerLine = useMutation(api.data.cart.setMyCartLine);
   const clearServer = useMutation(api.data.cart.clearMyCart);
   const mergeCart = useMutation(api.data.cart.mergeIntoMyCart);
@@ -164,7 +193,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       // Identity comes from the auth token server-side, never from an argument.
-      void setServerLine({ productId, quantity });
+      //
+      // The .catch is not defensive padding: when the Clerk webhook has not
+      // created this customer's `users` row, every cart mutation throws
+      // `Unauthorized`. Unhandled, that surfaces as a red-box crash on an
+      // ordinary tap. Surfaced instead, so the screen can explain.
+      void setServerLine({ productId, quantity }).catch((err) => {
+        setWriteError(
+          accountMissing
+            ? "Your account is still being set up. Try again in a moment."
+            : "Could not update your basket. Check your connection.",
+        );
+        console.warn("[cart] setMyCartLine failed", err);
+      });
     },
     [isGuest, localLines, writeLocal, setServerLine],
   );
@@ -209,6 +250,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .reduce((sum, i) => sum + i.price * i.quantity, 0),
       isGuest,
       loading: ids.length > 0 && resolved === undefined,
+      accountMissing,
+      writeError,
+      dismissWriteError: () => setWriteError(null),
       quantityOf,
       add: (productId, quantity = 1) =>
         setQuantity(productId, quantityOf(productId) + quantity),
@@ -219,13 +263,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       remove: (productId) => setQuantity(productId, 0),
       clear: () => {
         if (isGuest) writeLocal([]);
-        else void clearServer({});
+        else
+          void clearServer({}).catch((err) => {
+            setWriteError("Could not empty your basket.");
+            console.warn("[cart] clearMyCart failed", err);
+          });
       },
     }),
     [
       lines,
       items,
       isGuest,
+      accountMissing,
+      writeError,
       ids.length,
       resolved,
       quantityOf,

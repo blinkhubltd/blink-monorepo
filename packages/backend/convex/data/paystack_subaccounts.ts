@@ -1,4 +1,4 @@
-import { mutation, query } from "../_generated/server";
+import { internalMutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import {
   paystackSubaccountKeys,
@@ -14,7 +14,11 @@ export const getByKey = query({
   },
 });
 
-export const upsert = mutation({
+/**
+ * Internal: the only caller is `payment_split`, and public this let anyone
+ * repoint a vendor's payout subaccount.
+ */
+export const upsert = internalMutation({
   args: {
     key: v.union(...paystackSubaccountKeys.map((e) => v.literal(e))),
     business_name: v.string(),

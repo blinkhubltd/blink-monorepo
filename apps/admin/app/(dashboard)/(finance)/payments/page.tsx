@@ -27,22 +27,6 @@ export default function PaymentsPage() {
   const searchParams = useSearchParams();
   const { currentUser } = useAuth();
 
-  // Check admin permissions
-  if (!currentUser || !hasPermission(currentUser, "payments:view")) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <HugeiconsIcon icon={AlertTriangle} className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-          <p className="text-muted-foreground mb-4">
-            You don't have permission to view payments.
-          </p>
-          <Button onClick={() => router.push("/")}>Go to Dashboard</Button>
-        </div>
-      </div>
-    );
-  }
-
   const initialPage = Number(searchParams.get("page") ?? "1");
   const initialLimit = Number(searchParams.get("limit") ?? "10");
 
@@ -204,6 +188,41 @@ export default function PaymentsPage() {
       totalFees,
     };
   }, [payments]);
+
+  /*
+    The permission gate sits HERE, below every hook, and that placement is the
+    fix rather than a preference.
+
+    It used to be the first thing in the component, above all fourteen hooks. On
+    the first render `currentUser` is null while auth resolves, so the gate
+    returned early and React recorded zero hooks for this component. When auth
+    resolved and the permission passed, the next render called fourteen — and
+    React throws "Rendered more hooks than during the previous render" and
+    unmounts the tree. The screen was reachable only for whoever had
+    `currentUser` available synchronously.
+
+    Hooks must run in the same order on every render, so the gate has to come
+    after them. The queries above do run for a user who turns out not to have
+    permission; they are Convex reads that authorise themselves server-side, so
+    that costs a subscription, not access.
+  */
+  if (!currentUser || !hasPermission(currentUser, "payments:view")) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <HugeiconsIcon
+            icon={AlertTriangle}
+            className="w-12 h-12 text-red-500 mx-auto mb-4"
+          />
+          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-muted-foreground mb-4">
+            You don&apos;t have permission to view payments.
+          </p>
+          <Button onClick={() => router.push("/")}>Go to Dashboard</Button>
+        </div>
+      </div>
+    );
+  }
 
   const handlePageChange = (nextPage: number) => {
     const safe = Math.max(1, nextPage);

@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "check-types": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
@@ -44,6 +44,8 @@
     "@types/node": "^22.15.3",
     "@types/react": "~19.2.18",
     "@types/react-dom": "~19.2.5",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.2",
     "tailwindcss": "^4.3.3",
     "typescript": "5.9.2",
     "vitest": "^3.2.4"

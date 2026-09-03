@@ -1,11 +1,23 @@
-import { query, mutation } from "../_generated/server";
-import { v } from "convex/values";
+import {
+  internalQuery,
+  mutation,
+  query,
+} from "../_generated/server";
+import { v, ConvexError } from "convex/values";
+import { getAuthUser } from "../auth.helpers";
 import { Id } from "../_generated/dataModel";
 
 /**
  * Get detailed shipment tracking information including rider location
  */
-export const getShipmentTracking = query({
+/**
+ * @internal Was a public, unauthenticated query. It joins the FULL rider and customer rows — names, phones, coordinates — and returned them to any anonymous caller holding a shipment id.
+ *
+ * Zero callers in any app, so it is closed rather than gated. Customer-facing
+ * tracking goes through `getMyOrderTracking` below, which is owner-scoped and
+ * returns only what a customer needs to see.
+ */
+export const getShipmentTracking = internalQuery({
   args: {
     shipmentId: v.id("shipments"),
   },
@@ -86,7 +98,14 @@ export const getShipmentTracking = query({
 /**
  * Get real-time rider location for a specific shipment
  */
-export const getRiderLocation = query({
+/**
+ * @internal Was a public, unauthenticated query. It returned a rider's LIVE GPS coordinates to any anonymous caller holding a shipment id. Shipment ids are not secrets.
+ *
+ * Zero callers in any app, so it is closed rather than gated. Customer-facing
+ * tracking goes through `getMyOrderTracking` below, which is owner-scoped and
+ * returns only what a customer needs to see.
+ */
+export const getRiderLocation = internalQuery({
   args: {
     shipmentId: v.id("shipments"),
   },
@@ -113,23 +132,39 @@ export const getRiderLocation = query({
 /**
  * Update rider's real-time location (called by rider app)
  */
+/**
+ * A rider reporting their own position.
+ *
+ * ── What this closes ─────────────────────────────────────────────────────
+ *
+ * It took `riderId` as an ARGUMENT with no auth check, and validated only that
+ * the TARGET is a rider — never that the caller is. So anyone could move any
+ * rider anywhere on the map: falsify a delivery's progress, or make a rider
+ * appear somewhere they have never been.
+ *
+ * The id is now derived from the auth token and the argument is removed. Zero
+ * callers in any app, so nothing legitimate breaks.
+ */
 export const updateRiderLocation = mutation({
   args: {
-    riderId: v.id("users"),
     coordinates: v.object({
       lat: v.float64(),
       lng: v.float64(),
     }),
   },
   handler: async (ctx, args) => {
-    const rider = await ctx.db.get(args.riderId);
-    const riderRole = rider?.role_id ? await ctx.db.get(rider.role_id) : null;
-    if (!rider || riderRole?.name !== "Rider") {
-      throw new Error("Invalid rider");
+    const { user: authed } = await getAuthUser(ctx);
+    const riderRole = authed.role_id ? await ctx.db.get(authed.role_id) : null;
+    if (riderRole?.name !== "Rider") {
+      throw new ConvexError("Only a rider can report a rider location");
     }
+    // Re-read the full row: getAuthUser widens `rider_details`, and the patch
+    // below spreads it.
+    const rider = await ctx.db.get(authed._id);
+    if (!rider) throw new ConvexError("Rider not found");
 
     // Update rider's location
-    await ctx.db.patch(args.riderId, {
+    await ctx.db.patch(rider._id, {
       rider_details: {
         ...rider.rider_details,
         coordinates: args.coordinates,
@@ -150,7 +185,14 @@ export const updateRiderLocation = mutation({
 /**
  * Get delivery timeline/status history for a shipment
  */
-export const getDeliveryTimeline = query({
+/**
+ * @internal Was a public, unauthenticated query. It exposes the full delivery history of any shipment.
+ *
+ * Zero callers in any app, so it is closed rather than gated. Customer-facing
+ * tracking goes through `getMyOrderTracking` below, which is owner-scoped and
+ * returns only what a customer needs to see.
+ */
+export const getDeliveryTimeline = internalQuery({
   args: {
     shipmentId: v.id("shipments"),
   },
@@ -263,7 +305,14 @@ export const getDeliveryTimeline = query({
   },
 });
 
-export const getEstimatedDeliveryTime = query({
+/**
+ * @internal Was a public, unauthenticated query. It exposes rider position indirectly via the ETA.
+ *
+ * Zero callers in any app, so it is closed rather than gated. Customer-facing
+ * tracking goes through `getMyOrderTracking` below, which is owner-scoped and
+ * returns only what a customer needs to see.
+ */
+export const getEstimatedDeliveryTime = internalQuery({
   args: {
     shipmentId: v.id("shipments"),
   },
@@ -329,7 +378,14 @@ export const getEstimatedDeliveryTime = query({
 /**
  * Get all active deliveries for tracking overview (admin/customer service)
  */
-export const getActiveDeliveries = query({
+/**
+ * @internal Was a public, unauthenticated query. It lists every in-flight delivery on the platform.
+ *
+ * Zero callers in any app, so it is closed rather than gated. Customer-facing
+ * tracking goes through `getMyOrderTracking` below, which is owner-scoped and
+ * returns only what a customer needs to see.
+ */
+export const getActiveDeliveries = internalQuery({
   args: {
     limit: v.optional(v.number()),
   },
@@ -426,7 +482,7 @@ export const confirmDelivery = mutation({
     // Update rider status back to Active
     const rider = await ctx.db.get(args.riderId);
     if (rider && rider.rider_details) {
-      await ctx.db.patch(args.riderId, {
+      await ctx.db.patch(rider._id, {
         rider_details: {
           ...rider.rider_details,
           status: "Active",
@@ -439,6 +495,75 @@ export const confirmDelivery = mutation({
       success: true,
       message: "Delivery confirmed successfully",
       deliveryTime: Date.now(),
+    };
+  },
+});
+
+/**
+ * Tracking for one of the caller's own orders.
+ *
+ * ── What a customer needs, and nothing else ──────────────────────────────
+ *
+ * The queries above joined whole rows: the rider's full record (including their
+ * own address and status), and the customer's. A customer tracking a delivery
+ * needs to know where their parcel is, roughly when it arrives, and how to
+ * reach the person carrying it — not the rider's employment details.
+ *
+ * So this returns a deliberately narrow projection. It is the same principle
+ * applied elsewhere in this backend: the rider app must not see a vendor's
+ * commission, and a customer must not see a rider's record.
+ */
+export const getMyOrderTracking = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return null;
+
+    const order = await ctx.db.get(args.orderId);
+    // Null rather than a throw for someone else's order, so the screen shows
+    // "not found" without confirming the id exists.
+    if (!order || order.user_id !== user._id) return null;
+
+    const shipment = await ctx.db
+      .query("shipments")
+      .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
+      .first();
+
+    const rider = shipment?.rider_id
+      ? await ctx.db.get(shipment.rider_id)
+      : null;
+
+    // Position is withheld until the parcel is actually moving. Before that it
+    // says nothing useful about the delivery and is only the rider's location.
+    // "Out for Delivery" is the real enum value — there is no "In Transit".
+    // The typechecker caught that, which is the argument for narrow unions.
+    const isEnRoute =
+      order.order_status === "Delivery" ||
+      shipment?.status === "Out for Delivery";
+
+    return {
+      orderStatus: order.order_status,
+      paymentStatus: order.payment_status,
+      shipmentStatus: shipment?.status ?? null,
+      // First name only. A customer needs to recognise who is at the door, not
+      // to be able to look the rider up.
+      riderFirstName: rider?.first_name ?? null,
+      riderPhone: isEnRoute ? (rider?.phone ?? null) : null,
+      riderPosition:
+        isEnRoute && rider?.rider_details?.coordinates
+          ? rider.rider_details.coordinates
+          : null,
+      vehicleType: rider?.rider_details?.vehicle_type ?? null,
+      /** Set when the order needs a code read out at the door. */
+      deliveryCodeRequired:
+        order.payment_mode === "pay_now" && !order.delivery_code_verified,
+      updatedAt: shipment?.updated_at ?? order.updated_at,
     };
   },
 });

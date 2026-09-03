@@ -17,11 +17,22 @@ import { useDashboardData } from "@/providers/DashboardDataProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/ui/card";
 import { Button } from "@repo/ui/components/ui/button";
 import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
+import { useAuth } from "@/lib/auth/AuthContext";
 import Link from "next/link";
 
 export default function ShipmentsPage() {
   const { shipments, isLoaded } = useDashboardData();
-  const { currentUser } = require("@/lib/auth/AuthContext").useAuth();
+  /*
+    Statically imported, not `require("@/lib/auth/AuthContext").useAuth()`.
+
+    A runtime require in a client component types `currentUser` as `any`, and
+    the only thing this page reads off it is
+    `currentUser?.manager_details?.vendor_id` — the field that scopes a vendor
+    manager to their own shipments. Untyped, a rename or a typo in that path
+    yields `undefined` and the scoping silently stops narrowing, which is the
+    one failure this screen must not have.
+  */
+  const { currentUser } = useAuth();
   const { isAdminUser } = useCurrentUserPermissions();
   const [limit, setLimit] = useState(10);
 

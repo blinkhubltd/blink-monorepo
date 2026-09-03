@@ -20,6 +20,11 @@ import {
   ProductCardSkeleton,
 } from "../../../../../components/product-card";
 import { ProductsHeader } from "../../../../../components/products-header";
+import { useWishlist } from "../../../../../lib/use-wishlist";
+import {
+  SaveError,
+  SavePrompt,
+} from "../../../../../components/save-prompt";
 import {
   CoverageEmptyState,
   NeedsLocationState,
@@ -63,6 +68,7 @@ export default function ProductsScreen() {
   );
   const { point, denied, request } = useLocation();
   const cart = useCart();
+  const wishlist = useWishlist();
 
   const pills = level2 ? tree.pillsFor(level2._id) : [];
   const activeL3 = t ? (pills.find((p) => p.slug === t) ?? null) : null;
@@ -126,6 +132,12 @@ export default function ProductsScreen() {
         />
       </View>
 
+      <SavePrompt
+        visible={wishlist.requiresSignIn}
+        onDismiss={wishlist.dismissSignIn}
+      />
+      <SaveError message={wishlist.error} onDismiss={wishlist.dismissError} />
+
       {!point ? (
         <NeedsLocationState onRequest={() => void request()} denied={denied} />
       ) : products.coverageEmpty ? (
@@ -159,6 +171,10 @@ export default function ProductsScreen() {
               <ProductCard
                 product={item}
                 quantityInCart={cart.quantityOf(item._id as Id<"products">)}
+                saved={wishlist.isSaved(item._id)}
+                onToggleSave={() =>
+                  void wishlist.toggle(item._id as Id<"products">)
+                }
                 onPress={() => router.push(`/product/${item._id}`)}
                 onAdd={() => cart.add(item._id as Id<"products">, 1)}
                 onIncrement={() => cart.increment(item._id as Id<"products">)}

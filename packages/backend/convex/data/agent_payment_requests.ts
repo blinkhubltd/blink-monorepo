@@ -6,10 +6,16 @@ import {
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
 } from "../_generated/server";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { assertAgentOwner, assertPermission } from "../auth.helpers";
+import {
+  assertAgentOwner,
+  assertPermission,
+  getAuthUser,
+  getAuthUserOrNull,
+} from "../auth.helpers";
 import { PAYSTACK_BASE_URL } from "../lib/paystack";
 import {
   agentPaymentRequestStatus,
@@ -127,7 +133,12 @@ export const getPaymentRequest = query({
   },
 });
 
-export const getAgentPaymentRequests = query({
+/**
+ * @internal Took `agentId` as an argument with no auth, so an agent id was
+ * enough to read another agent's payout history - amounts, dates, and which
+ * requests were refused. Use `getMyPayoutRequests`.
+ */
+export const getAgentPaymentRequests = internalQuery({
   args: {
     agentId: v.id("agents"),
     limit: v.optional(v.number()),
@@ -144,6 +155,95 @@ export const getAgentPaymentRequests = query({
 
 // ── Mutations ──────────────────────────────────────────────────
 
+/**
+ * Open a payout request for an agent, with every rule applied.
+ *
+ * Extracted so `createPaymentRequest` (which takes an agent id and checks it
+ * against the caller) and `requestMyPayout` (which takes no id at all) cannot
+ * drift. The rules are: a positive amount, payouts enabled, within the available
+ * balance after money already spoken for, on an allowed payout day, and at most
+ * one pending request at a time.
+ */
+async function openPayoutRequest(
+  ctx: MutationCtx,
+  agent: Doc<"agents">,
+  amount: number,
+): Promise<Id<"agent_payment_requests">> {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ConvexError("Amount must be greater than zero.");
+  }
+
+  if (!agent.paystack_recipient_code) {
+    throw new ConvexError(
+      "Payouts are not enabled for your account. Please contact admin.",
+    );
+  }
+
+  // Pending and approved both hold money that is already claimed. Bounded reads:
+  // the agent this would throw for is the most active one.
+  const pendingRequests = await ctx.db
+    .query("agent_payment_requests")
+    .withIndex("by_agent_status", (q) =>
+      q.eq("agent_id", agent._id).eq("status", "pending"),
+    )
+    .take(100);
+  const approvedRequests = await ctx.db
+    .query("agent_payment_requests")
+    .withIndex("by_agent_status", (q) =>
+      q.eq("agent_id", agent._id).eq("status", "approved"),
+    )
+    .take(100);
+
+  const requestedAmount = [...pendingRequests, ...approvedRequests].reduce(
+    (sum, r) => sum + r.amount,
+    0,
+  );
+  const availableBalance = Math.max(0, (agent.balance ?? 0) - requestedAmount);
+
+  if (amount > availableBalance) {
+    throw new ConvexError("Amount cannot exceed your available balance.");
+  }
+
+  const payoutDaysSetting = await ctx.db
+    .query("platform_settings")
+    .withIndex("by_key", (q) => q.eq("key", "agent_payout_days"))
+    .first();
+
+  if (payoutDaysSetting?.value) {
+    const allowedDays = payoutDaysSetting.value
+      .split(",")
+      .map((d) => d.trim().toLowerCase())
+      .filter((d) => d.length > 0);
+    const today = new Date()
+      .toLocaleDateString("en-US", { weekday: "long" })
+      .toLowerCase();
+    // An empty or all-whitespace setting is treated as "no restriction" rather
+    // than as "no day is allowed", which would block every payout silently.
+    if (allowedDays.length > 0 && !allowedDays.includes(today)) {
+      throw new ConvexError(
+        `Payouts can only be requested on ${payoutDaysSetting.value}.`,
+      );
+    }
+  }
+
+  if (pendingRequests.length > 0) {
+    throw new ConvexError("You already have a pending payout request.");
+  }
+
+  return await ctx.db.insert("agent_payment_requests", {
+    agent_id: agent._id,
+    amount,
+    status: "pending",
+    requested_at: Date.now(),
+  });
+}
+
+/**
+ * @deprecated Takes `agentId` as an argument. Ownership IS asserted, so this is
+ * not an IDOR — but the client has no business choosing an identifier it does not
+ * get to decide, and every such argument is one refactor away from being
+ * trusted. Use `requestMyPayout`.
+ */
 export const createPaymentRequest = mutation({
   args: {
     agentId: v.id("agents"),
@@ -151,86 +251,11 @@ export const createPaymentRequest = mutation({
   },
   handler: async (ctx, args) => {
     // An agent may only open a payout request against their OWN agent record.
-    //
-    // Previously this took `agentId` as a client argument with no identity check
-    // at all, so any caller could open a request against any agent — the first
-    // link in the payout chain. Ownership is all that is needed here: no
-    // permission data is involved, which is why this guard could ship ahead of
-    // the RBAC work.
+    // Before this guard the mutation took `agentId` with no identity check at
+    // all, so any caller could open a request against any agent - the first link
+    // in the payout chain.
     const { agent } = await assertAgentOwner(ctx, args.agentId);
-
-    if (args.amount <= 0) {
-      throw new ConvexError("Amount must be greater than zero.");
-    }
-
-    if (!agent.paystack_recipient_code) {
-      throw new ConvexError(
-        "Payouts are not enabled for your account. Please contact admin.",
-      );
-    }
-
-    const balance = agent.balance ?? 0;
-
-    const pendingRequests = await ctx.db
-      .query("agent_payment_requests")
-      .withIndex("by_agent_status", (q) =>
-        q.eq("agent_id", args.agentId).eq("status", "pending"),
-      )
-      .collect();
-    const approvedRequests = await ctx.db
-      .query("agent_payment_requests")
-      .withIndex("by_agent_status", (q) =>
-        q.eq("agent_id", args.agentId).eq("status", "approved"),
-      )
-      .collect();
-    const requestedAmount = [...pendingRequests, ...approvedRequests].reduce(
-      (sum, r) => sum + r.amount,
-      0,
-    );
-    const availableBalance = Math.max(0, balance - requestedAmount);
-
-    if (args.amount > availableBalance) {
-      throw new ConvexError("Amount cannot exceed your available balance.");
-    }
-
-    // Check payout days setting
-    const payoutDaysSetting = await ctx.db
-      .query("platform_settings")
-      .withIndex("by_key", (q) => q.eq("key", "agent_payout_days"))
-      .first();
-
-    if (payoutDaysSetting?.value) {
-      const allowedDays = payoutDaysSetting.value
-        .split(",")
-        .map((d) => d.trim().toLowerCase());
-      const today = new Date()
-        .toLocaleDateString("en-US", { weekday: "long" })
-        .toLowerCase();
-      if (!allowedDays.includes(today)) {
-        throw new ConvexError(
-          `Payouts can only be requested on ${payoutDaysSetting.value}.`,
-        );
-      }
-    }
-
-    // Block if there's already a pending request for this agent
-    const pending = await ctx.db
-      .query("agent_payment_requests")
-      .withIndex("by_agent_status", (q) =>
-        q.eq("agent_id", args.agentId).eq("status", "pending"),
-      )
-      .first();
-
-    if (pending) {
-      throw new ConvexError("You already have a pending payout request.");
-    }
-
-    return await ctx.db.insert("agent_payment_requests", {
-      agent_id: args.agentId,
-      amount: args.amount,
-      status: "pending",
-      requested_at: Date.now(),
-    });
+    return await openPayoutRequest(ctx, agent, args.amount);
   },
 });
 
@@ -573,5 +598,68 @@ export const patchAgentRecipient = internalMutation({
       mpesa_number: normalizeMpesaPhone(args.mpesaNumber),
       paystack_recipient_code: args.recipientCode,
     });
+  },
+});
+
+/**
+ * The caller's own payout requests, newest first.
+ *
+ * `getAgentPaymentRequests` above took `agentId` as an argument with no auth, so
+ * an agent id was enough to read another agent's payout history — amounts,
+ * dates, and which requests were refused. Auth-derived, and bounded.
+ */
+export const getMyPayoutRequests = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const caller = await getAuthUserOrNull(ctx);
+    if (!caller) return [];
+
+    const agent = await ctx.db
+      .query("agents")
+      .withIndex("by_user", (q) => q.eq("user_id", caller.user._id))
+      .first();
+    if (!agent) return [];
+
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
+    const rows = await ctx.db
+      .query("agent_payment_requests")
+      .withIndex("by_agent", (q) => q.eq("agent_id", agent._id))
+      .order("desc")
+      .take(limit);
+
+    return rows.map((row) => ({
+      _id: row._id,
+      amount: row.amount,
+      status: row.status,
+      requested_at: row.requested_at,
+      processed_at: row.processed_at ?? null,
+      // Whatever the admin recorded when refusing. Shown to the agent, because a
+      // rejection with no reason is a support ticket.
+      rejection_reason: row.rejection_reason ?? null,
+    }));
+  },
+});
+
+/**
+ * Open a payout request against the caller's own agent record.
+ *
+ * A thin wrapper over `createPaymentRequest`, which already asserts ownership —
+ * the point of this one is that it takes NO agent id. Passing an id that is then
+ * checked against the caller works, but it means the client holds and sends an
+ * identifier it has no business choosing, and every such argument is one
+ * refactor away from being trusted.
+ */
+export const requestMyPayout = mutation({
+  args: { amount: v.number() },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const agent = await ctx.db
+      .query("agents")
+      .withIndex("by_user", (q) => q.eq("user_id", user._id))
+      .first();
+    if (!agent) throw new ConvexError("You are not registered as an agent.");
+
+    return await openPayoutRequest(ctx, agent, args.amount);
   },
 });
