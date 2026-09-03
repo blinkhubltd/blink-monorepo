@@ -482,15 +482,157 @@ Security, from a REST client:
 
 ---
 
+## 20. Card and M-Pesa payment
+
+**Setup, before any of this works.** Three things, all on the dev deployment:
+
+```bash
+npx convex env set PAYSTACK_SECRET_KEY sk_test_...
+```
+
+`EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_...` in `apps/shop/.env`, and the
+Paystack dashboard webhook pointed at the deployment's `/paystack/webhook`. Use
+**test keys only** — a `sk_live_` here charges real cards.
+
+If the secret key is missing, the app says so honestly rather than looking slow:
+you get "We could not confirm the payment because this build is not configured
+for payments". If the publishable key is missing, pay-now is not offered at all.
+Both of those are worth seeing once deliberately.
+
+**Check the amount first.** It is the one error that costs real money, and it is
+one character wide.
+
+1. Put a basket together, note the total, choose **Pay now**, and open the
+   sheet. The figure Paystack shows must be the basket total — not 100× it. The
+   SDK multiplies by 100 itself, so the app passes shillings; the old app had
+   this right and a comment above it saying the opposite.
+
+**The happy path.**
+
+2. Complete a **card** payment with a Paystack test card. Expect: the button
+   goes to "Confirming your payment…", then the order screen. Then check
+   Convex: the `payments` row is `Successful`, and there is one `orders` row per
+   vendor with `payment_status: "Paid"`, `payment_mode: "pay_now"`, a
+   `delivery_code`, and `total_amount` matching the row's `quote.legs[n].total`.
+   The sum of the orders' `delivery_fee` must equal the basket fee exactly.
+3. The basket is empty afterwards, and only after the orders exist.
+
+**The case the old app got wrong. This is the important one.**
+
+4. Start a payment, complete it, and **force-quit the app before it returns** —
+   swipe it away from the app switcher while the Paystack screen is still up, or
+   immediately after paying. Then reopen.
+
+   The order must exist. It is written by the webhook, from the quote and the
+   address stored on the payment row at `beginCheckout`, with no involvement
+   from the app at all. If it does not exist, the webhook is not reaching the
+   deployment — check the Paystack dashboard's webhook log, not the app.
+
+   This is the state the old checkout apologised for with a "We received your
+   payment but order creation failed" alert and a Retry button.
+
+5. **Background and return.** Pay, background the app, foreground it. One
+   verification, one order set. Two order sets for one payment is the failure
+   here — settlement is idempotent on the reference, so a webhook racing the
+   returning app must produce one.
+
+**M-Pesa, which is the slow one on purpose.**
+
+6. Choose M-Pesa, enter a test number, and **take your time with the PIN** —
+   over a minute. The old client gave up after two minutes of polling and told
+   the customer it had failed while the money had in fact been collected. Expect
+   either the order screen, or "Your payment is being confirmed. Your order will
+   appear in Orders shortly" — and then the order actually appearing in Orders,
+   put there by the webhook. That message must never read as a failure.
+
+**Backing out, and pressing twice.**
+
+7. Open the sheet and **cancel**. Expect "Payment cancelled. Your basket is
+   unchanged", the basket intact, and the Pay button live again. Retry: it must
+   not create a second `payments` row — the reference is reused.
+8. **Double-tap Pay.** One sheet, one order set.
+9. Pay, and while it says "Confirming…", try to tap Pay again. It must be
+   disabled. The old screen left it live during settlement, so a second tap
+   reopened the sheet on a reference already being charged.
+10. Switch from Pay now to Pay on delivery and back, then place the order.
+    Check the `orders` row's `payment_method` matches how you actually paid —
+    switching mode drops the pending reference precisely so a card charge cannot
+    land on a row stamped "Cash on Delivery".
+
+**A declined card.**
+
+11. Use Paystack's declined test card. Expect "The payment did not go through.
+    Nothing has been charged", no orders written, and the basket intact.
+
+**Clearance is pay-now only now.**
+
+12. Open a clearance basket and go to checkout. There must be **no
+    pay-on-delivery option anywhere** — the screen says clearance deals are paid
+    now, and explains that stock is held only once payment clears.
+13. Pay for a clearance basket. Check the orders carry `is_clearance: true`,
+    that the lines are in `clearance_order_items` with `clearance_price` and
+    `original_price` as they were quoted, and that the clearance listing's stock
+    decremented.
+14. Confirm the clearance basket — not the catalogue one — is what got emptied.
+
+**Security spot-checks.** These are one-liners against the deployment URL, and
+each should be refused. Run them signed out.
+
+15. `payments.applyVerificationResult` and `payments.verifyPaystack` must not
+    exist on the public API at all. Same for all four
+    `payment_finalization.finalize*`, `payments.createPayment`, and
+    `checkout.settlePaidCheckout`. Convex reports these as unknown functions
+    rather than unauthorized, which is the point.
+16. `payments.updatePaymentStatus` must return a permission error, not succeed.
+    It is the one hand-operated status write left public, for the admin
+    reconciliation screen.
+17. `checkout.confirmMyCardPayment` with somebody else's reference must return
+    "That payment belongs to a different customer". Without that check a
+    reference is a bearer token for another customer's checkout.
+18. `checkout.beginCheckout` with `paymentMode: "pay_now"` and no `fulfilment`
+    must be refused. A pay-now payment with no address cannot be settled, and
+    the refusal has to come before the charge.
+
+**Both colour schemes** on the payment banners — the confirming, pending,
+cancelled and failed states each render on a different surface.
+
 ## Known not-done
 
-**Paystack card payment.** Pay-on-delivery is complete end to end, for both the
-catalogue and clearance baskets. The card step needs the native SDK on a real
-device and is deliberately not faked: the quote is already recorded and the
-amount fixed, so it slots in without touching pricing. Port
-`PaystackPayment.tsx` behaviour-first, in its own commit, including the
-`AppState` background-to-active re-verification — that dance exists because real
-payments really do return through a backgrounded app.
+**Card and M-Pesa payment is done (§20).** Both baskets settle from a
+server-held quote and address, driven by a Paystack webhook that can write the
+orders with the customer's app closed — see `data/checkout.ts:settlePaidCheckout`.
+Clearance is pay-now only; the catalogue basket keeps pay-on-delivery.
+
+**Vendor split payments are inert.**
+`payment_split.preparePaystackSplitForCheckout` has no callers anywhere in the
+monorepo, and even if it ran, nothing passes the `split_code` it produces into
+the `/charge` call — so a per-vendor settlement never reaches the transaction.
+Every vendor's share currently lands in the platform's own Paystack account.
+The SDK already accepts `split_code` and `split`, so the seam exists; wiring it
+is a money change of its own and needs a decision on how commission is held
+until payout, not a quick patch.
+
+**Most of the backend outside the payment and catalogue paths has no
+authorization at all.** 24 of 30 `data/*` modules import no auth helper —
+roughly 60 public mutations with no check, plus every `insights*` query
+readable by an anonymous caller holding the deployment URL. Two worth naming:
+`files.uploadUserIdDocument` lets anyone overwrite or delete any rider's ID
+document given only their user id, and all five `stock_reservation.*` mutations
+are unauthenticated. This phase closed only the payment-status subset, because
+the card flow above would have been bypassable without it — begin a real
+checkout, mark your own reference paid, place the order. The rest is the
+obvious next phase.
+
+**Social sign-in (Google/Apple/Facebook) is absent, undocumented as a cut.**
+The old app wired `useOAuth` for all three plus an `oauth-callback` route.
+Nothing in this app references OAuth at all, and neither this file nor any
+commit ever said dropping it was deliberate. Confirm whether email-code-only is
+the intended product before shipping, not after someone asks where Google
+sign-in went.
+
+**`app/+html.tsx` was not ported.** The old app's web document shell. Low
+severity, but web is a target this app is verified against (§8), and there is
+currently no custom `<head>` for it.
 
 **Legal prose.** The three legal screens are replaced by links to the website
 (§12), which is the single copy. The paths in `lib/legal.ts` have never been
