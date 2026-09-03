@@ -7,6 +7,7 @@ import {
   availableBalance,
   describePayoutStatus,
   payoutRequestProblem,
+  referralDeepLink,
 } from "../lib/agent";
 
 describe("describePayoutStatus", () => {
@@ -114,5 +115,28 @@ describe("payoutRequestProblem", () => {
 
   it("allows exactly the available balance", () => {
     expect(payoutRequestProblem({ ...ok, amount: 1000 })).toBeNull();
+  });
+});
+
+describe("referralDeepLink", () => {
+  it("builds a blink:// link, not a website URL", () => {
+    // No universal https:// link — app.config.ts's associatedDomains point at
+    // blink.app, which redirects to an unrelated company. A universal link
+    // built on that domain would 404 or land on somebody else's site for
+    // anyone scanning without the app already installed.
+    expect(referralDeepLink("BLK-1234")).toBe("blink://referral?code=BLK-1234");
+  });
+
+  it("URL-encodes the code, so a code with special characters cannot break the query string", () => {
+    expect(referralDeepLink("BLK 1234&x=1")).toBe(
+      "blink://referral?code=BLK%201234%26x%3D1",
+    );
+  });
+
+  it("round-trips through URLSearchParams", () => {
+    const link = referralDeepLink("BLK-9999");
+    const query = link.split("?")[1]!;
+    const params = new URLSearchParams(query);
+    expect(params.get("code")).toBe("BLK-9999");
   });
 });
