@@ -78,35 +78,61 @@ describe("nothing public can credit an agent", () => {
     );
   });
 
-  it("the only public function that credits requires a real account", () => {
-    const body = fnBody(marketing, "attributeMyRegistration");
-    expect(body).toMatch(/getAuthUser\(ctx\)/);
-    expect(body).toMatch(/creditAgentEarning/);
+  it("the only public functions that credit require a real account", () => {
+    for (const name of ["attributeMyRegistration", "attributeMyInstall"]) {
+      const body = fnBody(marketing, name);
+      expect(body, name).toMatch(/getAuthUser\(ctx\)/);
+      expect(body, name).toMatch(/creditAgentEarning/);
+    }
   });
 
-  it("and credits at most once per account, ever", () => {
-    const body = fnBody(marketing, "attributeMyRegistration");
-    // The marker is set on the user and never cleared, so a replay credits
-    // nothing. Without it, this would be the old hole with a login attached.
-    expect(body).toMatch(/user\.referred_by_agent_id/);
-    expect(body).toMatch(/referred_by_agent_id: agent\._id/);
+  it("and credit at most once per account, ever — installs on their own field", () => {
+    // A separate field from registration's, deliberately: a customer who
+    // installed via one agent's link and later typed a different agent's code
+    // at /referral must be able to credit both, and sharing one field would
+    // silently drop whichever came second.
+    const registration = fnBody(marketing, "attributeMyRegistration");
+    expect(registration).toMatch(/user\.referred_by_agent_id/);
+    expect(registration).toMatch(/referred_by_agent_id: agent\._id/);
     expect(validators).toMatch(
       /referred_by_agent_id: v\.optional\(v\.id\("agents"\)\)/,
     );
-  });
 
-  it("and refuses to credit an agent for their own account", () => {
-    expect(fnBody(marketing, "attributeMyRegistration")).toMatch(
-      /agent\.user_id === user\._id/,
+    const install = fnBody(marketing, "attributeMyInstall");
+    expect(install).toMatch(/user\.install_referred_by_agent_id/);
+    expect(install).toMatch(/install_referred_by_agent_id: agent\._id/);
+    expect(validators).toMatch(
+      /install_referred_by_agent_id: v\.optional\(v\.id\("agents"\)\)/,
     );
   });
 
-  it("does not confirm whether a code exists", () => {
+  it("and both refuse to credit an agent for their own account", () => {
+    for (const name of ["attributeMyRegistration", "attributeMyInstall"]) {
+      expect(fnBody(marketing, name), name).toMatch(
+        /agent\.user_id === user\._id/,
+      );
+    }
+  });
+
+  it("attributeMyInstall increments the counter creditAgentEarning's install-commission branch reads", () => {
+    // creditAgentEarning reads agent.installs to decide whether a zone's
+    // min_installs threshold has been cleared. If this credited a different
+    // field, the commission math would silently use a stale count forever.
+    const install = fnBody(marketing, "attributeMyInstall");
+    expect(install).toMatch(/installs: \(agent\.installs \?\? 0\) \+ 1/);
+    expect(install).toMatch(/type: "install"/);
+    expect(marketing).toMatch(/const currentInstalls = agent\.installs \?\? 0/);
+  });
+
+  it("neither confirms whether a code exists", () => {
     // Reporting "no such agent" makes this an oracle for enumerating codes, and
-    // failing a sign-up over a mistyped referral is worse than ignoring it.
-    const body = fnBody(marketing, "attributeMyRegistration");
-    expect(body).toMatch(/reason: "unknown" as const/);
-    expect(body).not.toMatch(/throw new ConvexError\("Agent not found/);
+    // failing a sign-up (or an install credit) over a mistyped referral is
+    // worse than ignoring it.
+    for (const name of ["attributeMyRegistration", "attributeMyInstall"]) {
+    const body = fnBody(marketing, name);
+    expect(body, name).toMatch(/reason: "unknown" as const/);
+    expect(body, name).not.toMatch(/throw new ConvexError\("Agent not found/);
+    }
   });
 });
 

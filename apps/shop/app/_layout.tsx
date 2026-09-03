@@ -27,6 +27,18 @@ import {
   PAYSTACK_CURRENCY,
   PAYSTACK_PUBLIC_KEY,
 } from "../lib/paystack-config";
+import { useInstallAttribution } from "../lib/use-install-attribution";
+
+/**
+ * Renders nothing. Exists only because `useInstallAttribution` needs
+ * `useAuth()`, which needs to be inside `ConvexClerkProvider` — and a hook
+ * cannot be called directly in `RootLayout`'s body above where that provider
+ * wraps its children.
+ */
+function InstallAttribution() {
+  useInstallAttribution();
+  return null;
+}
 
 /**
  * ── The navigator is mounted unconditionally. This is the refresh fix. ─────
@@ -103,6 +115,7 @@ export default function RootLayout() {
                 defaultChannels={[...PAYSTACK_CHANNELS]}
               >
                 <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+                <InstallAttribution />
                 {/*
               headerShown off for the whole app; screens render their own
               headers. The catalogue's collapsing headers cannot be expressed as

@@ -541,6 +541,20 @@ export const UsersValidator = v.object({
    * per real account, ever, is enforced by the presence of this field.
    */
   referred_by_agent_id: v.optional(v.id("agents")),
+  /**
+   * Which agent, if any, this account's INSTALL was credited to.
+   *
+   * A separate field from `referred_by_agent_id` on purpose: installs and
+   * registrations are distinct metrics with their own agent counters
+   * (`agents.installs`/`agents.registerations`) and their own zone thresholds
+   * (`min_installs`/`min_registrations`), so a customer who installed via one
+   * agent's Play Store link and later typed a different agent's code at
+   * `/referral` credits both agents correctly rather than one overwriting the
+   * other.
+   *
+   * Set once and never cleared — see `attributeMyInstall`.
+   */
+  install_referred_by_agent_id: v.optional(v.id("agents")),
   updated_at: v.optional(v.number()),
 });
 

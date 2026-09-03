@@ -759,3 +759,78 @@ export const attributeMyRegistration = mutation({
     return { attributed: true, reason: "credited" as const };
   },
 });
+
+/**
+ * Credit an agent for an install, from the code Google Play's own Install
+ * Referrer API reported for this literal installation.
+ *
+ * ── The trust model is identical to `attributeMyRegistration`'s ──────────
+ *
+ * `incrementInstallCount` is internal now for the same reason
+ * `incrementRegistrationCount` was: it was a public, unauthenticated mutation
+ * keyed on a bare code, replayable indefinitely. What made the registration
+ * path safe was never cryptographic — it was requiring a real authenticated
+ * account and crediting at most once per account, ever, via
+ * `referred_by_agent_id`. This mutation gets its safety the same way, via
+ * `install_referred_by_agent_id` — a separate field, because installs and
+ * registrations are separate metrics that can credit different agents for the
+ * same customer.
+ *
+ * The Install Referrer API is not a signed attestation — Google's own docs
+ * call it "reasonably trustworthy," not tamper-proof — so `agentCode` here is
+ * still, ultimately, a client-supplied string. What it costs to produce
+ * dishonestly is the actual difference from the hole this replaces: producing
+ * a specific referrer value requires installing the app through a Play Store
+ * link carrying it, once per device, rather than typing text. Combined with
+ * one-credit-per-account, that is the same order of friction a real
+ * install-based incentive is supposed to have — see
+ * `apps/shop/lib/install-attribution.ts` for the client side.
+ *
+ * iOS has no equivalent API, so this is Android-only by construction: nothing
+ * on iOS ever has a code to submit here.
+ */
+export const attributeMyInstall = mutation({
+  args: { agentCode: v.string() },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    // Already attributed: nothing to do, and nothing to credit. Reported as
+    // `already` rather than as an error so a retried submission is quiet — the
+    // client may call this more than once if a sign-in happens before the
+    // first attempt finishes.
+    if (user.install_referred_by_agent_id) {
+      return { attributed: false, reason: "already" as const };
+    }
+
+    const code = args.agentCode.trim();
+    if (!code) return { attributed: false, reason: "unknown" as const };
+
+    const agent = await ctx.db
+      .query("agents")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .first();
+    if (!agent) return { attributed: false, reason: "unknown" as const };
+
+    // An agent cannot credit their own install.
+    if (agent.user_id === user._id) {
+      return { attributed: false, reason: "self" as const };
+    }
+
+    await ctx.db.patch(user._id, {
+      install_referred_by_agent_id: agent._id,
+      updated_at: Date.now(),
+    });
+
+    await ctx.db.patch(agent._id, {
+      installs: (agent.installs ?? 0) + 1,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.data.marketing.creditAgentEarning,
+      { agentId: agent._id, type: "install" },
+    );
+
+    return { attributed: true, reason: "credited" as const };
+  },
+});

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Share, View } from "react-native";
+import { Platform, Pressable, ScrollView, Share, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
@@ -21,6 +21,7 @@ import { formatKES } from "../../lib/format";
 import {
   describePayoutStatus,
   payoutRequestProblem,
+  playStoreInstallLink,
   referralDeepLink,
 } from "../../lib/agent";
 
@@ -238,10 +239,39 @@ export default function AgentDashboardScreen() {
           </View>
           <Text size="caption" variant="subtle">
             A registration is credited once, when a new customer signs up and
-            enters this code. Installs are counted separately and are not
-            self-reported.
+            enters this code.
           </Text>
         </SectionCard>
+
+        {/*
+          Install credit, Android only. The link carries the code through the
+          Play Store's own referrer mechanism, so it works before the app is
+          even installed — the deep link above only works for someone who
+          already has it. See lib/agent.ts's playStoreInstallLink and
+          lib/install-attribution.ts for how the code makes it back.
+        */}
+        {Platform.OS === "android" ? (
+          <SectionCard title="Install link (Android)">
+            <View className="bg-card border-hairline border-border items-center gap-space-2 rounded-md p-space-4">
+              <QRCodeSvg value={playStoreInstallLink(summary.code)} size={160} />
+            </View>
+            <Button
+              size="sm"
+              variant="outline"
+              label="Share install link"
+              icon={<Copy size={16} color="#0A0E16" />}
+              onPress={() => {
+                void Share.share({
+                  message: `Get Blink and I'll be credited when you install it: ${playStoreInstallLink(summary.code)}`,
+                });
+              }}
+            />
+            <Text size="caption" variant="subtle">
+              Credited once per new install, the first time it opens signed
+              in. No equivalent exists on iOS.
+            </Text>
+          </SectionCard>
+        ) : null}
 
         {/* How this agent is paid, from the zone. */}
         {summary.zone ? (
