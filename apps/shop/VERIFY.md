@@ -593,6 +593,27 @@ each should be refused. Run them signed out.
     must be refused. A pay-now payment with no address cannot be settled, and
     the refusal has to come before the charge.
 
+**Vendor split payments — verify the money actually lands where it should.**
+Requires `PRIMARY_BUSINESS_NAME`/`PRIMARY_BANK_CODE`/`PRIMARY_ACCOUNT_NUMBER`
+set as Convex env vars, and the test vendor's `business_details` populated.
+
+19. Pay for a basket from a single vendor with a card. In the Paystack
+    dashboard, confirm the transaction shows a split with two recipients: the
+    vendor's subaccount (their subtotal minus commission) and the platform's
+    (commission plus the full delivery fee). The vendor's share must never
+    include any part of the delivery fee.
+20. Pay for a multi-vendor basket. Confirm each vendor's own subaccount
+    receives only their own leg's net, and the platform receives the sum of
+    every leg's commission plus every leg's delivery fee.
+21. Remove `business_details` from a test vendor and attempt to pay for their
+    product. The payment must fail **before the Paystack sheet opens** — "This
+    order can't be paid for online right now" — with nothing charged. This is
+    the case that would otherwise collect a vendor's money and pay them
+    nothing.
+22. Pay for the same basket twice in a row (retry after the first completes).
+    The second attempt must reuse the existing `split_code` rather than
+    creating a second Paystack split for the same reference.
+
 **Both colour schemes** on the payment banners — the confirming, pending,
 cancelled and failed states each render on a different surface.
 
@@ -603,26 +624,32 @@ server-held quote and address, driven by a Paystack webhook that can write the
 orders with the customer's app closed — see `data/checkout.ts:settlePaidCheckout`.
 Clearance is pay-now only; the catalogue basket keeps pay-on-delivery.
 
-**Vendor split payments are inert.**
-`payment_split.preparePaystackSplitForCheckout` has no callers anywhere in the
-monorepo, and even if it ran, nothing passes the `split_code` it produces into
-the `/charge` call — so a per-vendor settlement never reaches the transaction.
-Every vendor's share currently lands in the platform's own Paystack account.
-The SDK already accepts `split_code` and `split`, so the seam exists; wiring it
-is a money change of its own and needs a decision on how commission is held
-until payout, not a quick patch.
+**Vendor split payments are wired now, and need live-config verification before
+they can charge for real.** `payment_split.prepareMyPaymentSplit` computes the
+split from the checkout's stored quote (never live product prices — see
+`lib/vendor_split.ts`), creates or reuses each vendor's Paystack subaccount,
+and the client passes the resulting `split_code` into the transaction before
+the sheet opens. Delivery fee is never split with a vendor — it settles to the
+platform in full, alongside commission.
 
-**Most of the backend outside the payment and catalogue paths has no
-authorization at all.** 24 of 30 `data/*` modules import no auth helper —
-roughly 60 public mutations with no check, plus every `insights*` query
-readable by an anonymous caller holding the deployment URL. Two worth naming:
-`files.uploadUserIdDocument` lets anyone overwrite or delete any rider's ID
-document given only their user id, and all five `stock_reservation.*` mutations
-are unauthenticated. This phase closed only the payment-status subset, because
-the card flow above would have been bypassable without it — begin a real
-checkout, mark your own reference paid, place the order. The rest is the
-obvious next phase.
+This registers real Paystack subaccounts against real bank details:
+`PRIMARY_BUSINESS_NAME`/`PRIMARY_BANK_CODE`/`PRIMARY_ACCOUNT_NUMBER` (and
+optionally `SECONDARY_*`) must be set as Convex env vars, and every vendor
+that will actually sell needs `business_details.{business_name,bank_code,account_number}`
+populated on their vendor record. A vendor missing those fails the whole
+payment attempt before the sheet opens — nothing is charged, but the order
+cannot be paid for by card until it's fixed. Confirm both against the live
+deployment, with a real sandbox charge landing at the correct subaccounts,
+before shipping.
 
+**The backend authorization sweep is done, pending review.** 24 of 30
+`data/*` modules imported no auth helper — roughly 60 public mutations with no
+check, plus every `insights*` query readable by an anonymous caller holding
+the deployment URL. Two worth naming: `files.uploadUserIdDocument` let anyone
+overwrite or delete any rider's ID document given only their user id, and all
+five `stock_reservation.*` mutations were unauthenticated. Closed in three
+commits (money/document surfaces, admin catalogue CRUD, picker/rider
+operational modules) — see the PR for the full breakdown.
 **Social sign-in (Google/Apple/Facebook) is absent, undocumented as a cut.**
 The old app wired `useOAuth` for all three plus an `oauth-callback` route.
 Nothing in this app references OAuth at all, and neither this file nor any

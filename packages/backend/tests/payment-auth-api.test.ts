@@ -222,13 +222,14 @@ describe("vendor payout wiring", () => {
     expect(subaccountsCode).not.toMatch(/export const upsert = mutation\(/);
   });
 
-  it("preparePaystackSplitForCheckout is internal", () => {
+  it("prepareMyPaymentSplit is a real public action now, with an ownership check", () => {
+    // It was internal because it had zero callers. It has one now — see
+    // vendor-split-payment.test.ts for the full redesign around the stored
+    // quote, rather than pinning its old (and now removed) name here.
     expect(splitCode).toMatch(
-      /export const preparePaystackSplitForCheckout = internalAction\(/,
+      /export const prepareMyPaymentSplit = action\(/,
     );
-    expect(splitCode).not.toMatch(
-      /export const preparePaystackSplitForCheckout = action\(/,
-    );
+    expect(splitCode).not.toMatch(/preparePaystackSplitForCheckout/);
   });
 
   it("it reaches the writes it needs internally", () => {

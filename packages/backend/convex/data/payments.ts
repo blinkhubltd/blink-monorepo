@@ -1,6 +1,7 @@
 import {
   internalAction,
   internalMutation,
+  internalQuery,
   mutation,
   query,
 } from "../_generated/server";
@@ -913,7 +914,13 @@ export const initiatePaystackTransactionAction = internalAction({
   },
 });
 
-export const getPaymentByReference = query({
+/**
+ * A payment's raw row, by reference. Internal: its only caller is
+ * `payment_split.ts`, and public it returned `customerEmail`, the stored
+ * `fulfilment` address, and the raw Paystack response to anyone who could
+ * guess or intercept a reference.
+ */
+export const getPaymentByReference = internalQuery({
   args: {
     reference: v.string(),
   },
