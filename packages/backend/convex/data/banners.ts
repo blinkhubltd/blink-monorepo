@@ -5,6 +5,21 @@ import {
   BannersValidator,
   lowercaseRecordStatus,
 } from "../validators";
+import { assertPermission } from "../auth.helpers";
+
+/**
+ * Banner CRUD.
+ *
+ * The four admin writes (`createBanner`, `updateBanner`, `deleteBanner`,
+ * `toggleBannerStatus`) and the raw admin listing (`getBanners`, which — unlike
+ * its `getActive*`/`getBy*` siblings — can return banners of any status) had no
+ * auth and are gated here, matching the convention already established in
+ * `data/products.ts` and `data/categories.ts`: writes are gated, public
+ * catalogue-style reads stay open. `getActiveBanners`, `getBannersByCategory`
+ * and the rest are customer-facing marketing content — the same category as
+ * `getActiveIndustries` and the product catalogue, which this codebase already
+ * treats as intentionally public.
+ */
 
 const TYPE_LIMITS: Record<string, number> = {
   product: 8,
@@ -52,6 +67,7 @@ async function getLiveCounts(ctx: any, now: number) {
 export const createBanner = mutation({
   args: BannersValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "banners:CREATE");
     const now = Date.now();
 
     if (args.end_date <= args.start_date) {
@@ -120,6 +136,7 @@ export const createBanner = mutation({
 export const updateBanner = mutation({
   args: BannersUpdateValidator,
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "banners:UPDATE");
     const { id, ...updates } = args;
     const now = Date.now();
 
@@ -189,6 +206,7 @@ export const deleteBanner = mutation({
     id: v.id("banners"),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "banners:DELETE");
     const banner = await ctx.db.get(args.id);
     if (!banner) {
       throw new Error("Banner not found");
@@ -205,6 +223,7 @@ export const getBanners = query({
     status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "banners:READ");
     if (args.status) {
       const banners = await ctx.db
         .query("banners")
@@ -469,6 +488,7 @@ export const toggleBannerStatus = mutation({
     id: v.id("banners"),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "banners:UPDATE");
     const banner = await ctx.db.get(args.id);
     if (!banner) {
       throw new Error("Banner not found");

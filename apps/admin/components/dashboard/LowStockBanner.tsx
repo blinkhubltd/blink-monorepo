@@ -42,12 +42,13 @@ export function LowStockBanner({ className }: LowStockBannerProps) {
   // Get vendor ID(s) for managers
   const vendorId = user?.manager_details?.vendor_id?.[0] ?? undefined;
 
-  // Fetch stock alerts
+  // Fetch stock alerts. The permission check is server-side now
+  // (`hasPermission(ctx, "products:READ")`) — `userRole` was a client-supplied
+  // string the query used to trust as-is.
   const stockAlerts = useQuery(
     api.data.stock_alerts.getStockAlerts,
-    user && user.role
+    user
       ? {
-          userRole: user.role,
           vendorId: vendorId,
         }
       : "skip",

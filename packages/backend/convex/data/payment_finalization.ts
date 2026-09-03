@@ -697,7 +697,7 @@ export const finalizePaidClearanceOrders = internalMutation({
       // Multi-vendor checkout → instant batch with all order IDs
       const orderIds = created.map((c) => c.orderId);
       try {
-        await ctx.runMutation(api.data.clearance_batching.createAndDispatchBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.createAndDispatchBatch, {
           orderIds,
           vendorId: created[0].vendor,
         });
@@ -707,7 +707,7 @@ export const finalizePaidClearanceOrders = internalMutation({
     } else if (created.length === 1) {
       // Single-vendor → add to pending batch or create new one
       try {
-        await ctx.runMutation(api.data.clearance_batching.addOrderToBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.addOrderToBatch, {
           orderId: created[0].orderId,
           vendorId: created[0].vendor,
         });
@@ -852,7 +852,7 @@ export const finalizePayOnDeliveryClearanceOrders = internalMutation({
     if (created.length > 1) {
       const orderIds = created.map((c) => c.orderId);
       try {
-        await ctx.runMutation(api.data.clearance_batching.createAndDispatchBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.createAndDispatchBatch, {
           orderIds,
           vendorId: created[0].vendor,
         });
@@ -861,7 +861,7 @@ export const finalizePayOnDeliveryClearanceOrders = internalMutation({
       }
     } else if (created.length === 1) {
       try {
-        await ctx.runMutation(api.data.clearance_batching.addOrderToBatch, {
+        await ctx.runMutation(internal.data.clearance_batching.addOrderToBatch, {
           orderId: created[0].orderId,
           vendorId: created[0].vendor,
         });
