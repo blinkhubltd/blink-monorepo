@@ -452,6 +452,9 @@ importers:
       react-native-paystack-webview:
         specifier: ^5.0.3
         version: 5.1.0(react-native-webview@13.15.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)
+      react-native-play-install-referrer:
+        specifier: ^2.0.1
+        version: 2.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))
       react-native-qrcode-svg:
         specifier: ^6.3.21
         version: 6.3.21(react-native-svg@15.15.4(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)
@@ -7771,6 +7774,11 @@ packages:
       react: '*'
       react-native: '*'
       react-native-webview: '*'
+
+  react-native-play-install-referrer@2.0.1:
+    resolution: {integrity: sha512-6fUz7qY6k21SQf+NYMdjzM/ae1f1jqhw+RYfkcYbKQZ1U4iqoAKwoobEFZT9Bj73V/PGYaHFVve+mqm2DWkUUA==}
+    peerDependencies:
+      react-native: '>=0.68.0'
 
   react-native-qrcode-svg@6.3.21:
     resolution: {integrity: sha512-6vcj4rcdpWedvphDR+NSJcudJykNuLgNGFwm2p4xYjR8RdyTzlrELKI5LkO4ANS9cQUbqsfkpippPv64Q2tUtA==}
@@ -17508,6 +17516,10 @@ snapshots:
       react-native-safe-area-context: 5.7.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)
       react-native-webview: 13.15.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3)
       validator: 13.15.35
+
+  react-native-play-install-referrer@2.0.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)):
+    dependencies:
+      react-native: 0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)
 
   react-native-qrcode-svg@6.3.21(react-native-svg@15.15.4(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6))(react@19.2.3):
     dependencies:

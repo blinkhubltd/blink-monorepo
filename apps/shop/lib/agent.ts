@@ -90,3 +90,22 @@ export function payoutRequestProblem(input: {
   }
   return null;
 }
+
+/**
+ * The Play Store link an agent shares to earn install credit.
+ *
+ * `referrer` is the standard Play Store install-referrer query param — Google
+ * passes whatever follows it straight through to
+ * `PlayInstallReferrerClient.getInstallReferrer()` on the freshly-installed
+ * device, unmodified. `lib/install-attribution.ts`'s
+ * `parseAgentCodeFromReferrer` is this function's exact inverse: what one
+ * writes into the link, the other reads back out of what Google reports.
+ *
+ * Android only, deliberately — there is no equivalent on iOS (no public
+ * install-referrer API), so a link built this way is only useful pointed at
+ * the Play Store listing, never the App Store one.
+ */
+export function playStoreInstallLink(agentCode: string): string {
+  const referrer = encodeURIComponent(`blink_ref=${agentCode.trim()}`);
+  return `https://play.google.com/store/apps/details?id=com.blink.app&referrer=${referrer}`;
+}

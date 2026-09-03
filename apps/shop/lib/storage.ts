@@ -147,4 +147,18 @@ export const StorageKeys = {
   location: "shop:location:v1",
   /** The last few search terms. Convenience only: losing them costs nothing. */
   recentSearches: "shop:recentSearches:v1",
+  /**
+   * An agent code recovered from Google Play's Install Referrer API, held
+   * until a signed-in session exists to submit it to `attributeMyInstall`.
+   * See `lib/use-install-attribution.ts`. Android only; never written on iOS.
+   */
+  pendingInstallCode: "shop:pendingInstallCode:v1",
+  /**
+   * Whether the Install Referrer API has been queried at all, ever. Google's
+   * own guidance is to call it once, shortly after install — not on every
+   * launch — and the referrer value cannot change after the fact regardless,
+   * so a second query only wastes a call. Set even when no code was found, so
+   * an organic install does not get queried again on every cold start.
+   */
+  installReferrerChecked: "shop:installReferrerChecked:v1",
 } as const;

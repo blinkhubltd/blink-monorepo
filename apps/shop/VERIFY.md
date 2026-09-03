@@ -669,11 +669,41 @@ checked against the live site — confirm them before shipping.
 `/referral`. A link would carry it into the same verified mutation with the same
 one-credit-per-account guarantee: wiring, not new rules.
 
-**Crediting installs.** `incrementInstallCount` is internal and has no public
-replacement, deliberately. An install is not verifiable from a client, so
-crediting one has to be driven by something the server trusts (a store
-attribution callback, or nothing). Until that is decided, installs are counted
-but not credited — which is a product decision, not an oversight.
+**Install crediting is built on Android, and deliberately not on iOS.**
+`incrementInstallCount` is still internal; `attributeMyInstall` is the new
+public replacement, safe the same way `attributeMyRegistration` is —
+authenticated, credited at most once per account ever. What feeds it is
+Google Play's own Install Referrer API, read by
+`lib/use-install-attribution.ts` at most once per install and submitted the
+moment a session exists to credit it against. iOS has no equivalent API — no
+public install-referrer mechanism exists — so nothing on iOS ever has a code
+to submit, and no install-credit button renders on the agent dashboard there
+either.
+
+This is not cryptographically proven server-side (Google's own docs call the
+referrer "reasonably trustworthy," not tamper-proof), but it is not the hole
+`incrementInstallCount` was either: producing a specific referrer value
+requires actually installing the app through a Play Store link carrying it,
+once per device, which combined with one-credit-per-account is real friction
+against abuse rather than none. See `lib/install-attribution.ts`'s module
+comment for the full reasoning, and for why a fully-verified version (Play
+Integrity API) was not built here.
+
+**To verify** (needs a real Android device or emulator with Play Store, and
+the app installed via the exact link `/agent` generates — sideloading a build
+directly will never carry a referrer):
+- Uninstall the app if already installed. Install it via the QR code or
+  shared link from an agent's `/agent` screen (a second test account).
+- Open the app fresh and sign in with a different account than the agent's
+  own. Confirm the agent's `installs` count increments, and that
+  `users.install_referred_by_agent_id` is set on the new account.
+- Confirm a *registration* credit (via `/referral`, entering a **different**
+  agent's code) still credits that second agent independently — install and
+  registration credit must not overwrite each other.
+- Reinstall the same app on the same account a second time — confirm no
+  second install credit (once per account, ever).
+- Confirm nothing resembling this appears on iOS — no button, no attempted
+  network call.
 
 **The customer shipment screens are not ported, on purpose.**
 `shipments.tsx` and `shipment-tracking/[shipmentId].tsx` in the old app read
