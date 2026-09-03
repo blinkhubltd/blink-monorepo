@@ -657,13 +657,23 @@ commit ever said dropping it was deliberate. Confirm whether email-code-only is
 the intended product before shipping, not after someone asks where Google
 sign-in went.
 
-**`app/+html.tsx` was not ported.** The old app's web document shell. Low
-severity, but web is a target this app is verified against (§8), and there is
-currently no custom `<head>` for it.
+**`app/+html.tsx` is ported.** Minimal shell — charset, viewport, `<title>`,
+`ScrollViewStyleReset`, and a background colour matched by hand to
+`global.css`'s `--color-background` in both schemes, so there is no
+flash-of-wrong-colour before hydration.
 
-**Legal prose.** The three legal screens are replaced by links to the website
-(§12), which is the single copy. The paths in `lib/legal.ts` have never been
-checked against the live site — confirm them before shipping.
+**Legal prose — links now fail honestly instead of pointing at a stranger's
+website.** The fallback used to be `https://blink.app`, which redirects to an
+unrelated company (`bl.ink`) — confirmed by fetching it. There is no real
+production site yet, so `lib/legal.ts` now falls back to a `.invalid`
+placeholder (RFC 2606 — guaranteed to never resolve on the real internet), and
+every legal link checks `isLegalConfigured()` **before** attempting to open
+anything, showing "Legal documents aren't available in this build yet." A
+`.invalid` URL still "succeeds" by `openExternal`'s own contract — the browser
+tab does launch — so waiting for the open to fail would not have caught this.
+Set `EXPO_PUBLIC_LEGAL_BASE_URL` once a real site exists, and confirm the three
+paths (`/legal/terms-of-service`, `/legal/privacy-policy`, `/legal/eula`)
+actually resolve on it before shipping.
 
 **Referral capture from a QR deep link.** The code is entered by hand on
 `/referral`. A link would carry it into the same verified mutation with the same
@@ -688,14 +698,13 @@ function references (§19) means `assignOrderToPicker` actually assigns and
 notifies. That is what the code was written to do, but it has never run — watch
 the picker queue after the first orders.
 
-**Two questions still open, both about money.**
-
-1. *Is VAT included in listed prices?* The quote records `tax: 0` explicitly so
-   the assumption is visible. The old code divided by 1.16 to back VAT out of a
-   VAT-inclusive price while writing `tax_amount: 0`, and `cart.ts` used
-   `taxRate = 0.0`. Whoever set the prices should confirm which is true.
-2. *Should a vendor's own service radius, or the platform limit, cap clearance
-   visibility?* Clearance uses its own `clearance_service_radius` setting, so a
-   deal can be visible where a catalogue product from the same shop is not. That
-   is the existing behaviour, kept deliberately, but it is worth confirming it is
-   intended.
+**Both open money questions are resolved.** Prices are VAT-inclusive, confirmed
+by the owner — `quote.tax` stays `0` (nothing is added on top; VAT-inclusive
+means it is already in the price) and `components/checkout/order-summary.tsx`
+decomposes it for display only (`exVat + vat === subtotal`), which was already
+built and already correct. Clearance's own `clearance_service_radius` — wider
+than a vendor's normal `service_radius`, so a clearance deal can be visible
+where that vendor's catalogue is not — is confirmed intentional: clearance
+stock is discounted and time-limited, meant to move faster and reach further
+than the regular catalogue. Documented at the read site in
+`data/clearance_products.ts`.

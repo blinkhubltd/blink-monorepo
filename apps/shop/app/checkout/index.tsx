@@ -41,7 +41,12 @@ import { PrescriptionUploadSection } from "../../components/checkout/prescriptio
 import { formatKES } from "../../lib/format";
 import { isCardPaymentConfigured } from "../../lib/paystack-config";
 import { useCardPayment } from "../../lib/use-card-payment";
-import { LEGAL_DOC_META, legalUrl, type LegalDoc } from "../../lib/legal";
+import {
+  LEGAL_DOC_META,
+  isLegalConfigured,
+  legalUrl,
+  type LegalDoc,
+} from "../../lib/legal";
 import { openExternal } from "../../lib/open-external";
 
 /**
@@ -688,8 +693,15 @@ function LegalLink({
       accessibilityLabel={LEGAL_DOC_META[doc].title}
       accessibilityHint="Opens in your browser"
       onPress={() => {
+        // Checked before opening, not after — a `.invalid` placeholder URL
+        // still "succeeds" by openExternal's own contract, so waiting for the
+        // open to fail would never catch an unconfigured build.
+        if (!isLegalConfigured()) {
+          onFail("Legal documents aren't available in this build yet.");
+          return;
+        }
         void openExternal(url).then((ok) => {
-          if (!ok) onFail(`Could not open your browser. Read them at ${url}`);
+          if (!ok) onFail("Could not open your browser.");
         });
       }}
       // A 44pt target is not available inline in a sentence, so the underline
