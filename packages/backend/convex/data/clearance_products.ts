@@ -361,7 +361,16 @@ export const getActiveByCoverage = query({
     const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
     const offset = Math.max(args.offset ?? 0, 0);
 
-    // Fetch global clearance radius
+    /**
+     * A platform-wide clearance radius, deliberately not each vendor's own
+     * `service_radius` — confirmed with the owner as intended, not an
+     * inconsistency to fix. Clearance deals are discounted, time-limited
+     * stock meant to move fast, so they are shown further than a vendor's
+     * normal catalogue would reach from the same point. A customer can
+     * therefore see a clearance deal from a shop whose regular products are
+     * out of range for them, and that is the point of the setting existing
+     * separately from `vendors.service_radius`.
+     */
     const radiusSetting = await ctx.db
       .query("platform_settings")
       .withIndex("by_key", (q) => q.eq("key", "clearance_service_radius"))

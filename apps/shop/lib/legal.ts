@@ -11,16 +11,28 @@
  *
  * The website is the single copy. This module holds where it is.
  *
- * ── The base URL ─────────────────────────────────────────────────────────
+ * ── The base URL, and why there is no real fallback ───────────────────────
  *
- * `EXPO_PUBLIC_LEGAL_BASE_URL` overrides it, so staging can point at staging;
- * otherwise it is the production site. Deliberately NOT a required EAS var: a
- * missing website URL should not fail a build, and the fallback is a real,
- * correct address rather than a placeholder.
+ * `EXPO_PUBLIC_LEGAL_BASE_URL` overrides it, so staging can point at staging.
+ * There used to be a hardcoded fallback of `https://blink.app` for when it was
+ * unset — checked once, that domain redirects to `bl.ink`, an unrelated
+ * company. A customer tapping "Terms" with no env var configured would have
+ * been silently sent to a stranger's website, and `openExternal` would have
+ * reported success, because the browser genuinely did open a page.
  *
- * The paths below must match the website's actual routes. They are asserted
- * against nothing — no test can reach the site — so they are kept in one place
- * where a redirect can be fixed once.
+ * There is no real production site yet, so there is no real fallback to give.
+ * `UNCONFIGURED_BASE_URL` is a placeholder built on the `.invalid` TLD — the
+ * one reserved by RFC 2606 specifically to never resolve on the real internet
+ * — so this constant can never again accidentally point at somebody else's
+ * business. `isLegalConfigured` is the actual guard: callers check it BEFORE
+ * attempting to open anything, rather than hoping the open fails. Opening a
+ * `.invalid` URL still "succeeds" by `openExternal`'s own contract — the
+ * browser tab launches — so relying on that path returning false would have
+ * repeated the exact silent-wrong-destination bug this replaces.
+ *
+ * The paths below must match the website's actual routes, once one exists.
+ * They are asserted against nothing — no test can reach a site that does not
+ * exist — so they are kept in one place where they can be fixed once.
  */
 
 export const LEGAL_DOCS = ["terms", "privacy", "eula"] as const;
@@ -54,7 +66,13 @@ export const LEGAL_DOC_META = {
   },
 } as const satisfies Record<LegalDoc, LegalDocMeta>;
 
-const FALLBACK_BASE_URL = "https://blink.app";
+/**
+ * Placeholder only. See the module comment — this is deliberately not a real
+ * website, so a caller that forgets to check `isLegalConfigured` fails
+ * obviously (a `.invalid` host in a URL bar) rather than plausibly (a real
+ * page that just happens to belong to someone else).
+ */
+const UNCONFIGURED_BASE_URL = "https://legal.blink.invalid";
 
 /**
  * Resolve the base URL.
@@ -69,18 +87,31 @@ export function legalBaseUrl(
   override: string | undefined = process.env.EXPO_PUBLIC_LEGAL_BASE_URL,
 ): string {
   const trimmed = (override ?? "").trim().replace(/\/+$/, "");
-  if (!trimmed) return FALLBACK_BASE_URL;
+  if (!trimmed) return UNCONFIGURED_BASE_URL;
   if (!/^https:\/\//i.test(trimmed)) {
     // http:// is refused rather than upgraded: a legal document fetched over a
     // connection anyone can rewrite is not evidence of anything, and silently
     // upgrading hides a misconfiguration that should be visible.
-    return FALLBACK_BASE_URL;
+    return UNCONFIGURED_BASE_URL;
   }
   return trimmed;
 }
 
 export function legalUrl(doc: LegalDoc, override?: string): string {
   return `${legalBaseUrl(override)}${LEGAL_DOC_META[doc].path}`;
+}
+
+/**
+ * Whether a real legal site is configured.
+ *
+ * Callers must check this BEFORE calling `openExternal` on a legal link — see
+ * the module comment for why waiting for the open itself to fail does not
+ * work.
+ */
+export function isLegalConfigured(
+  override: string | undefined = process.env.EXPO_PUBLIC_LEGAL_BASE_URL,
+): boolean {
+  return legalBaseUrl(override) !== UNCONFIGURED_BASE_URL;
 }
 
 export function isLegalDoc(value: string): value is LegalDoc {
