@@ -1,6 +1,6 @@
 import { v, ConvexError } from "convex/values";
 import { internalMutation, type MutationCtx } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { OrderItemWithoutOrderId, OrdersValidator } from "../validators";
 import { paymentMethodFromChannel } from "../lib/paystack";
@@ -175,7 +175,7 @@ export const finalizePaidOrders = internalMutation({
 
     // 2. Confirm stock reservations (make them permanent after successful payment)
     try {
-      await ctx.runMutation(api.data.stock_reservation.confirmPaymentReservation, {
+      await ctx.runMutation(internal.data.stock_reservation.confirmPaymentReservation, {
         orderReference: args.reference,
       });
       console.log("Stock reservations confirmed for payment:", args.reference);
