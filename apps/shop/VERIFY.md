@@ -102,6 +102,31 @@ The failure mode these guard against is a spinner that never resolves, or a
 - [ ] Start checkout signed out → the sign-in modal appears **over** checkout,
       and after signing in you are still on checkout.
 
+**Google and Apple sign-in — requires Clerk dashboard configuration this repo
+cannot do.** Before any of the below will work:
+  - [ ] Google and Apple are enabled as SSO connections in the Clerk
+        dashboard, each with real OAuth credentials (a Google Cloud Console
+        OAuth client id/secret; an Apple Services ID with Sign in with Apple
+        configured) — not Clerk's shared development keys, which only work in
+        Expo Go and this app never runs there.
+  - [ ] The native redirect URI `AuthSession.makeRedirectUri()` produces for
+        this app (`blink://` + whatever path Expo Auth Session appends) is
+        added as an allowed redirect on both SSO connections.
+
+Then:
+- [ ] Tap "Continue with Google" → a browser tab opens, completing it returns
+      to the app **signed in**, and the tab closes on its own — if it hangs
+      open, `WebBrowser.maybeCompleteAuthSession()` is not resolving the
+      redirect.
+- [ ] Tap "Continue with Apple" (iOS only — the button does not render on
+      Android, deliberately) → same result.
+- [ ] Cancel the browser tab mid-flow on either → back on the sign-in screen
+      with a message, not stuck loading.
+- [ ] Sign in with Google using an email that already has a password-based
+      Blink account → confirm Clerk links them to the same account rather than
+      creating a second one (this depends on the dashboard's account-linking
+      setting, not this app's code).
+
 ## 6. Money
 
 The figures the basket shows must match what an order will be charged.
@@ -650,12 +675,14 @@ overwrite or delete any rider's ID document given only their user id, and all
 five `stock_reservation.*` mutations were unauthenticated. Closed in three
 commits (money/document surfaces, admin catalogue CRUD, picker/rider
 operational modules) — see the PR for the full breakdown.
-**Social sign-in (Google/Apple/Facebook) is absent, undocumented as a cut.**
-The old app wired `useOAuth` for all three plus an `oauth-callback` route.
-Nothing in this app references OAuth at all, and neither this file nor any
-commit ever said dropping it was deliberate. Confirm whether email-code-only is
-the intended product before shipping, not after someone asks where Google
-sign-in went.
+**Google and Apple sign-in are built.** Facebook was never asked for, and
+stays dropped. `lib/auth/use-social-sign-in.ts` uses Clerk's current `useSSO`
+(the old app used the now-deprecated `useOAuth`), one call for both providers.
+**Cannot be verified without Clerk dashboard access this repo does not have**
+— see §5's checklist: both providers need real OAuth credentials configured as
+SSO connections, and the native redirect URI needs to be an allowed redirect
+on each. Without that, every attempt fails with a Clerk error naming the
+missing connection, surfaced as-is on the sign-in screen.
 
 **`app/+html.tsx` was not ported.** The old app's web document shell. Low
 severity, but web is a target this app is verified against (§8), and there is
