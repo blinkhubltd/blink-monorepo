@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Clock, Search, X } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Input } from "@repo/mobile-ui/components/ui/input";
@@ -122,7 +122,7 @@ export default function SearchScreen() {
               hitSlop={8}
               className="size-control items-center justify-center rounded-md active:opacity-70"
             >
-              <X size={18} color="#5A6372" />
+              <Icon name="close" size={18} tone="body" />
             </Pressable>
           ) : null}
         </View>
@@ -159,7 +159,7 @@ export default function SearchScreen() {
         <CoverageEmptyState onChangeLocation={() => void request()} />
       ) : results.products.length === 0 ? (
         <View className="gap-space-3 px-screen py-space-10 items-center">
-          <Search size={32} color="#818A99" />
+          <Icon name="search-outline" size={32} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
             Nothing for “{committed}”
           </Text>
@@ -224,7 +224,7 @@ function RecentSearches({
   if (terms.length === 0) {
     return (
       <View className="gap-space-3 px-screen py-space-10 items-center">
-        <Search size={32} color="#818A99" />
+        <Icon name="search-outline" size={32} tone="subtle" />
         <Text size="lg" weight="semibold">
           What are you after?
         </Text>
@@ -261,7 +261,7 @@ function RecentSearches({
           accessibilityLabel={`Search again for ${term}`}
           className="min-h-control gap-space-3 flex-row items-center active:opacity-70"
         >
-          <Clock size={16} color="#818A99" />
+          <Icon name="time-outline" size={16} tone="subtle" />
           <Text size="sm" numberOfLines={1} className="flex-1">
             {term}
           </Text>

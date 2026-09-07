@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import { ChevronRight } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -151,7 +151,7 @@ export default function OrdersScreen() {
                       </Text>
                       <Badge variant={status.variant} label={status.label} />
                     </View>
-                    <ChevronRight size={18} color="#818A99" />
+                    <Icon name="chevron-forward" size={18} tone="subtle" />
                   </Pressable>
                 </View>
               );

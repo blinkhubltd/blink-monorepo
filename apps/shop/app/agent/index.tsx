@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import { Copy, QrCode, TrendingUp, Users, Wallet } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 import QRCodeSvg from "react-native-qrcode-svg";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -179,12 +179,12 @@ export default function AgentDashboardScreen() {
 
           <View className="gap-space-2 flex-row">
             <Stat
-              icon={<TrendingUp size={16} color="#5A6372" />}
+              icon={<Icon name="trending-up" size={16} tone="body" />}
               label="Earned"
               value={formatKES(summary.totalEarned)}
             />
             <Stat
-              icon={<Wallet size={16} color="#5A6372" />}
+              icon={<Icon name="wallet-outline" size={16} tone="body" />}
               label="Paid out"
               value={formatKES(summary.totalPaid)}
             />
@@ -192,12 +192,12 @@ export default function AgentDashboardScreen() {
 
           <View className="gap-space-2 flex-row">
             <Stat
-              icon={<Users size={16} color="#5A6372" />}
+              icon={<Icon name="people-outline" size={16} tone="body" />}
               label="Registrations"
               value={String(summary.registrations)}
             />
             <Stat
-              icon={<QrCode size={16} color="#5A6372" />}
+              icon={<Icon name="qr-code-outline" size={16} tone="body" />}
               label="Scans"
               value={String(summary.scans)}
             />
@@ -229,7 +229,7 @@ export default function AgentDashboardScreen() {
               size="sm"
               variant="outline"
               label="Share"
-              icon={<Copy size={16} color="#0A0E16" />}
+              icon={<Icon name="copy-outline" size={16} tone="strong" />}
               onPress={() => {
                 void Share.share({
                   message: `Shop on Blink and use my code ${summary.code} when you sign up: ${referralDeepLink(summary.code)}`,
@@ -259,7 +259,7 @@ export default function AgentDashboardScreen() {
               size="sm"
               variant="outline"
               label="Share install link"
-              icon={<Copy size={16} color="#0A0E16" />}
+              icon={<Icon name="copy-outline" size={16} tone="strong" />}
               onPress={() => {
                 void Share.share({
                   message: `Get Blink and I'll be credited when you install it: ${playStoreInstallLink(summary.code)}`,

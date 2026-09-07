@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import { Check, MapPin, Plus, Trash2 } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -114,7 +114,7 @@ export default function AddressBookScreen() {
           </View>
         ) : addresses.length === 0 ? (
           <View className="gap-space-4 py-space-8 items-center">
-            <MapPin size={36} color="#818A99" />
+            <Icon name="location-outline" size={36} tone="subtle" />
             <Text size="lg" weight="semibold">
               No addresses yet
             </Text>
@@ -134,7 +134,7 @@ export default function AddressBookScreen() {
                 className="border-hairline border-border bg-card gap-space-3 p-space-4 rounded-lg"
               >
                 <View className="gap-space-3 flex-row items-start">
-                  <MapPin size={18} color="#5A6372" />
+                  <Icon name="location-outline" size={18} tone="body" />
                   <View className="gap-space-1 flex-1">
                     <View className="gap-space-2 flex-row items-center">
                       <Text size="base" weight="semibold">
@@ -195,7 +195,7 @@ export default function AddressBookScreen() {
                       />
                     ) : (
                       <View className="gap-space-1 flex-row items-center">
-                        <Check size={14} color="#5A6372" />
+                        <Icon name="checkmark" size={14} tone="body" />
                         <Text size="caption" variant="subtle">
                           Used unless you choose otherwise
                         </Text>
@@ -209,7 +209,7 @@ export default function AddressBookScreen() {
                       hitSlop={8}
                       className="size-control-sm items-center justify-center rounded-md active:opacity-70"
                     >
-                      <Trash2 size={18} color="#818A99" />
+                      <Icon name="trash-outline" size={18} tone="subtle" />
                     </Pressable>
                   </View>
                 )}
@@ -224,7 +224,7 @@ export default function AddressBookScreen() {
           full
           size="lg"
           label="Add an address"
-          icon={<Plus size={18} color="#0A0E16" />}
+          icon={<Icon name="add" size={18} tone="onBrand" />}
           onPress={() => router.push("/addresses/new")}
         />
       </View>

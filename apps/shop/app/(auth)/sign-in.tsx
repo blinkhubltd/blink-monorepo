@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { X } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -85,7 +85,7 @@ export default function SignInScreen() {
             hitSlop={8}
             className="size-control -ml-space-2 rounded-pill items-center justify-center active:opacity-70"
           >
-            <X size={24} color="#0A0E16" />
+            <Icon name="close" size={24} tone="strong" />
           </Pressable>
           {flow.step !== "identifier" ? (
             <Pressable

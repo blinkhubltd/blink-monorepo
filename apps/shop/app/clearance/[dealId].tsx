@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Minus, Plus } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -228,7 +228,7 @@ export default function ClearanceDealScreen() {
               disabled={quantity <= 1}
               className="rounded-pill size-[32px] items-center justify-center active:opacity-70 disabled:opacity-40"
             >
-              <Minus size={16} color="#0A0E16" />
+              <Icon name="remove" size={16} tone="strong" />
             </Pressable>
             <Text size="sm" weight="semibold" className="min-w-[20px] text-center">
               {quantity}
@@ -242,7 +242,7 @@ export default function ClearanceDealScreen() {
               disabled={quantity >= max}
               className="rounded-pill size-[32px] items-center justify-center active:opacity-70 disabled:opacity-40"
             >
-              <Plus size={16} color="#0A0E16" />
+              <Icon name="add" size={16} tone="strong" />
             </Pressable>
           </View>
         ) : null}

@@ -1,7 +1,7 @@
 import { FlatList, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight } from "lucide-react-native";
+import { Icon } from "../../../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
@@ -94,7 +94,7 @@ export default function SubcategoriesScreen() {
                 </Text>
               </View>
 
-              <ChevronRight size={20} color="#818A99" />
+              <Icon name="chevron-forward" size={20} tone="subtle" />
             </Pressable>
           );
         }}

@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { CheckCircle2 } from "lucide-react-native";
+import { Icon } from "../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -75,7 +75,7 @@ export default function OrderScreen() {
 
       <ScrollView contentContainerClassName="px-screen gap-space-5 pb-space-10">
         <View className="bg-success-soft gap-space-2 p-space-5 flex-row items-start rounded-lg">
-          <CheckCircle2 size={22} color="#159B62" />
+          <Icon name="checkmark-circle" size={22} tone="success" />
           <View className="gap-space-1 flex-1">
             <Text size="base" weight="semibold">
               {order.payment_status === "Paid"

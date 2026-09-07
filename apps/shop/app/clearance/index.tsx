@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { ShoppingBag, Tag } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -108,7 +108,7 @@ export default function ClearanceScreen() {
             accessibilityLabel={`Clearance basket, ${basket.itemCount} items, ${formatKES(basket.subtotal)}`}
             className="bg-inverse gap-space-3 p-space-3 flex-row items-center rounded-lg active:opacity-90"
           >
-            <ShoppingBag size={18} color="#FFFFFF" />
+            <Icon name="bag-outline" size={18} tone="onInverse" />
             <Text variant="onInverse" size="sm" weight="semibold" className="flex-1">
               {basket.itemCount} clearance{" "}
               {basket.itemCount === 1 ? "item" : "items"} ·{" "}
@@ -184,7 +184,7 @@ export default function ClearanceScreen() {
         // messages, because they call for different actions.
         industryId ? (
           <View className="gap-space-3 px-screen py-space-10 items-center">
-            <Tag size={32} color="#818A99" />
+            <Icon name="pricetag-outline" size={32} tone="subtle" />
             <Text size="lg" weight="semibold" className="text-center">
               No deals in this category
             </Text>

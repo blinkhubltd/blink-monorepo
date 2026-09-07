@@ -7,15 +7,7 @@ import { useAuth } from "@clerk/clerk-expo";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import {
-  Bell,
-  Bike,
-  ChevronRight,
-  Info,
-  Package,
-  Tag,
-  Trash2,
-} from "lucide-react-native";
+import { Icon } from "../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -72,7 +64,7 @@ export default function NotificationsScreen() {
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
         <ScreenHeader title="Notifications" showCart={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <Bell size={36} color="#818A99" />
+          <Icon name="notifications-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold">
             Sign in to see updates
           </Text>
@@ -178,7 +170,7 @@ export default function NotificationsScreen() {
         </View>
       ) : notifications.length === 0 ? (
         <View className="gap-space-3 px-screen py-space-10 items-center">
-          <Bell size={36} color="#818A99" />
+          <Icon name="notifications-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold">
             Nothing here yet
           </Text>
@@ -242,7 +234,7 @@ export default function NotificationsScreen() {
                 </View>
 
                 {destination ? (
-                  <ChevronRight size={18} color="#818A99" />
+                  <Icon name="chevron-forward" size={18} tone="subtle" />
                 ) : (
                   <Pressable
                     onPress={() =>
@@ -254,7 +246,7 @@ export default function NotificationsScreen() {
                     accessibilityLabel={`Remove ${item.title}`}
                     hitSlop={8}
                   >
-                    <Trash2 size={16} color="#818A99" />
+                    <Icon name="trash-outline" size={16} tone="subtle" />
                   </Pressable>
                 )}
               </Pressable>
@@ -267,11 +259,10 @@ export default function NotificationsScreen() {
 }
 
 function NotificationGlyph({ icon }: { icon: NotificationIcon }) {
-  const colour = "#5A6372";
-  if (icon === "package") return <Package size={18} color={colour} />;
-  if (icon === "bike") return <Bike size={18} color={colour} />;
-  if (icon === "tag") return <Tag size={18} color={colour} />;
-  return <Info size={18} color={colour} />;
+  if (icon === "package") return <Icon name="cube-outline" size={18} />;
+  if (icon === "bike") return <Icon name="bicycle" size={18} />;
+  if (icon === "tag") return <Icon name="pricetag-outline" size={18} />;
+  return <Icon name="information-circle-outline" size={18} />;
 }
 
 /**

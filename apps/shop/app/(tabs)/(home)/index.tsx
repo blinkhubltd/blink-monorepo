@@ -2,7 +2,7 @@ import { Pressable, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight, Tag } from "lucide-react-native";
+import { Icon } from "../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { useCategoryTree } from "../../../lib/catalogue";
@@ -65,7 +65,7 @@ export default function CategoriesScreen() {
               className="border-hairline border-border bg-card mb-space-4 gap-space-3 p-space-4 flex-row items-center rounded-xl active:opacity-90"
             >
               <View className="bg-primary size-control rounded-pill items-center justify-center">
-                <Tag size={20} color="#0A0E16" />
+                <Icon name="pricetag-outline" size={20} tone="onBrand" />
               </View>
               <View className="gap-space-1 flex-1">
                 <Text size="base" weight="semibold">
@@ -75,7 +75,7 @@ export default function CategoriesScreen() {
                   Short-dated stock at a discount
                 </Text>
               </View>
-              <ChevronRight size={18} color="#818A99" />
+              <Icon name="chevron-forward" size={18} tone="subtle" />
             </Pressable>
           }
           renderItem={({ item, index }) => (

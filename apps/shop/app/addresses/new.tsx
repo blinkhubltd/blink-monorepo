@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import { Crosshair, Store } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -187,7 +187,7 @@ export default function EditAddressScreen() {
               size="sm"
               variant="outline"
               label={requesting ? "Locating…" : "Use my location"}
-              icon={<Crosshair size={16} color="#0A0E16" />}
+              icon={<Icon name="locate-outline" size={16} tone="strong" />}
               loading={requesting}
               onPress={() => void request()}
             />
@@ -208,7 +208,7 @@ export default function EditAddressScreen() {
             all distinct: still checking, covered by N shops, covered by none.
           */}
           <View className="gap-space-2 flex-row items-center">
-            <Store size={16} color="#5A6372" />
+            <Icon name="storefront-outline" size={16} tone="body" />
             <Text size="caption" variant={covered === false ? "destructive" : "subtle"}>
               {covered === null
                 ? "Checking which shops reach this spot…"

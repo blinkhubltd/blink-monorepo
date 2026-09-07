@@ -6,7 +6,7 @@ import { useAuth } from "@clerk/clerk-expo";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Minus, Plus, Tag, Trash2 } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -55,7 +55,7 @@ export default function ClearanceCartScreen() {
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
         <ScreenHeader eyebrow="Clearance" title="Your deals" showCart={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <Tag size={36} color="#818A99" />
+          <Icon name="pricetag-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
             Sign in to reserve deals
           </Text>
@@ -105,7 +105,7 @@ export default function ClearanceCartScreen() {
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
         <ScreenHeader eyebrow="Clearance" title="Your deals" showCart={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <Tag size={36} color="#818A99" />
+          <Icon name="pricetag-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold">
             No deals yet
           </Text>
@@ -222,7 +222,7 @@ export default function ClearanceCartScreen() {
                         hitSlop={6}
                         className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
                       >
-                        <Minus size={14} color="#0A0E16" />
+                        <Icon name="remove" size={14} tone="strong" />
                       </Pressable>
                       <Text
                         size="label"
@@ -242,7 +242,7 @@ export default function ClearanceCartScreen() {
                         disabled={item.quantity >= item.available}
                         className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-40"
                       >
-                        <Plus size={14} color="#0A0E16" />
+                        <Icon name="add" size={14} tone="strong" />
                       </Pressable>
                     </View>
                     <View className="flex-1" />
@@ -258,7 +258,7 @@ export default function ClearanceCartScreen() {
                     hitSlop={8}
                     className="gap-space-1 pt-space-1 flex-row items-center active:opacity-70"
                   >
-                    <Trash2 size={14} color="#818A99" />
+                    <Icon name="trash-outline" size={14} tone="subtle" />
                     <Text size="caption" variant="subtle">
                       Remove
                     </Text>

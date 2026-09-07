@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Bike, Check, Phone } from "lucide-react-native";
+import { Icon } from "../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -94,7 +94,7 @@ export default function TrackOrderScreen() {
                       }`}
                     >
                       {done ? (
-                        <Check size={14} color="#0A0E16" />
+                        <Icon name="checkmark" size={14} tone="onBrand" />
                       ) : (
                         <Text size="caption" variant="subtle">
                           {stepNumber}
@@ -135,7 +135,7 @@ export default function TrackOrderScreen() {
           <View className="border-hairline border-border gap-space-3 p-space-4 rounded-lg">
             <View className="gap-space-3 flex-row items-center">
               <View className="bg-accent size-control rounded-pill items-center justify-center">
-                <Bike size={20} color="#0A0E16" />
+                <Icon name="bicycle" size={20} tone="strong" />
               </View>
               <View className="gap-space-1 flex-1">
                 <Text size="sm" weight="semibold">
@@ -164,7 +164,7 @@ export default function TrackOrderScreen() {
                 accessibilityLabel={`Call ${tracking.riderFirstName}`}
                 className="bg-inverse gap-space-2 p-space-3 flex-row items-center justify-center rounded-md active:opacity-80"
               >
-                <Phone size={16} color="#FFFFFF" />
+                <Icon name="call-outline" size={16} tone="onInverse" />
                 <Text variant="onInverse" size="sm" weight="semibold">
                   Call {tracking.riderFirstName}
                 </Text>

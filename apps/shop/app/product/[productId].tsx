@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Heart } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -124,17 +124,21 @@ export default function ProductDetailScreen() {
             hitSlop={8}
             className="right-space-4 top-space-4 bg-card size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
           >
-            <Heart
-              size={20}
-              color={
+            <Icon
+              name={
                 wishlist.loaded && wishlist.isSaved(product._id)
-                  ? "#D83A34"
-                  : "#5A6372"
+                  ? "heart"
+                  : "heart-outline"
               }
-              fill={
-                wishlist.loaded && wishlist.isSaved(product._id)
-                  ? "#D83A34"
-                  : "transparent"
+              size={20}
+              // Subtle until the wishlist query resolves, so "unknown" does not
+              // render as an explicit "not saved". #D83A34 was off-palette.
+              tone={
+                !wishlist.loaded
+                  ? "subtle"
+                  : wishlist.isSaved(product._id)
+                    ? "destructive"
+                    : "body"
               }
             />
           </Pressable>

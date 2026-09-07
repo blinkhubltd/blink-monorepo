@@ -6,7 +6,7 @@ import { useAuth } from "@clerk/clerk-expo";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Heart } from "lucide-react-native";
+import { Icon } from "../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -48,7 +48,7 @@ export default function SavedScreen() {
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
         <ScreenHeader title="Saved items" />
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <Heart size={36} color="#818A99" />
+          <Icon name="heart-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
             Sign in to save items
           </Text>
@@ -95,7 +95,7 @@ export default function SavedScreen() {
         </View>
       ) : wishlist.count === 0 ? (
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <Heart size={36} color="#818A99" />
+          <Icon name="heart-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold">
             Nothing saved yet
           </Text>

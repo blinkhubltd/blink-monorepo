@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Star } from "lucide-react-native";
+import { Icon } from "../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -197,10 +197,10 @@ function Stars({
             hitSlop={6}
             className="size-control-lg items-center justify-center active:opacity-70"
           >
-            <Star
+            <Icon
+              name={filled ? "star" : "star-outline"}
               size={34}
-              color={filled ? "#FFC50B" : "#818A99"}
-              fill={filled ? "#FFC50B" : "transparent"}
+              tone={filled ? "brand" : "subtle"}
             />
           </Pressable>
         );
