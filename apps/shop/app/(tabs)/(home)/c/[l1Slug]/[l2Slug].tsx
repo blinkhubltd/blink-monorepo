@@ -19,7 +19,7 @@ import {
   ProductCard,
   ProductCardSkeleton,
 } from "../../../../../components/product-card";
-import { ProductsHeader } from "../../../../../components/products-header";
+import { BrandHeader } from "../../../../../components/brand-header";
 import { useWishlist } from "../../../../../lib/use-wishlist";
 import {
   SaveError,
@@ -105,6 +105,18 @@ export default function ProductsScreen() {
 
   const siblings = tree.childrenOf(level1._id);
 
+  // A number that costs a full category-subtree scan and can still be wrong is
+  // worse than an honest approximation — this is why `totalIsExact` exists at
+  // all, and BrandHeader's `meta` is a plain string rather than the count and
+  // its exactness as two separate props, so the "20+" rendering lives here,
+  // once, next to the query that produces the number it is formatting.
+  const countLabel =
+    products.total === null
+      ? null
+      : products.totalIsExact
+        ? `${products.total} ${products.total === 1 ? "item" : "items"}`
+        : `${products.total}+ items`;
+
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
       {/*
@@ -114,11 +126,11 @@ export default function ProductsScreen() {
         of the first product row.
       */}
       <View className="gap-space-2 pb-space-2">
-        <ProductsHeader
+        <BrandHeader
           eyebrow={level1.name}
           title={level2.name}
-          count={products.total}
-          countIsExact={products.totalIsExact}
+          titleSize="h3"
+          meta={countLabel ?? undefined}
         />
         <Level2PillRow
           categories={siblings}

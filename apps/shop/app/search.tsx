@@ -13,7 +13,7 @@ import { useLocation } from "../providers/LocationProvider";
 import { ProductCard, ProductCardSkeleton } from "../components/product-card";
 import { CoverageEmptyState, NeedsLocationState } from "../components/states";
 import { SaveError, SavePrompt } from "../components/save-prompt";
-import { ScreenHeader } from "../components/screen-header";
+import { BrandHeader } from "../components/brand-header";
 import { useWishlist } from "../lib/use-wishlist";
 import { useProductSearch } from "../lib/use-product-search";
 
@@ -61,7 +61,7 @@ export default function SearchScreen() {
         does need now that it is pushed over the catalogue — Android's hardware
         back should not be the only way out.
       */}
-      <ScreenHeader title="Search" showCart />
+      <BrandHeader title="Search" showCart />
 
       <View className="px-screen py-space-3 gap-space-2">
         <View className="gap-space-2 flex-row items-center">

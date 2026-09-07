@@ -14,7 +14,7 @@ import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { ScreenHeader } from "../components/screen-header";
+import { BrandHeader } from "../components/brand-header";
 import {
   presentNotification,
   routeForNotification,
@@ -62,7 +62,7 @@ export default function NotificationsScreen() {
   if (isLoaded && !isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Notifications" showCart={false} />
+        <BrandHeader title="Notifications" showCart={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Icon name="notifications-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold">
@@ -100,7 +100,7 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         title="Notifications"
         subtitle={
           notifications === undefined

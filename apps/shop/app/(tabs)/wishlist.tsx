@@ -11,7 +11,7 @@ import { Icon } from "../../components/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { ProductCard, ProductCardSkeleton } from "../../components/product-card";
 import { useCart } from "../../providers/CartProvider";
 import { useWishlist } from "../../lib/use-wishlist";
@@ -51,7 +51,7 @@ export default function WishlistScreen() {
   if (isLoaded && !isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Wishlist" showBack={false} />
+        <BrandHeader title="Wishlist" showBack={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Icon name="heart-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
@@ -74,7 +74,7 @@ export default function WishlistScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         title="Wishlist"
         showBack={false}
         subtitle={

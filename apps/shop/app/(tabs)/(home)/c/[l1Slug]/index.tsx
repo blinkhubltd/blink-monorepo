@@ -9,7 +9,7 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
 import { useCategoryFromSlugs } from "../../../../../lib/catalogue";
-import { ScreenHeader } from "../../../../../components/screen-header";
+import { BrandHeader } from "../../../../../components/brand-header";
 import { NotFoundState } from "../../../../../components/states";
 
 /**
@@ -47,8 +47,8 @@ export default function SubcategoriesScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
-        eyebrow="Shop"
+      <BrandHeader
+        eyebrow="Home"
         title={level1.name}
         subtitle={`${children.length} ${
           children.length === 1 ? "subcategory" : "subcategories"

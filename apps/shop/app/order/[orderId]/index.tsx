@@ -12,7 +12,7 @@ import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { ScreenHeader } from "../../../components/screen-header";
+import { BrandHeader } from "../../../components/brand-header";
 import { NotFoundState } from "../../../components/states";
 import { formatKES } from "../../../lib/format";
 
@@ -66,7 +66,7 @@ export default function OrderScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         eyebrow="Order"
         title={order.reference}
         subtitle={order.vendor?.name ?? undefined}

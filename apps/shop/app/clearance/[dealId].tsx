@@ -15,7 +15,7 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 import { Pressable } from "react-native";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { NotFoundState } from "../../components/states";
 import { formatKES } from "../../lib/format";
 import {
@@ -94,7 +94,7 @@ export default function ClearanceDealScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader eyebrow="Clearance" title={deal.name} showCart={false} />
+      <BrandHeader eyebrow="Clearance" title={deal.name} showCart={false} />
 
       <ScrollView contentContainerClassName="pb-space-11">
         <View className="bg-muted aspect-[4/3] w-full">

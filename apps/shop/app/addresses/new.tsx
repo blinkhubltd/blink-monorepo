@@ -19,7 +19,7 @@ import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Label } from "@repo/mobile-ui/components/ui/label";
 import { Switch } from "@repo/mobile-ui/components/ui/switch";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { SectionCard } from "../../components/checkout/sections";
 import { LocationPicker, NAIROBI } from "../../components/location-picker";
 import { useLocation } from "../../providers/LocationProvider";
@@ -163,7 +163,7 @@ export default function EditAddressScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         eyebrow={editingLabel ? "Editing" : undefined}
         title={editingLabel ? editingLabel : "Add an address"}
         showCart={false}

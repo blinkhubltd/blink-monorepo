@@ -14,7 +14,7 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
 import { useCart } from "../../providers/CartProvider";
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { NotFoundState } from "../../components/states";
 import { ProductCard } from "../../components/product-card";
 import { formatKES } from "../../lib/format";
@@ -83,7 +83,7 @@ export default function ProductDetailScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader eyebrow={product.category?.name} title={product.name} />
+      <BrandHeader eyebrow={product.category?.name} title={product.name} />
 
       <ScrollView contentContainerClassName="pb-space-11">
         <View className="bg-muted aspect-[4/3] w-full">

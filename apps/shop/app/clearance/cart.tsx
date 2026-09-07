@@ -15,7 +15,7 @@ import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { formatKES } from "../../lib/format";
 import { describeExpiry, describeSaving } from "../../lib/clearance";
 
@@ -53,7 +53,7 @@ export default function ClearanceCartScreen() {
   if (isLoaded && !isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader eyebrow="Clearance" title="Your deals" showCart={false} />
+        <BrandHeader eyebrow="Clearance" title="Your deals" showCart={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Icon name="pricetag-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
@@ -84,7 +84,7 @@ export default function ClearanceCartScreen() {
   if (basket === undefined) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader eyebrow="Clearance" title="Your deals" showCart={false} />
+        <BrandHeader eyebrow="Clearance" title="Your deals" showCart={false} />
         <View className="px-screen gap-space-3">
           {Array.from({ length: 3 }, (_, i) => (
             <View key={i} className="gap-space-3 flex-row items-center">
@@ -103,7 +103,7 @@ export default function ClearanceCartScreen() {
   if (basket.items.length === 0) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader eyebrow="Clearance" title="Your deals" showCart={false} />
+        <BrandHeader eyebrow="Clearance" title="Your deals" showCart={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Icon name="pricetag-outline" size={36} tone="subtle" />
           <Text size="lg" weight="semibold">
@@ -127,7 +127,7 @@ export default function ClearanceCartScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         eyebrow="Clearance"
         title="Your deals"
         subtitle={`${basket.itemCount} ${basket.itemCount === 1 ? "item" : "items"}`}

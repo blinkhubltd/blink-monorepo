@@ -15,7 +15,7 @@ import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { SectionCard } from "../../components/checkout/sections";
 import { formatKES } from "../../lib/format";
 import {
@@ -89,7 +89,7 @@ export default function AgentDashboardScreen() {
   if (summary === undefined) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Agent" showCart={false} />
+        <BrandHeader title="Agent" showCart={false} />
         <View className="px-screen gap-space-3">
           <Skeleton className="h-[80px] w-full rounded-lg" />
           <Skeleton className="h-[120px] w-full rounded-lg" />
@@ -145,7 +145,7 @@ export default function AgentDashboardScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         eyebrow="Agent"
         title={summary.zone?.name ?? "Your referrals"}
         subtitle={`Code ${summary.code}`}
@@ -502,7 +502,7 @@ function Gate({
 }) {
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader title="Agent" showCart={false} />
+      <BrandHeader title="Agent" showCart={false} />
       <View className="gap-space-4 px-screen py-space-8 items-center">
         <Text size="lg" weight="semibold" className="text-center">
           {title}

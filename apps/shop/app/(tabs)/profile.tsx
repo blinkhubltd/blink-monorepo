@@ -12,7 +12,7 @@ import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Avatar } from "@repo/mobile-ui/components/ui/avatar";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { useCart } from "../../providers/CartProvider";
 import { useLocation } from "../../providers/LocationProvider";
 import {
@@ -88,7 +88,7 @@ export default function ProfileScreen() {
   if (!isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Profile" showCart={false} showBack={false} />
+        <BrandHeader title="Profile" showCart={false} showBack={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Icon name="person-outline" size={40} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
@@ -113,7 +113,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader title="Profile" showCart={false} showBack={false} />
+      <BrandHeader title="Profile" showCart={false} showBack={false} />
 
       <ScrollView contentContainerClassName="px-screen gap-space-5 pb-space-10">
         {/* The header is the way into editing, which is where people look. */}
