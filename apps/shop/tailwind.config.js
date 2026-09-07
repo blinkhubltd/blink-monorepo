@@ -47,6 +47,9 @@ module.exports = {
         strong: "var(--color-strong)",
         subtle: "var(--color-subtle)",
         price: "var(--color-price)",
+        // A soft divider, one step lighter than `border` in light mode. The
+        // relation inverts in dark; global.css carries the reasoning.
+        "hairline-soft": "var(--color-hairline-soft)",
         primary: {
           DEFAULT: "var(--color-primary)",
           foreground: "var(--color-primary-foreground)",
@@ -90,6 +93,23 @@ module.exports = {
           DEFAULT: "var(--color-info)",
           foreground: "var(--color-info-foreground)",
           soft: "var(--color-info-soft)",
+        },
+        transit: {
+          DEFAULT: "var(--color-transit)",
+          foreground: "var(--color-transit-foreground)",
+          soft: "var(--color-transit-soft)",
+        },
+        // The yellow header band, and the ink pills that ride on it. Shop-only:
+        // rider has no brand header, and these are consumed exclusively by
+        // components under apps/shop/components/, never by packages/mobile-ui —
+        // which is what keeps rider from resolving them to nothing.
+        "brand-surface": {
+          DEFAULT: "var(--color-brand-surface)",
+          foreground: "var(--color-brand-surface-foreground)",
+        },
+        "on-brand-pill": {
+          DEFAULT: "var(--color-on-brand-pill)",
+          foreground: "var(--color-on-brand-pill-foreground)",
         },
         // Brand-fixed ramps. These do not theme — per the DS, the yellow is
         // the identity and the ink pills are ink in both schemes.
