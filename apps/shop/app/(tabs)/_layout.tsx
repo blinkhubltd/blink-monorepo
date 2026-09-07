@@ -37,7 +37,11 @@ export default function TabsLayout() {
           borderTopColor: "#E4E7EC",
           backgroundColor: "#FFFFFF",
         },
-        tabBarLabelStyle: { fontSize: 11, fontFamily: "Rubik_500Medium" },
+        // A raw face name, not a class: Tailwind cannot see this string, so it
+        // does not change when tailwind.config.js's fontFamily does. Keep it in
+        // step with the `medium` slot there or the labels silently fall back to
+        // the system font.
+        tabBarLabelStyle: { fontSize: 11, fontFamily: "Inter_500Medium" },
       }}
     >
       <Tabs.Screen
