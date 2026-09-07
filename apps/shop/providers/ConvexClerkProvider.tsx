@@ -72,6 +72,42 @@ function readConvexUrl(): string {
   return url;
 }
 
+/**
+ * ── This MUST be read here, in first-party source. ────────────────────────
+ *
+ * `@clerk/clerk-expo`'s ClerkProvider falls back to
+ * `process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` when no `publishableKey`
+ * prop is passed (ClerkProvider.js:54), so omitting the prop looks like it
+ * works — and it does, in development, where `process.env` is a real object
+ * served by Metro.
+ *
+ * It does not work in a release build. `babel-preset-expo`'s
+ * `expo-inline-or-reference-env-vars` plugin replaces `process.env.EXPO_PUBLIC_*`
+ * with a literal at bundle time, and it only does so for files it transforms as
+ * first-party code — not for Clerk's shipped dist. Inside node_modules the
+ * expression survives to runtime, where React Native's `process.env` has no such
+ * key, so Clerk's fallback chain lands on `""` and ClerkProvider throws
+ * "Missing publishableKey" on the very first render. That crashed every EAS
+ * build on launch: the key was present in the EAS environment and `app.config.ts`
+ * verified it, but nothing bundled ever referenced it, so it was never inlined.
+ *
+ * Verified by exporting a production bundle with a sentinel value: the Convex URL
+ * and Paystack key (both read in first-party source) appear in the bundle; the
+ * Clerk key did not appear at all until this function existed.
+ *
+ * So: read it here and pass it explicitly. The reference below is what makes the
+ * value exist in the bundle.
+ */
+function readClerkPublishableKey(): string {
+  const key = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (!key) {
+    throw new Error(
+      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is not set. Copy apps/shop/.env.example to .env.local.",
+    );
+  }
+  return key;
+}
+
 export function ConvexClerkProvider({
   children,
 }: {
@@ -88,7 +124,10 @@ export function ConvexClerkProvider({
   );
 
   return (
-    <ClerkProvider tokenCache={tokenCache}>
+    <ClerkProvider
+      publishableKey={readClerkPublishableKey()}
+      tokenCache={tokenCache}
+    >
       <ConvexProviderWithClerk client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithClerk>
