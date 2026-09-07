@@ -1,17 +1,10 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import {
-  Bell,
-  ChevronDown,
-  MapPin,
-  Search,
-  ShoppingBag,
-} from "lucide-react-native";
-
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
+import { Icon } from "./icon";
 import { useLocation } from "../providers/LocationProvider";
 import { useCart } from "../providers/CartProvider";
 
@@ -61,11 +54,11 @@ export function ShopHeader({
           accessibilityLabel={`Delivery location: ${locationLabel}. Tap to change.`}
           className="min-h-control gap-space-2 rounded-pill bg-muted px-space-4 shrink flex-row items-center active:opacity-80"
         >
-          <MapPin size={16} color="#5A6372" />
+          <Icon name="location-outline" size={16} tone="body" />
           <Text size="sm" weight="medium" numberOfLines={1} className="shrink">
             {locationLabel}
           </Text>
-          <ChevronDown size={16} color="#5A6372" />
+          <Icon name="chevron-down" size={16} tone="body" />
         </Pressable>
 
         <View className="flex-row items-center">
@@ -82,7 +75,7 @@ export function ShopHeader({
             }
             className="size-control rounded-pill items-center justify-center active:opacity-70"
           >
-            <Bell size={22} color="#0A0E16" />
+            <Icon name="notifications-outline" size={22} tone="strong" />
             {unread > 0 ? (
               <View className="bg-primary right-space-2 top-space-2 size-[9px] rounded-pill absolute" />
             ) : null}
@@ -96,7 +89,7 @@ export function ShopHeader({
             }
             className="size-control rounded-pill items-center justify-center active:opacity-70"
           >
-            <ShoppingBag size={24} color="#0A0E16" />
+            <Icon name="bag-outline" size={24} tone="strong" />
             {/*
               The count, which neither header showed before — a customer could
               not tell from any screen whether they had a basket at all.
@@ -135,7 +128,7 @@ export function ShopHeader({
         accessibilityLabel="Search products"
         className="min-h-control gap-space-3 border-hairline border-border bg-card px-space-4 flex-row items-center rounded-lg active:opacity-80"
       >
-        <Search size={18} color="#818A99" />
+        <Icon name="search-outline" size={18} tone="subtle" />
         <Text variant="subtle" size="sm">
           Search for products
         </Text>

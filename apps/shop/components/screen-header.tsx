@@ -1,6 +1,6 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { ChevronLeft, ShoppingBag } from "lucide-react-native";
+import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 
@@ -37,7 +37,7 @@ export function ScreenHeader({
           hitSlop={8}
           className="size-control -ml-space-2 rounded-pill items-center justify-center active:opacity-70"
         >
-          <ChevronLeft size={24} color="#0A0E16" />
+          <Icon name="chevron-back" size={24} tone="strong" />
         </Pressable>
 
         {showCart ? (
@@ -49,7 +49,7 @@ export function ScreenHeader({
             }
             className="size-control -mr-space-2 rounded-pill items-center justify-center active:opacity-70"
           >
-            <ShoppingBag size={24} color="#0A0E16" />
+            <Icon name="bag-outline" size={24} tone="strong" />
             {/* Same badge as the catalogue header: one basket, one count. */}
             {count > 0 ? (
               <View className="bg-primary right-space-1 top-space-1 min-w-[18px] rounded-pill absolute items-center justify-center px-[4px]">

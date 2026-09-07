@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { Minus, Plus, Trash2 } from "lucide-react-native";
+import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
@@ -78,7 +78,7 @@ export function BasketLineRow({
             hitSlop={8}
             className="active:opacity-60"
           >
-            <Trash2 size={18} color="#818A99" />
+            <Icon name="trash-outline" size={18} tone="subtle" />
           </Pressable>
         </View>
 
@@ -112,7 +112,7 @@ export function BasketLineRow({
                 hitSlop={6}
                 className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
               >
-                <Minus size={16} color="#0A0E16" />
+                <Icon name="remove" size={16} tone="strong" />
               </Pressable>
               <Text
                 size="label"
@@ -129,7 +129,7 @@ export function BasketLineRow({
                 disabled={atStockLimit}
                 className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-30"
               >
-                <Plus size={16} color="#0A0E16" />
+                <Icon name="add" size={16} tone="strong" />
               </Pressable>
             </View>
           ) : null}

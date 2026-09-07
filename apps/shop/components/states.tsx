@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { MapPinOff, PackageSearch, SearchX } from "lucide-react-native";
+import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -29,7 +29,14 @@ export function CoverageEmptyState({
 }) {
   return (
     <View className="gap-space-4 px-screen py-space-10 items-center">
-      <MapPinOff size={40} color="#818A99" />
+      {/*
+        A map here, a pin in NeedsLocationState below. Both were the same
+        `MapPinOff` glyph before, which Ionicons has no equivalent of — and the
+        two states mean different things: this one is about the area not being
+        covered, that one about not knowing where you are. The copy already drew
+        the distinction; now the icon does too.
+      */}
+      <Icon name="map-outline" size={40} tone="subtle" />
       <View className="gap-space-2">
         <Text size="lg" weight="semibold" className="text-center">
           No shops deliver here yet
@@ -57,7 +64,7 @@ export function NoProductsState({
 }) {
   return (
     <View className="gap-space-4 px-screen py-space-10 items-center">
-      <PackageSearch size={40} color="#818A99" />
+      <Icon name="cube-outline" size={40} tone="subtle" />
       <View className="gap-space-2">
         <Text size="lg" weight="semibold" className="text-center">
           No {categoryName} available nearby
@@ -85,7 +92,7 @@ export function NeedsLocationState({
 }) {
   return (
     <View className="gap-space-4 px-screen py-space-10 items-center">
-      <MapPinOff size={40} color="#818A99" />
+      <Icon name="location-outline" size={40} tone="subtle" />
       <View className="gap-space-2">
         <Text size="lg" weight="semibold" className="text-center">
           Where are we delivering?
@@ -116,7 +123,7 @@ export function NotFoundState({
 }) {
   return (
     <View className="gap-space-4 px-screen flex-1 items-center justify-center">
-      <SearchX size={40} color="#818A99" />
+      <Icon name="search-outline" size={40} tone="subtle" />
       <View className="gap-space-2">
         <Text size="lg" weight="semibold" className="text-center">
           We could not find that {what}

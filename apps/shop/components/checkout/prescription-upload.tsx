@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import type { Id } from "@repo/backend/dataModel";
-import { Camera, ImageIcon } from "lucide-react-native";
+import { Icon } from "../icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -119,7 +119,7 @@ function VendorRow({
               size="sm"
               variant="outline"
               label="Take a photo"
-              icon={<Camera size={16} color="#0A0E16" />}
+              icon={<Icon name="camera-outline" size={16} tone="strong" />}
               loading={busy}
               disabled={busy}
               onPress={() => void pick("camera")}
@@ -128,7 +128,7 @@ function VendorRow({
               size="sm"
               variant="outline"
               label="Choose a file"
-              icon={<ImageIcon size={16} color="#0A0E16" />}
+              icon={<Icon name="image-outline" size={16} tone="strong" />}
               loading={busy}
               disabled={busy}
               onPress={() => void pick("library")}
