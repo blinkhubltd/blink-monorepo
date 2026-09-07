@@ -19,26 +19,39 @@ export function ScreenHeader({
   title,
   subtitle,
   showCart = true,
+  showBack = true,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
   showCart?: boolean;
+  /**
+   * Off for a screen that is the root of a tab, where `router.back()` has
+   * nothing to go back to and the arrow is a dead control. Defaults on, since
+   * every other consumer is a pushed screen.
+   */
+  showBack?: boolean;
 }) {
   const { count } = useCart();
 
   return (
     <View className="gap-space-2 px-screen pb-space-4 pt-space-2">
       <View className="flex-row items-center justify-between">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={8}
-          className="size-control -ml-space-2 rounded-pill items-center justify-center active:opacity-70"
-        >
-          <Icon name="chevron-back" size={24} tone="strong" />
-        </Pressable>
+        {showBack ? (
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={8}
+            className="size-control -ml-space-2 rounded-pill items-center justify-center active:opacity-70"
+          >
+            <Icon name="chevron-back" size={24} tone="strong" />
+          </Pressable>
+        ) : (
+          // A spacer, so `justify-between` still pins the cart to the right
+          // rather than pulling it across to the left edge.
+          <View />
+        )}
 
         {showCart ? (
           <Pressable

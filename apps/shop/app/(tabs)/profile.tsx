@@ -210,9 +210,16 @@ export default function ProfileScreen() {
             onPress={() => router.push("/notifications")}
           />
           <Separator />
+          {/*
+            Kept, even though Wishlist is now a tab of its own. This is the only
+            surface that shows the count, it belongs in a list of account
+            surfaces, and removing a working path because a tab exists is a
+            strict loss for anyone already used to it. Pushing a sibling tab's
+            route from inside `(tabs)` switches tabs, which is the intent.
+          */}
           <Row
             icon={<Icon name="heart-outline" size={20} tone="body" />}
-            label="Saved items"
+            label="Wishlist"
             detail={
               savedCount === null
                 ? undefined
@@ -220,7 +227,7 @@ export default function ProfileScreen() {
                   ? "Nothing saved yet"
                   : `${savedCount} ${savedCount === 1 ? "item" : "items"}`
             }
-            onPress={() => router.push("/saved")}
+            onPress={() => router.push("/wishlist")}
           />
         </View>
 
