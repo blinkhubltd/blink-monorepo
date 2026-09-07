@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PortalHost } from "@rn-primitives/portal";
 import { PaystackProvider } from "react-native-paystack-webview";
 import { useColorScheme } from "nativewind";
+import Ionicons from "@expo/vector-icons/Ionicons";
 /**
  * Per-face subpaths, NOT the package barrel.
  *
@@ -89,6 +90,11 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    // The glyph font behind every `components/icon.tsx`. @expo/vector-icons
+    // loads its own fonts lazily, which would otherwise leave a window after
+    // the splash hides where every icon in the app is a blank box. Gating the
+    // splash on it too costs one line.
+    ...Ionicons.font,
   });
 
   useEffect(() => {
