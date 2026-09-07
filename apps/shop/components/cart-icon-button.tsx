@@ -23,7 +23,7 @@ export function CartIconButton() {
       accessibilityLabel={count > 0 ? `Basket, ${count} items` : "Basket, empty"}
       className="size-control rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
     >
-      <Icon name="bag-outline" size={22} tone="onBrandPill" />
+      <Icon name="bag-outline" size={20} tone="onBrandPill" />
       {count > 0 ? (
         <View className="bg-destructive right-space-1 top-space-1 min-w-[18px] rounded-pill absolute items-center justify-center px-[4px]">
           {/* No white-on-destructive Text variant exists yet, and this is its

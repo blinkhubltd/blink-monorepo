@@ -20,7 +20,7 @@ import { Icon } from "./icon";
  */
 export function DeliveryBadge({ minutes = 10 }: { minutes?: number }) {
   return (
-    <View className="h-[30px] gap-space-2 bg-on-brand-pill rounded-pill flex-row items-center px-space-4">
+    <View className="h-[30px] gap-space-2 bg-on-brand-pill rounded-pill flex-row items-center px-[11px]">
       <Icon name="bicycle" size={17} tone="brand" />
       <Text
         size="caption"

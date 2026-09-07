@@ -108,30 +108,27 @@ export function BrandHeader({
 
   return (
     <View
-      className={`bg-brand-surface px-screen pt-space-3 gap-space-3 ${
-        sweep ? "rounded-b-2xl pb-space-6" : "pb-space-4"
+      className={`bg-brand-surface px-screen pt-[14px] gap-space-5 ${
+        sweep ? "rounded-b-2xl pb-[18px]" : "pb-space-4"
       }`}
     >
       <StatusBar style="dark" />
 
-      <View className="min-h-control flex-row items-center justify-between">
+      <View className="h-control-lg flex-row items-center justify-between">
         {showLocation ? (
           <Pressable
             onPress={() => void request()}
             accessibilityRole="button"
             accessibilityLabel={`Delivery location: ${locationLabel}. Tap to change.`}
-            className="min-h-control gap-space-2 rounded-pill bg-on-brand-pill px-space-4 shrink flex-row items-center active:opacity-90"
+            className="h-control-lg gap-space-3 rounded-pill bg-card shrink flex-row items-center pl-[14px] pr-space-2 active:opacity-90"
           >
-            <Icon name="location-outline" size={16} tone="onBrandPill" />
-            <Text
-              size="sm"
-              weight="medium"
-              numberOfLines={1}
-              className="text-on-brand-pill-foreground shrink"
-            >
+            <Icon name="location-outline" size={18} tone="price" />
+            <Text size="base" numberOfLines={1} className="shrink">
               {locationLabel}
             </Text>
-            <Icon name="chevron-down" size={16} tone="onBrandPill" />
+            <View className="size-[34px] bg-secondary rounded-pill items-center justify-center">
+              <Icon name="chevron-down" size={17} tone="body" />
+            </View>
           </Pressable>
         ) : showBack ? (
           <Pressable
@@ -191,7 +188,7 @@ export function BrandHeader({
       ) : null}
 
       {logoRow ? (
-        <View className="flex-row items-center justify-between px-[2px] py-[2px]">
+        <View className="flex-row items-center justify-between px-[2px] pb-[2px] pt-[4px]">
           <Logo height={30} />
           <DeliveryBadge />
         </View>
