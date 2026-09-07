@@ -1,51 +1,45 @@
-import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useQuery } from "convex/react";
-import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Icon } from "../../components/icon";
+import { Icon } from "../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Input } from "@repo/mobile-ui/components/ui/input";
 
-import { useCart } from "../../providers/CartProvider";
-import { useLocation } from "../../providers/LocationProvider";
-import {
-  ProductCard,
-  ProductCardSkeleton,
-} from "../../components/product-card";
-import { CoverageEmptyState, NeedsLocationState } from "../../components/states";
-import { SaveError, SavePrompt } from "../../components/save-prompt";
-import { useWishlist } from "../../lib/use-wishlist";
-import {
-  clearRecentSearches,
-  normaliseTerm,
-  readRecentSearches,
-  saveRecentSearches,
-  withRecentSearch,
-} from "../../lib/search-history";
+import { useCart } from "../providers/CartProvider";
+import { useLocation } from "../providers/LocationProvider";
+import { ProductCard, ProductCardSkeleton } from "../components/product-card";
+import { CoverageEmptyState, NeedsLocationState } from "../components/states";
+import { SaveError, SavePrompt } from "../components/save-prompt";
+import { ScreenHeader } from "../components/screen-header";
+import { useWishlist } from "../lib/use-wishlist";
+import { useProductSearch } from "../lib/use-product-search";
 
 /**
  * Search.
  *
- * ── Coverage-aware, unlike the query it would otherwise have used ─────────
+ * ── A pushed route, not a tab ─────────────────────────────────────────────
  *
- * `products.searchProductsAutocomplete` filters status and stops there. A
- * customer could search, find something stocked only by a shop far outside its
- * own delivery radius, add it, and learn at checkout that nobody can bring it —
- * making the coverage rule the browse flow enforces decorative, since search
- * reaches around it. `catalog.searchProductsByCoverage` applies the same rule.
+ * The four tabs are Home, Wishlist, Orders and Profile, matching the app this
+ * replaces — which reached search from a control in the catalogue header rather
+ * than from the tab bar.
  *
- * ── Debounced, because each term is a subscription ────────────────────────
+ * The URL is still `/search`. expo-router groups are path-transparent, so moving
+ * this file out of `(tabs)/` changed what wraps it, not what addresses it:
+ * existing links, the header's push, and `blink://search` are all unaffected.
  *
- * `useQuery` re-subscribes when its arguments change, so binding it straight to
- * the input opens one subscription per keystroke. The committed term lags the
- * typed one by 350ms; the box itself stays instant.
+ * Accepts `?q=` so the header's field can hand over a term it has already
+ * collected rather than making the customer type it twice.
  *
- * ── Three empty states, all different ────────────────────────────────────
+ * ── The rules live in lib/use-product-search.ts ───────────────────────────
+ *
+ * The debounce, the minimum term length, the coverage query and the recent list
+ * are all in that hook, so the header's field is a second renderer rather than a
+ * second implementation. The comment there records what went wrong last time.
+ *
+ * ── Three empty states, all different ─────────────────────────────────────
  *
  * Nothing typed, nothing found, and nothing delivers here. The last is about the
  * address rather than the search, and telling them apart is the difference
@@ -55,68 +49,41 @@ export default function SearchScreen() {
   const cart = useCart();
   const wishlist = useWishlist();
   const { point, denied, request } = useLocation();
+  const { q } = useLocalSearchParams<{ q?: string }>();
 
-  const [typed, setTyped] = useState("");
-  const [committed, setCommitted] = useState("");
-  const [recent, setRecent] = useState<string[]>([]);
-
-  // Read once on mount. Storage is synchronous, so there is no loading state
-  // and no flash of an empty list.
-  useEffect(() => setRecent(readRecentSearches()), []);
-
-  useEffect(() => {
-    const trimmed = normaliseTerm(typed);
-    // Two characters is the shortest term worth a round trip; one letter
-    // matches most of the catalogue and reads as noise.
-    const next = trimmed.length >= 2 ? trimmed : "";
-    if (next === committed) return;
-    const timer = setTimeout(() => setCommitted(next), 350);
-    return () => clearTimeout(timer);
-  }, [typed, committed]);
-
-  const results = useQuery(
-    api.data.catalog.searchProductsByCoverage,
-    committed && point
-      ? { term: committed, lat: point.lat, lng: point.lng }
-      : "skip",
-  );
-
-  /** Remember a term only once it has actually returned something. */
-  useEffect(() => {
-    if (!committed || !results || results.products.length === 0) return;
-    setRecent((current) => {
-      const next = withRecentSearch(current, committed);
-      saveRecentSearches(next);
-      return next;
-    });
-  }, [committed, results]);
-
-  const searching = committed.length > 0;
+  const search = useProductSearch({ point, initialTerm: q ?? "" });
+  const { results } = search;
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
+      {/*
+        A back affordance, which this screen did not need while it was a tab and
+        does need now that it is pushed over the catalogue — Android's hardware
+        back should not be the only way out.
+      */}
+      <ScreenHeader title="Search" showCart />
+
       <View className="px-screen py-space-3 gap-space-2">
         <View className="gap-space-2 flex-row items-center">
           <View className="flex-1">
             <Input
-              value={typed}
-              onChangeText={setTyped}
+              value={search.typed}
+              onChangeText={search.setTyped}
               placeholder="Search for anything"
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
+              // Arriving without a term means the customer came here to type.
+              autoFocus={!q}
               // Committing on submit as well as on the debounce means the
               // keyboard's Search key does what it says.
-              onSubmitEditing={() => setCommitted(normaliseTerm(typed))}
+              onSubmitEditing={search.submit}
               accessibilityLabel="Search products"
             />
           </View>
-          {typed.length > 0 ? (
+          {search.typed.length > 0 ? (
             <Pressable
-              onPress={() => {
-                setTyped("");
-                setCommitted("");
-              }}
+              onPress={search.clear}
               accessibilityRole="button"
               accessibilityLabel="Clear search"
               hitSlop={8}
@@ -138,17 +105,11 @@ export default function SearchScreen() {
         // Search needs a location for the same reason browse does: without one
         // there is no way to know which shops can deliver what it finds.
         <NeedsLocationState onRequest={() => void request()} denied={denied} />
-      ) : !searching ? (
+      ) : !search.searching ? (
         <RecentSearches
-          terms={recent}
-          onPick={(term) => {
-            setTyped(term);
-            setCommitted(term);
-          }}
-          onClear={() => {
-            clearRecentSearches();
-            setRecent([]);
-          }}
+          terms={search.recent}
+          onPick={search.pick}
+          onClear={search.forgetRecent}
         />
       ) : results === undefined ? (
         <View className="px-screen gap-space-4 flex-row">
@@ -161,12 +122,12 @@ export default function SearchScreen() {
         <View className="gap-space-3 px-screen py-space-10 items-center">
           <Icon name="search-outline" size={32} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
-            Nothing for “{committed}”
+            Nothing for “{search.committed}”
           </Text>
           <Text size="sm" variant="muted" className="text-center">
             {results.truncated
               ? "There are more matches than we can rank at once. Try a more specific word."
-              : "Try a different word, or browse by category from the Shop tab."}
+              : "Try a different word, or browse by category from the Home tab."}
           </Text>
         </View>
       ) : (

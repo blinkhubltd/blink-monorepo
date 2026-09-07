@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Search, ShoppingBasket, Store, User } from "lucide-react-native";
+import { ShoppingBasket, Store, User } from "lucide-react-native";
 
 /**
  * The four customer tabs.
@@ -49,13 +49,6 @@ export default function TabsLayout() {
         options={{
           title: "Shop",
           tabBarIcon: ({ color, size }) => <Store color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: "Search",
-          tabBarIcon: ({ color, size }) => <Search color={color} size={size} />,
         }}
       />
       <Tabs.Screen

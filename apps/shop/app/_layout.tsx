@@ -141,6 +141,12 @@ export default function RootLayout() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="product/[productId]" />
+                  {/*
+                    Search is a pushed route rather than a tab, matching the app
+                    this replaces, which reached it from a control in the
+                    catalogue header. The URL is unchanged at `/search`.
+                  */}
+                  <Stack.Screen name="search" />
                   <Stack.Screen name="cart" />
                   <Stack.Screen name="checkout" />
                   <Stack.Screen name="order/[orderId]" />
