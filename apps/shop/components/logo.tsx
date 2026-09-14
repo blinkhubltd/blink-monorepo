@@ -11,7 +11,7 @@ import { Image } from "react-native";
  */
 const ASPECT_RATIO = 3.806;
 
-export function Logo({ height = 30 }: { height?: number }) {
+export function Logo({ height = 24 }: { height?: number }) {
   return (
     <Image
       source={require("../assets/images/logo-blink-onbrand.png")}

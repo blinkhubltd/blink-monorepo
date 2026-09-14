@@ -25,7 +25,7 @@ export function CartIconButton() {
     >
       <Icon name="bag-outline" size={20} tone="onBrandPill" />
       {count > 0 ? (
-        <View className="bg-destructive right-space-1 top-space-1 min-w-[18px] rounded-pill absolute items-center justify-center px-[4px]">
+        <View className="bg-destructive right-space-1 top-space-1 min-w-[16px] h-[16px] rounded-pill absolute items-center justify-center px-[4px]">
           {/* No white-on-destructive Text variant exists yet, and this is its
               only consumer — an override, not a case for a new shared variant. */}
           <Text size="caption" weight="bold" className="text-destructive-foreground">

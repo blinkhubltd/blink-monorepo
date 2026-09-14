@@ -20,11 +20,12 @@ import { Icon } from "./icon";
  */
 export function DeliveryBadge({ minutes = 10 }: { minutes?: number }) {
   return (
-    <View className="h-[30px] gap-space-2 bg-on-brand-pill rounded-pill flex-row items-center px-[11px]">
-      <Icon name="bicycle" size={17} tone="brand" />
+    <View className="h-[24px] gap-space-2 bg-on-brand-pill rounded-pill flex-row items-center px-[9px]">
+      <Icon name="bicycle" size={14} tone="brand" />
       <Text
         size="caption"
         weight="bold"
+        numberOfLines={1}
         className="uppercase tracking-label text-[#FFFFFF]"
       >
         {minutes} minutes delivery

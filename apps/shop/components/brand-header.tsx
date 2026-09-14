@@ -8,7 +8,7 @@ import { CartIconButton } from "./cart-icon-button";
 import { SearchIconButton } from "./search-icon-button";
 import { Logo } from "./logo";
 import { DeliveryBadge } from "./delivery-badge";
-import { useLocation } from "../providers/LocationProvider";
+import { useAddressLabel } from "../lib/use-address-label";
 
 /**
  * The header on every screen: the yellow band from the app this replaces.
@@ -93,18 +93,7 @@ export function BrandHeader({
   /** The wordmark + delivery-time badge row, in place of the title block. Home only. */
   logoRow?: boolean;
 }) {
-  const { point, denied, requesting, request } = useLocation();
-
-  const locationLabel = point
-    ? // Coordinates until reverse geocoding lands. Deliberately not faked as a
-      // street name: showing a plausible wrong address is worse than showing a
-      // precise unfriendly one.
-      `${point.lat.toFixed(3)}, ${point.lng.toFixed(3)}`
-    : denied
-      ? "Set your location"
-      : requesting
-        ? "Finding you…"
-        : "Set your location";
+  const { label: locationLabel, state: locationState } = useAddressLabel();
 
   return (
     <View
@@ -117,17 +106,21 @@ export function BrandHeader({
       <View className="h-control-lg flex-row items-center justify-between">
         {showLocation ? (
           <Pressable
-            onPress={() => void request()}
+            onPress={() => router.push("/addresses")}
             accessibilityRole="button"
             accessibilityLabel={`Delivery location: ${locationLabel}. Tap to change.`}
             className="h-control-lg gap-space-3 rounded-pill bg-card shrink flex-row items-center pl-[14px] pr-space-2 active:opacity-90"
           >
-            <Icon name="location-outline" size={18} tone="price" />
-            <Text size="base" numberOfLines={1} className="shrink">
+            <Icon
+              name={locationState === "denied" ? "alert-circle" : "location"}
+              size={locationState === "denied" ? 18 : 16}
+              tone={locationState === "denied" ? "destructive" : "price"}
+            />
+            <Text size="sm" numberOfLines={1} className="shrink">
               {locationLabel}
             </Text>
-            <View className="size-[34px] bg-secondary rounded-pill items-center justify-center">
-              <Icon name="chevron-down" size={17} tone="body" />
+            <View className="size-[24px] bg-secondary rounded-pill items-center justify-center">
+              <Icon name="chevron-down" size={16} tone="body" />
             </View>
           </Pressable>
         ) : showBack ? (
@@ -189,8 +182,12 @@ export function BrandHeader({
 
       {logoRow ? (
         <View className="flex-row items-center justify-between px-[2px] pb-[2px] pt-[4px]">
-          <Logo height={30} />
-          <DeliveryBadge />
+          <View className="shrink">
+            <Logo />
+          </View>
+          <View className="shrink">
+            <DeliveryBadge />
+          </View>
         </View>
       ) : null}
     </View>
