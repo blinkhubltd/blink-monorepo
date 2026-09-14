@@ -8,7 +8,7 @@ import {
   PlusIcon,
   TrendingUpIcon,
 } from "@hugeicons/core-free-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import { CategoryForm } from "@/components/categories/CategoryForm";
@@ -122,15 +122,32 @@ export default function CategoriesPage() {
     router.replace(`?${params.toString()}`);
   };
 
+  // Skips the very first run: without this, the effect fires on mount (before
+  // the user has touched search or the page size), calls `router.replace`,
+  // which hands back a new `searchParams` object from Next's router — and if
+  // `searchParams` is in the dependency array below, that resolved to a
+  // render loop, which is what was making this page (and every popover on
+  // it, since Radix's dismissable-layer reads the outside click against a DOM
+  // that keeps getting re-rendered out from under it) behave as though the
+  // categories were "constantly fetching".
+  const didMountRef = useRef(false);
   useEffect(() => {
-    // Reset pagination when search changes
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    // Reset pagination when search or page size changes
     setCursorStack([null]);
     setPage(1);
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", "1");
     params.set("limit", String(limit));
     router.replace(`?${params.toString()}`);
-  }, [debouncedSearchQuery, router, searchParams, limit]);
+    // `router` and `searchParams` deliberately excluded: `searchParams` is a
+    // new object on every navigation, including the one this effect itself
+    // causes, so depending on it is what created the loop above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchQuery, limit]);
 
   useEffect(() => {
     // Reset pagination when status filter changes

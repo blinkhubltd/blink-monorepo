@@ -1137,16 +1137,14 @@ function RowActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <div className="flex justify-end">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="shadow-none"
-              aria-label="Product actions"
-            >
-              <HugeiconsIcon icon={EllipsisIcon} size={16} aria-hidden="true" />
-            </Button>
-          </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="shadow-none"
+            aria-label="Product actions"
+          >
+            <HugeiconsIcon icon={EllipsisIcon} size={16} aria-hidden="true" />
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
