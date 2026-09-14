@@ -128,6 +128,7 @@ export const categoryTreeForShop = query({
         _id: c._id,
         name: c.name,
         slug: c.slug,
+        description: c.description,
         parent_category_id: c.parent_category_id,
         sort_order: c.sort_order,
         depth: depthOf(byId, c._id),

@@ -11,7 +11,7 @@ import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { BrandHeader } from "../../../components/brand-header";
+import { ScreenHeader } from "../../../components/screen-header";
 import { NotFoundState } from "../../../components/states";
 import {
   ORDER_JOURNEY,
@@ -62,7 +62,7 @@ export default function TrackOrderScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader eyebrow="Tracking" title={status.label} showCart={false} />
+      <ScreenHeader eyebrow="Tracking" title={status.label} />
 
       <ScrollView contentContainerClassName="px-screen gap-space-6 pb-space-10">
         <Text size="sm" variant="muted">

@@ -13,7 +13,7 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
 import { useCart } from "../providers/CartProvider";
 import { BasketLineRow } from "../components/basket-line";
-import { BrandHeader } from "../components/brand-header";
+import { ScreenHeader } from "../components/screen-header";
 import { formatKES } from "../lib/format";
 import type { Id } from "@repo/backend/dataModel";
 
@@ -56,7 +56,7 @@ export default function CartScreen() {
   if (cart.items.length === 0 && !cart.loading) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <BrandHeader title="Your basket" showCart={false} />
+        <ScreenHeader title="Your basket" />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Text size="lg" weight="semibold">
             Your basket is empty
@@ -74,10 +74,9 @@ export default function CartScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
+      <ScreenHeader
         title="Your basket"
         subtitle={`${cart.count} ${cart.count === 1 ? "item" : "items"}`}
-        showCart={false}
       />
 
       {cart.writeError ? (

@@ -15,8 +15,10 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
 import { ProductForm } from "@/components/products/ProductForm";
-import { ProductTable } from "@/components/products/ProductTable";
+import { ProductTable, EditProductForm } from "@/components/products/ProductTable";
 import { Button } from "@repo/ui/components/ui/button";
+import { FormShell } from "@/components/module/form-shell";
+import { useModuleForm } from "@/components/module/use-module-form";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +50,7 @@ export default function ProductsPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<
     Id<"products">[]
   >([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const form = useModuleForm<any>({ presentation: "full" });
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isBulkImageDialogOpen, setIsBulkImageDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -182,21 +184,22 @@ export default function ProductsPage() {
     setCursorStack([null]);
   };
 
-  const handleCreateProduct = async (values: any) => {
-    try {
-      await createProduct(values);
-      setIsDialogOpen(false);
-    } catch (error) {
-      console.error("Failed to create product:", error);
-    }
-  };
-
-  const handleEditProduct = async (values: any) => {
-    try {
-      await updateProduct(values);
-    } catch (error) {
-      console.error("Failed to update product:", error);
-      throw error; // Re-throw to let the form handle the error
+  const handleFormSubmit = async (values: any) => {
+    if (form.mode === "update") {
+      try {
+        await updateProduct(values);
+        form.setOpen(false);
+      } catch (error) {
+        console.error("Failed to update product:", error);
+        throw error; // Re-throw to let the form handle the error
+      }
+    } else {
+      try {
+        await createProduct(values);
+        form.setOpen(false);
+      } catch (error) {
+        console.error("Failed to create product:", error);
+      }
     }
   };
 
@@ -276,7 +279,9 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-1 flex-col overflow-hidden bg-background">
+      {form.showTable && (
+      <>
       <div className="border-b bg-card">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -353,34 +358,13 @@ export default function ProductsPage() {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gray-900 text-yellow-400 font-medium">
-                    <HugeiconsIcon icon={PlusIcon} className="w-4 h-4 mr-2" />
-                    Add Product
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold">
-                      Add New Product
-                    </DialogTitle>
-                  </DialogHeader>
-                  {vendors?.data && vendors.data.length > 0 ? (
-                    <ProductForm
-                      categories={categories}
-                      vendors={vendors.data}
-                      onSubmit={handleCreateProduct}
-                      onCancel={() => setIsDialogOpen(false)}
-                      onFileUpload={handleFileUpload}
-                    />
-                  ) : (
-                    <div className="p-4 text-center text-gray-500">
-                      Loading vendors...
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
+              <Button
+                className="bg-gray-900 text-yellow-400 font-medium"
+                onClick={form.handleNew}
+              >
+                <HugeiconsIcon icon={PlusIcon} className="w-4 h-4 mr-2" />
+                Add Product
+              </Button>
             </div>
           </div>
         </div>
@@ -509,7 +493,7 @@ export default function ProductsPage() {
                     )
                   : (vendors?.data ?? [])
               }
-              onUpdateProduct={handleEditProduct}
+              onEditProduct={form.handleEdit}
               selectedIds={selectedProductIds}
               onSelectedIdsChange={handleSelectedIdsChange}
               updateSingleProductStatus={async (productId, status) => {
@@ -536,6 +520,44 @@ export default function ProductsPage() {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
+
+      <FormShell
+        presentation={form.presentation}
+        open={form.open}
+        onOpenChange={form.setOpen}
+        title={form.mode === "update" ? "Edit Product" : "Add New Product"}
+        description={
+          form.mode === "update"
+            ? "Update the product information. Only modified fields will be saved."
+            : "Add a new product to your catalog."
+        }
+      >
+        {vendors?.data && vendors.data.length > 0 ? (
+          form.mode === "update" && form.selected ? (
+            <EditProductForm
+              product={form.selected}
+              categories={categories}
+              vendors={vendors.data}
+              onSubmit={handleFormSubmit}
+              onCancel={() => form.setOpen(false)}
+            />
+          ) : (
+            <ProductForm
+              categories={categories}
+              vendors={vendors.data}
+              onSubmit={handleFormSubmit}
+              onCancel={() => form.setOpen(false)}
+              onFileUpload={handleFileUpload}
+            />
+          )
+        ) : (
+          <div className="p-4 text-center text-gray-500">
+            Loading vendors...
+          </div>
+        )}
+      </FormShell>
     </div>
   );
 }

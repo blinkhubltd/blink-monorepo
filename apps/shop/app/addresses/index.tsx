@@ -12,7 +12,7 @@ import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { BrandHeader } from "../../components/brand-header";
+import { ScreenHeader } from "../../components/screen-header";
 import { summariseAddress } from "../../lib/address";
 
 /**
@@ -50,7 +50,7 @@ export default function AddressBookScreen() {
   if (isLoaded && !isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <BrandHeader title="Delivery addresses" showCart={false} />
+        <ScreenHeader title="Delivery addresses" />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Text size="lg" weight="semibold" className="text-center">
             Sign in to save addresses
@@ -81,14 +81,13 @@ export default function AddressBookScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
+      <ScreenHeader
         title="Delivery addresses"
         subtitle={
           addresses
             ? `${addresses.length} saved`
             : undefined /* not "0 saved" while loading */
         }
-        showCart={false}
       />
 
       <ScrollView contentContainerClassName="px-screen gap-space-4 pb-space-10">

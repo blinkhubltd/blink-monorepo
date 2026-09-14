@@ -89,14 +89,6 @@ import {
   TableRow,
 } from "@repo/ui/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@repo/ui/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -169,7 +161,7 @@ export function ProductTable({
   onCategoryFilterChange,
   vendorFilter = "all",
   onVendorFilterChange,
-  onUpdateProduct,
+  onEditProduct,
   selectedIds,
   onSelectedIdsChange,
   onDeleteProduct,
@@ -197,23 +189,7 @@ export function ProductTable({
   onCategoryFilterChange?: (val: string) => void;
   vendorFilter?: string;
   onVendorFilterChange?: (val: string) => void;
-  onUpdateProduct: (product: {
-    id: Id<"products">;
-    name: string;
-    slug: string;
-    sku: string;
-    category_id: Id<"categories">;
-    price: number;
-    quantity: number;
-    status: Product["status"];
-    image?: string;
-    description?: string;
-    upc?: number;
-    vendor_id: string;
-    vendor_location: { address: string; lat: number; lng: number };
-    tags: ("Featured" | "Offer" | "Hot")[];
-    external_id?: string;
-  }) => Promise<void>;
+  onEditProduct: (product: Product) => void;
   selectedIds: Id<"products">[];
   onSelectedIdsChange: (ids: Id<"products">[]) => void;
   onDeleteProduct?: (id: Id<"products">) => Promise<void>;
@@ -381,7 +357,7 @@ export function ProductTable({
         cell: ({ row }) => (
           <RowActions
             row={row}
-            onUpdateProduct={onUpdateProduct}
+            onEditProduct={onEditProduct}
             onDeleteProduct={onDeleteProduct}
             categories={categories}
             vendors={vendors}
@@ -393,11 +369,12 @@ export function ProductTable({
         ),
         size: 60,
         enableHiding: false,
+        enableSorting: false,
       },
     ],
     [
       categoryIdToName,
-      onUpdateProduct,
+      onEditProduct,
       onDeleteProduct,
       categories,
       vendors,
@@ -1047,7 +1024,8 @@ function StatusBadge({ status }: { status: Product["status"] }) {
   );
 }
 
-function EditProductForm({
+/** Transforms a product record into `ProductForm`'s expected initial-values shape. */
+export function EditProductForm({
   product,
   categories,
   vendors,
@@ -1060,7 +1038,6 @@ function EditProductForm({
   onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
 }) {
-  // Transform product data to match ProductForm expected format
   const initialValues = {
     name: product.name,
     slug: product.slug,
@@ -1079,23 +1056,21 @@ function EditProductForm({
   };
 
   return (
-    <div className="max-h-[80vh] overflow-y-auto">
-      <ProductForm
-        categories={categories}
-        vendors={vendors}
-        onSubmit={onSubmit}
-        onCancel={onCancel}
-        initialValues={initialValues}
-        isEditMode={true}
-        productId={product._id}
-      />
-    </div>
+    <ProductForm
+      categories={categories}
+      vendors={vendors}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+      initialValues={initialValues}
+      isEditMode={true}
+      productId={product._id}
+    />
   );
 }
 
 function RowActions({
   row,
-  onUpdateProduct,
+  onEditProduct,
   onDeleteProduct,
   categories,
   vendors,
@@ -1105,7 +1080,7 @@ function RowActions({
   onFileUpload,
 }: {
   row: Row<Product>;
-  onUpdateProduct: (product: any) => Promise<void>;
+  onEditProduct: (product: Product) => void;
   onDeleteProduct?: (id: Id<"products">) => Promise<void>;
   categories: { _id: Id<"categories">; name: string }[];
   vendors: { _id: string; name: string; status: string }[];
@@ -1117,14 +1092,8 @@ function RowActions({
   canMoveToClearance: boolean;
   onFileUpload?: (files: File[]) => Promise<string[]>;
 }) {
-  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showClearanceDialog, setShowClearanceDialog] = useState(false);
-
-  const handleEdit = async (data: any) => {
-    await onUpdateProduct(data);
-    setShowEditDialog(false);
-  };
 
   const handleDelete = async () => {
     if (onDeleteProduct) {
@@ -1137,20 +1106,18 @@ function RowActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <div className="flex justify-end">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="shadow-none"
-              aria-label="Product actions"
-            >
-              <HugeiconsIcon icon={EllipsisIcon} size={16} aria-hidden="true" />
-            </Button>
-          </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="shadow-none"
+            aria-label="Product actions"
+          >
+            <HugeiconsIcon icon={EllipsisIcon} size={16} aria-hidden="true" />
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+            <DropdownMenuItem onClick={() => onEditProduct(row.original)}>
               <HugeiconsIcon icon={EditIcon} size={16} className="mr-2" />
               <span>Edit</span>
               <DropdownMenuShortcut>⌘E</DropdownMenuShortcut>
@@ -1221,25 +1188,6 @@ function RowActions({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>
-              Update the product information. Only modified fields will be
-              saved.
-            </DialogDescription>
-          </DialogHeader>
-          <EditProductForm
-            product={row.original}
-            categories={categories}
-            vendors={vendors}
-            onSubmit={handleEdit}
-            onCancel={() => setShowEditDialog(false)}
-          />
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

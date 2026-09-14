@@ -56,12 +56,12 @@ export default function CategoriesScreen() {
           ItemSeparatorComponent={() => <View className="h-space-4" />}
           ListHeaderComponent={
             <View className="pb-space-6 pt-space-6">
-              <Text variant="heading" size="h1">
+              <Text variant="heading" size="h2">
                 What are you shopping for today?
               </Text>
               <Text
                 variant="muted"
-                size="lg"
+                size="base"
                 className="mt-space-2"
               >
                 Choose a category to get started
@@ -71,7 +71,6 @@ export default function CategoriesScreen() {
           renderItem={({ item }) => (
             <CategoryCard
               category={item}
-              childCount={tree.childrenOf(item._id).length}
               onPress={() => router.push(`/c/${item.slug}`)}
             />
           )}

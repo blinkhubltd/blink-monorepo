@@ -19,7 +19,7 @@ import {
   ProductCard,
   ProductCardSkeleton,
 } from "../../../../../components/product-card";
-import { BrandHeader } from "../../../../../components/brand-header";
+import { ScreenHeader } from "../../../../../components/screen-header";
 import { useWishlist } from "../../../../../lib/use-wishlist";
 import {
   SaveError,
@@ -107,7 +107,7 @@ export default function ProductsScreen() {
 
   // A number that costs a full category-subtree scan and can still be wrong is
   // worse than an honest approximation — this is why `totalIsExact` exists at
-  // all, and BrandHeader's `meta` is a plain string rather than the count and
+  // all, and ScreenHeader's `meta` is a plain string rather than the count and
   // its exactness as two separate props, so the "20+" rendering lives here,
   // once, next to the query that produces the number it is formatting.
   const countLabel =
@@ -126,10 +126,9 @@ export default function ProductsScreen() {
         of the first product row.
       */}
       <View className="gap-space-2 pb-space-2">
-        <BrandHeader
+        <ScreenHeader
           eyebrow={level1.name}
           title={level2.name}
-          titleSize="h3"
           meta={countLabel ?? undefined}
         />
         <Level2PillRow

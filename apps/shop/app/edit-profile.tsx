@@ -11,7 +11,7 @@ import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Label } from "@repo/mobile-ui/components/ui/label";
 
-import { BrandHeader } from "../components/brand-header";
+import { ScreenHeader } from "../components/screen-header";
 import { SectionCard } from "../components/checkout/sections";
 
 /**
@@ -79,7 +79,7 @@ export default function EditProfileScreen() {
   if (isLoaded && !isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <BrandHeader title="Your details" showCart={false} />
+        <ScreenHeader title="Your details" />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Text size="lg" weight="semibold">
             Sign in first
@@ -138,7 +138,7 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader title="Your details" showCart={false} />
+      <ScreenHeader title="Your details" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}

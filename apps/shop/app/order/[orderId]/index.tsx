@@ -12,7 +12,7 @@ import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { BrandHeader } from "../../../components/brand-header";
+import { ScreenHeader } from "../../../components/screen-header";
 import { NotFoundState } from "../../../components/states";
 import { formatKES } from "../../../lib/format";
 
@@ -66,11 +66,10 @@ export default function OrderScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
+      <ScreenHeader
         eyebrow="Order"
         title={order.reference}
         subtitle={order.vendor?.name ?? undefined}
-        showCart={false}
       />
 
       <ScrollView contentContainerClassName="px-screen gap-space-5 pb-space-10">
