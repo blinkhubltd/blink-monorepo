@@ -10,7 +10,7 @@ import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Input } from "@repo/mobile-ui/components/ui/input";
 
-import { ScreenHeader } from "../components/screen-header";
+import { BrandHeader } from "../components/brand-header";
 import { SectionCard } from "../components/checkout/sections";
 
 /**
@@ -86,7 +86,7 @@ export default function ReferralScreen() {
   if (isLoaded && !isSignedIn && !linkedCode) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Referral code" showCart={false} />
+        <BrandHeader title="Referral code" showCart={false} />
         <View className="gap-space-4 px-screen py-space-8 items-center">
           <Text size="lg" weight="semibold" className="text-center">
             Sign in first
@@ -139,7 +139,7 @@ export default function ReferralScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         title="Referral code"
         subtitle="If someone signed you up, credit them"
         showCart={false}

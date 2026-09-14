@@ -19,7 +19,7 @@ import { Input } from "@repo/mobile-ui/components/ui/input";
 
 import { useCart } from "../../providers/CartProvider";
 import { useLocation } from "../../providers/LocationProvider";
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { OrderSummary } from "../../components/checkout/order-summary";
 import {
   AddressPicker,
@@ -357,7 +357,7 @@ export default function CheckoutScreen() {
   if (!isLoaded) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Checkout" showCart={false} />
+        <BrandHeader title="Checkout" showCart={false} />
       </SafeAreaView>
     );
   }
@@ -403,7 +403,7 @@ export default function CheckoutScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         title="Checkout"
         subtitle={`${quote.itemCount} ${quote.itemCount === 1 ? "item" : "items"}${
           quote.vendorCount > 1 ? ` · ${quote.vendorCount} deliveries` : ""
@@ -726,7 +726,7 @@ function Gate({
 }) {
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader title="Checkout" showCart={false} />
+      <BrandHeader title="Checkout" showCart={false} />
       <View className="gap-space-4 px-screen py-space-8 items-center">
         <Text size="lg" weight="semibold" className="text-center">
           {title}

@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { Minus, Plus } from "lucide-react-native";
+import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
@@ -111,7 +111,7 @@ export function ClearanceCard({
                   hitSlop={6}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
                 >
-                  <Minus size={16} color="#FFFFFF" />
+                  <Icon name="remove" size={16} tone="onInverse" />
                 </Pressable>
                 <Text
                   variant="onInverse"
@@ -129,7 +129,7 @@ export function ClearanceCard({
                   disabled={quantityInBasket >= deal.quantity}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-40"
                 >
-                  <Plus size={16} color="#FFFFFF" />
+                  <Icon name="add" size={16} tone="onInverse" />
                 </Pressable>
               </View>
             ) : (
@@ -140,7 +140,7 @@ export function ClearanceCard({
                 hitSlop={6}
                 className="bg-primary size-control-sm rounded-pill items-center justify-center active:opacity-80"
               >
-                <Plus size={20} color="#0A0E16" />
+                <Icon name="add" size={20} tone="onBrand" />
               </Pressable>
             )}
           </View>

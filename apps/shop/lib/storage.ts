@@ -11,6 +11,18 @@
  * functions and swapping the backend is a change to this file alone
  * (`expo-sqlite/kv-store` is the fallback).
  *
+ * ── That API change, made concrete ────────────────────────────────────────
+ *
+ * v4 has no `MMKV` class to `new` — it is exported only as a TYPE, from
+ * `react-native-mmkv/src/specs/MMKV.nitro.ts`. Construction is
+ * `createMMKV(config)`, a factory function, and the removal method is
+ * `remove(key)`, not `delete(key)`. A real device build's logcat showed
+ * `TypeError: undefined cannot be used as a constructor` — the exact shape of
+ * `new (undefined as any)(...)` — which is what first pinned this down: not a
+ * native-linking failure at all, despite the message below saying so. The
+ * `catch` here used to discard the real error entirely, which is what let a
+ * plain API mismatch masquerade as a linking problem for as long as it did.
+ *
  * ── Why the fallback is loud ──────────────────────────────────────────────
  *
  * blink-ecommerce wrapped `require("react-native-mmkv")` in a try/catch with a
@@ -49,7 +61,7 @@ function memoryBackend(): Backend {
   };
 }
 
-function warnOnce() {
+function warnOnce(cause: unknown) {
   if (warned) return;
   warned = true;
   console.warn(
@@ -57,7 +69,51 @@ function warnOnce() {
       "a cold start. This is a native linking problem, not a runtime condition — " +
       "check that react-native-mmkv and react-native-nitro-modules are built " +
       "into this binary.",
+    // The actual thrown error, not just this generic diagnosis. Without it,
+    // "unavailable" could mean the native module truly isn't linked, or that
+    // linking succeeded but construction threw for an unrelated reason — those
+    // need different fixes, and swallowing the cause makes them indistinguishable.
+    cause,
   );
+}
+
+/** The one export `require("react-native-mmkv")` needs to provide. */
+export type MmkvModule = {
+  createMMKV: (config?: { id?: string }) => {
+    getString(key: string): string | undefined;
+    set(key: string, value: string): void;
+    remove(key: string): boolean;
+    clearAll(): void;
+  };
+};
+
+/**
+ * The adapter from react-native-mmkv's shape to this file's own.
+ *
+ * Exported and pure — takes the already-`require`d module rather than calling
+ * `require` itself — specifically so it is directly testable. `require`'s own
+ * resolution of the real package cannot usefully run under Vitest: Node's
+ * strict ESM resolver cannot load the package's own `lib/index.js` build (an
+ * unrelated, pre-existing problem in how that package resolves under plain
+ * Node — Metro never hits it, since it resolves the package through its
+ * `react-native` field instead), so a test exercising `require("react-native-mmkv")`
+ * itself would be testing that unrelated Node/npm mismatch rather than this
+ * file's own logic. This function is what was actually wrong before: `new
+ * MMKV(...)` where v4 has no constructor to `new`, and `.delete()` where the
+ * real method is `.remove()`. Testing this directly, with a hand-supplied
+ * module shaped like the real one, catches exactly that class of mistake
+ * without needing the real package to load in a Node test environment at all.
+ */
+export function backendFromMmkvModule(mod: MmkvModule): Backend {
+  const mmkv = mod.createMMKV({ id: "blink-shop" });
+  return {
+    getString: (key) => mmkv.getString(key),
+    set: (key, value) => mmkv.set(key, value),
+    // Adapted to this file's own `delete` name here, rather than renaming
+    // `Backend` and every caller of `removeItem`.
+    delete: (key) => void mmkv.remove(key),
+    clearAll: () => mmkv.clearAll(),
+  };
 }
 
 function resolveBackend(): Backend {
@@ -66,13 +122,10 @@ function resolveBackend(): Backend {
   try {
     // Required lazily so an unlinked native module degrades instead of taking
     // the whole bundle down at import time.
-    const { MMKV } = require("react-native-mmkv") as {
-      MMKV: new (config?: { id?: string }) => Backend;
-    };
-    backend = new MMKV({ id: "blink-shop" });
+    backend = backendFromMmkvModule(require("react-native-mmkv") as MmkvModule);
     persistent = true;
-  } catch {
-    warnOnce();
+  } catch (cause) {
+    warnOnce(cause);
     backend = memoryBackend();
     persistent = false;
   }

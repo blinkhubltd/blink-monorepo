@@ -47,6 +47,9 @@ module.exports = {
         strong: "var(--color-strong)",
         subtle: "var(--color-subtle)",
         price: "var(--color-price)",
+        // A soft divider, one step lighter than `border` in light mode. The
+        // relation inverts in dark; global.css carries the reasoning.
+        "hairline-soft": "var(--color-hairline-soft)",
         primary: {
           DEFAULT: "var(--color-primary)",
           foreground: "var(--color-primary-foreground)",
@@ -91,6 +94,23 @@ module.exports = {
           foreground: "var(--color-info-foreground)",
           soft: "var(--color-info-soft)",
         },
+        transit: {
+          DEFAULT: "var(--color-transit)",
+          foreground: "var(--color-transit-foreground)",
+          soft: "var(--color-transit-soft)",
+        },
+        // The yellow header band, and the ink pills that ride on it. Shop-only:
+        // rider has no brand header, and these are consumed exclusively by
+        // components under apps/shop/components/, never by packages/mobile-ui —
+        // which is what keeps rider from resolving them to nothing.
+        "brand-surface": {
+          DEFAULT: "var(--color-brand-surface)",
+          foreground: "var(--color-brand-surface-foreground)",
+        },
+        "on-brand-pill": {
+          DEFAULT: "var(--color-on-brand-pill)",
+          foreground: "var(--color-on-brand-pill-foreground)",
+        },
         // Brand-fixed ramps. These do not theme — per the DS, the yellow is
         // the identity and the ink pills are ink in both schemes.
         blink: {
@@ -118,13 +138,42 @@ module.exports = {
           950: "#0A0E16",
         },
       },
+      /**
+       * Inter, not Rubik.
+       *
+       * The app this replaces rendered in the platform system font throughout:
+       * its Tailwind config set `fontFamily.heading`/`body` to `undefined` and
+       * the one font it loaded (SpaceMono) was never applied to anything. So the
+       * look being matched is SF Pro on iOS and Roboto on Android. Inter is a
+       * neutral grotesque drawn in that lineage, which moves TOWARD that
+       * reference; a geometric face (Poppins and friends) would move sharply
+       * away, and sets wider — enough to rewrap every two-line product name.
+       *
+       * Inter also has lining figures by default and a reachable `tnum` feature
+       * for aligning prices in a column, which Rubik's Google Fonts build does
+       * not expose reliably. See `Text`'s `tabular` prop.
+       *
+       * Four faces, not six. `black` collapses onto Bold — its single call site
+       * (app/agent/index.tsx) does not justify a 344KB face — and `italic` is
+       * dropped outright, having never had a call site in either app. Inter
+       * 0.4.2 does ship italics; this is a payload decision, not availability.
+       *
+       * Payload, measured with `expo export` rather than estimated: this ships
+       * 4 faces at ~1.37MB, against the ~2.9MB of all 14 Rubik faces the app
+       * shipped before. The saving comes from `app/_layout.tsx` importing each
+       * face by subpath instead of from the package barrel — see the comment
+       * there, because a barrel import silently reinstates the whole 6.2MB set.
+       *
+       * apps/rider keeps Rubik. It has its own fontFamily block, and
+       * packages/mobile-ui only emits class names each app resolves itself, so
+       * nothing here reaches it.
+       */
       fontFamily: {
-        sans: ["Rubik_400Regular"],
-        medium: ["Rubik_500Medium"],
-        semibold: ["Rubik_600SemiBold"],
-        bold: ["Rubik_700Bold"],
-        black: ["Rubik_800ExtraBold"],
-        italic: ["Rubik_700Bold_Italic"],
+        sans: ["Inter_400Regular"],
+        medium: ["Inter_500Medium"],
+        semibold: ["Inter_600SemiBold"],
+        bold: ["Inter_700Bold"],
+        black: ["Inter_700Bold"],
       },
       fontSize: {
         // DS type scale. [size, lineHeight] in px, as NativeWind expects.

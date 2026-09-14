@@ -10,14 +10,23 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PortalHost } from "@rn-primitives/portal";
 import { PaystackProvider } from "react-native-paystack-webview";
 import { useColorScheme } from "nativewind";
-import {
-  Rubik_400Regular,
-  Rubik_500Medium,
-  Rubik_600SemiBold,
-  Rubik_700Bold,
-  Rubik_700Bold_Italic,
-  Rubik_800ExtraBold,
-} from "@expo-google-fonts/rubik";
+import Ionicons from "@expo/vector-icons/Ionicons";
+/**
+ * Per-face subpaths, NOT the package barrel.
+ *
+ * `@expo-google-fonts/inter`'s index re-exports all 18 faces with a top-level
+ * `require` of each `.ttf`, so Metro follows every one and a barrel import ships
+ * ~6.2MB of fonts to use four of them. Verified with `expo export`: the barrel
+ * bundled all 18, these four subpaths bundle exactly four (~1.34MB).
+ *
+ * Rubik had the same problem before this change, shipping all 14 of its faces
+ * (~2.9MB), so the switch is a net reduction of roughly 1.5MB rather than the
+ * increase the raw per-face sizes suggest.
+ */
+import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
+import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
+import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
+import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 
 import { ConvexClerkProvider } from "../providers/ConvexClerkProvider";
 import { LocationProvider } from "../providers/LocationProvider";
@@ -72,13 +81,20 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
+  // Four faces, matching the four fontFamily slots in tailwind.config.js —
+  // `font-black` resolves to Bold and there is no italic slot. Adding a face
+  // here that no slot names, or naming a slot with no face loaded here, both
+  // fail silently: the text renders in the system font.
   const [fontsLoaded, fontError] = useFonts({
-    Rubik_400Regular,
-    Rubik_500Medium,
-    Rubik_600SemiBold,
-    Rubik_700Bold,
-    Rubik_800ExtraBold,
-    Rubik_700Bold_Italic,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    // The glyph font behind every `components/icon.tsx`. @expo/vector-icons
+    // loads its own fonts lazily, which would otherwise leave a window after
+    // the splash hides where every icon in the app is a blank box. Gating the
+    // splash on it too costs one line.
+    ...Ionicons.font,
   });
 
   useEffect(() => {
@@ -125,6 +141,12 @@ export default function RootLayout() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="product/[productId]" />
+                  {/*
+                    Search is a pushed route rather than a tab, matching the app
+                    this replaces, which reached it from a control in the
+                    catalogue header. The URL is unchanged at `/search`.
+                  */}
+                  <Stack.Screen name="search" />
                   <Stack.Screen name="cart" />
                   <Stack.Screen name="checkout" />
                   <Stack.Screen name="order/[orderId]" />

@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { MapPin } from "lucide-react-native";
+import { MapPinMarker } from "./icons/map-pin";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 
@@ -36,7 +36,7 @@ export function LocationPicker({
       className="border-hairline border-border bg-muted gap-space-2 p-space-4 items-center justify-center rounded-lg"
       style={{ height }}
     >
-      <MapPin size={28} color="#5A6372" />
+      <MapPinMarker size={28} />
       <Text size="sm" weight="semibold">
         {isUsablePoint(point) ? "Using your browser location" : "No location yet"}
       </Text>

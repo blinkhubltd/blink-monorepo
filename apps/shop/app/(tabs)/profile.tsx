@@ -5,27 +5,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import {
-  Bell,
-  ChevronRight,
-  Crosshair,
-  Gift,
-  ExternalLink,
-  FileText,
-  Heart,
-  MapPin,
-  Package,
-  ShieldCheck,
-  TrendingUp,
-  User as UserIcon,
-} from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Avatar } from "@repo/mobile-ui/components/ui/avatar";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { useCart } from "../../providers/CartProvider";
 import { useLocation } from "../../providers/LocationProvider";
 import {
@@ -101,9 +88,9 @@ export default function ProfileScreen() {
   if (!isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Profile" showCart={false} />
+        <BrandHeader title="Profile" showCart={false} showBack={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <UserIcon size={40} color="#818A99" />
+          <Icon name="person-outline" size={40} tone="subtle" />
           <Text size="lg" weight="semibold" className="text-center">
             Sign in to your account
           </Text>
@@ -126,7 +113,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader title="Profile" showCart={false} />
+      <BrandHeader title="Profile" showCart={false} showBack={false} />
 
       <ScrollView contentContainerClassName="px-screen gap-space-5 pb-space-10">
         {/* The header is the way into editing, which is where people look. */}
@@ -152,7 +139,7 @@ export default function ProfileScreen() {
               {email}
             </Text>
           </View>
-          <ChevronRight size={18} color="#818A99" />
+          <Icon name="chevron-forward" size={18} tone="subtle" />
         </Pressable>
 
         {/*
@@ -175,7 +162,7 @@ export default function ProfileScreen() {
 
         <View className="border-hairline border-border bg-card rounded-lg">
           <Row
-            icon={<Package size={20} color="#5A6372" />}
+            icon={<Icon name="cube-outline" size={20} tone="body" />}
             label="Your orders"
             detail={
               orders && orders.length > 0
@@ -186,7 +173,7 @@ export default function ProfileScreen() {
           />
           <Separator />
           <Row
-            icon={<MapPin size={20} color="#5A6372" />}
+            icon={<Icon name="location-outline" size={20} tone="body" />}
             label="Delivery addresses"
             detail={
               addresses === undefined
@@ -200,7 +187,7 @@ export default function ProfileScreen() {
           />
           <Separator />
           <Row
-            icon={<Crosshair size={20} color="#5A6372" />}
+            icon={<Icon name="locate-outline" size={20} tone="body" />}
             label="Where you are now"
             detail={
               point
@@ -211,7 +198,7 @@ export default function ProfileScreen() {
           />
           <Separator />
           <Row
-            icon={<Bell size={20} color="#5A6372" />}
+            icon={<Icon name="notifications-outline" size={20} tone="body" />}
             label="Notifications"
             detail={
               unreadCount === null
@@ -223,9 +210,16 @@ export default function ProfileScreen() {
             onPress={() => router.push("/notifications")}
           />
           <Separator />
+          {/*
+            Kept, even though Wishlist is now a tab of its own. This is the only
+            surface that shows the count, it belongs in a list of account
+            surfaces, and removing a working path because a tab exists is a
+            strict loss for anyone already used to it. Pushing a sibling tab's
+            route from inside `(tabs)` switches tabs, which is the intent.
+          */}
           <Row
-            icon={<Heart size={20} color="#5A6372" />}
-            label="Saved items"
+            icon={<Icon name="heart-outline" size={20} tone="body" />}
+            label="Wishlist"
             detail={
               savedCount === null
                 ? undefined
@@ -233,7 +227,7 @@ export default function ProfileScreen() {
                   ? "Nothing saved yet"
                   : `${savedCount} ${savedCount === 1 ? "item" : "items"}`
             }
-            onPress={() => router.push("/saved")}
+            onPress={() => router.push("/wishlist")}
           />
         </View>
 
@@ -241,7 +235,7 @@ export default function ProfileScreen() {
           {agent ? (
             <>
               <Row
-                icon={<TrendingUp size={20} color="#5A6372" />}
+                icon={<Icon name="trending-up" size={20} tone="body" />}
                 label="Agent dashboard"
                 detail={`Code ${agent.code}`}
                 onPress={() => router.push("/agent")}
@@ -250,7 +244,7 @@ export default function ProfileScreen() {
             </>
           ) : null}
           <Row
-            icon={<Gift size={20} color="#5A6372" />}
+            icon={<Icon name="gift-outline" size={20} tone="body" />}
             label="Referral code"
             detail="Credit whoever signed you up"
             onPress={() => router.push("/referral")}
@@ -264,7 +258,7 @@ export default function ProfileScreen() {
         */}
         <View className="border-hairline border-border bg-card rounded-lg">
           <Row
-            icon={<FileText size={20} color="#5A6372" />}
+            icon={<Icon name="document-text-outline" size={20} tone="body" />}
             label={LEGAL_DOC_META.terms.title}
             detail="Opens the website"
             external
@@ -272,7 +266,7 @@ export default function ProfileScreen() {
           />
           <Separator />
           <Row
-            icon={<ShieldCheck size={20} color="#5A6372" />}
+            icon={<Icon name="shield-checkmark-outline" size={20} tone="body" />}
             label={LEGAL_DOC_META.privacy.title}
             detail="Opens the website"
             external
@@ -349,9 +343,9 @@ function Row({
         ) : null}
       </View>
       {external ? (
-        <ExternalLink size={16} color="#818A99" />
+        <Icon name="open-outline" size={16} tone="subtle" />
       ) : (
-        <ChevronRight size={18} color="#818A99" />
+        <Icon name="chevron-forward" size={18} tone="subtle" />
       )}
     </Pressable>
   );

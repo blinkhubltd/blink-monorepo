@@ -101,4 +101,27 @@ describe("routeForNotification", () => {
   it("returns null when there is nothing to open", () => {
     expect(routeForNotification({ orderId: null, route: null })).toBeNull();
   });
+
+  describe("saved items became the wishlist tab", () => {
+    // One of the very few tests in this app that can actually catch a
+    // regression from the tab restructure, and the reason it matters:
+    // app/notifications.tsx pushes this function's result through
+    // `router.push(destination as never)`, so typed routes cannot catch a stale
+    // path. It would fail at runtime, on a real push, on a customer's device,
+    // with a perfectly green typecheck.
+
+    it("translates the old /saved path rather than dropping it", () => {
+      // Rows written before the rename still say /saved, and they are data this
+      // app cannot migrate.
+      expect(routeForNotification({ orderId: null, route: "/saved" })).toBe(
+        "/wishlist",
+      );
+    });
+
+    it("allows the new /wishlist path", () => {
+      expect(routeForNotification({ orderId: null, route: "/wishlist" })).toBe(
+        "/wishlist",
+      );
+    });
+  });
 });

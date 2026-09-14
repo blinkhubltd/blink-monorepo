@@ -1,5 +1,6 @@
 import { Pressable, TextInput, View } from "react-native";
-import { Check, ChevronRight, MapPin } from "lucide-react-native";
+import { Icon } from "../icon";
+import { useTokenColors } from "../../lib/token-colors";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Input } from "@repo/mobile-ui/components/ui/input";
@@ -68,13 +69,13 @@ export function DeliveryAddressSection({
           <Text size="sm" weight="semibold">
             Change
           </Text>
-          <ChevronRight size={16} color="#0A0E16" />
+          <Icon name="chevron-forward" size={16} tone="strong" />
         </Pressable>
       }
     >
       {address ? (
         <View className="gap-space-2 flex-row items-start">
-          <MapPin size={18} color="#5A6372" />
+          <Icon name="location-outline" size={18} tone="body" />
           <View className="gap-space-1 flex-1">
             <Text size="sm" weight="medium">
               {address.label}
@@ -150,7 +151,7 @@ export function AddressPicker({
                 {address.address?.address_1 ?? "No street details"}
               </Text>
             </View>
-            {selected ? <Check size={18} color="#0A0E16" /> : null}
+            {selected ? <Icon name="checkmark" size={18} tone="strong" /> : null}
           </Pressable>
         );
       })}
@@ -165,13 +166,16 @@ export function DeliveryInstructionsSection({
   value: string;
   onChange: (next: string) => void;
 }) {
+  // `placeholderTextColor` is a prop, not a class, so it cannot theme on its
+  // own — it held a light-mode literal and stayed that way in dark.
+  const colors = useTokenColors();
   return (
     <SectionCard title="Delivery instructions">
       <TextInput
         value={value}
         onChangeText={onChange}
         placeholder="Anything the rider should know — a gate code, a landmark, who to ask for."
-        placeholderTextColor="#818A99"
+        placeholderTextColor={colors.subtle}
         multiline
         numberOfLines={4}
         textAlignVertical="top"

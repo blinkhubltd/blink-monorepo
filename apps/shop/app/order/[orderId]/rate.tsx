@@ -5,13 +5,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Star } from "lucide-react-native";
+import { Icon } from "../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { ScreenHeader } from "../../../components/screen-header";
+import { BrandHeader } from "../../../components/brand-header";
 import { NotFoundState } from "../../../components/states";
 
 /**
@@ -49,7 +49,7 @@ export default function RateDeliveryScreen() {
   if (context === undefined) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Rate your delivery" showCart={false} />
+        <BrandHeader title="Rate your delivery" showCart={false} />
         <View className="px-screen gap-space-3">
           <Skeleton className="h-[18px] w-2/3 rounded-sm" />
           <Skeleton className="h-[44px] w-full rounded-md" />
@@ -100,7 +100,7 @@ export default function RateDeliveryScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
+      <BrandHeader
         eyebrow={`Order ${context.reference.slice(-6).toUpperCase()}`}
         title="Rate your delivery"
         showCart={false}
@@ -197,10 +197,10 @@ function Stars({
             hitSlop={6}
             className="size-control-lg items-center justify-center active:opacity-70"
           >
-            <Star
+            <Icon
+              name={filled ? "star" : "star-outline"}
               size={34}
-              color={filled ? "#FFC50B" : "#818A99"}
-              fill={filled ? "#FFC50B" : "transparent"}
+              tone={filled ? "brand" : "subtle"}
             />
           </Pressable>
         );

@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@clerk/clerk-expo";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import { ChevronRight } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -13,7 +13,7 @@ import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { formatKES } from "../../lib/format";
 import { isLive, presentStatus } from "../../lib/order-status";
 
@@ -39,7 +39,7 @@ export default function OrdersScreen() {
   if (!isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Your orders" showCart={false} />
+        <BrandHeader title="Your orders" showCart={false} showBack={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Text size="lg" weight="semibold">
             Sign in to see your orders
@@ -58,7 +58,7 @@ export default function OrdersScreen() {
   if (orders.length === 0) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <ScreenHeader title="Your orders" showCart={false} />
+        <BrandHeader title="Your orders" showCart={false} showBack={false} />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Text size="lg" weight="semibold">
             No orders yet
@@ -100,7 +100,7 @@ export default function OrdersScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader title="Your orders" showCart={false} />
+      <BrandHeader title="Your orders" showCart={false} showBack={false} />
 
       <FlashList
         data={baskets}
@@ -151,7 +151,7 @@ export default function OrdersScreen() {
                       </Text>
                       <Badge variant={status.variant} label={status.label} />
                     </View>
-                    <ChevronRight size={18} color="#818A99" />
+                    <Icon name="chevron-forward" size={18} tone="subtle" />
                   </Pressable>
                 </View>
               );
@@ -178,7 +178,7 @@ export default function OrdersScreen() {
 function OrdersSkeleton() {
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader title="Your orders" showCart={false} />
+      <BrandHeader title="Your orders" showCart={false} showBack={false} />
       <View className="px-screen gap-space-4">
         {Array.from({ length: 4 }, (_, i) => (
           <View

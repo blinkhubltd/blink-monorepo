@@ -47,7 +47,11 @@
     --color-destructive: #e23b33;
     --color-destructive-foreground: #ffffff;
     --color-destructive-soft: #fde7e5;
-    --color-success: #159b62;
+    /* Darkened from #159b62, which was 3.3:1 on the soft tint below — a fail
+     * under the 11px caption Badge renders on it. This is 5.4:1 there, and
+     * white on it is still 5.9:1. Mirrored from apps/shop: Badge is shared, so
+     * the two must agree or the same component renders differently per app. */
+    --color-success: #0f7a4d;
     --color-success-foreground: #ffffff;
     --color-success-soft: #e1f5ec;
     --color-warning: #f5b800;

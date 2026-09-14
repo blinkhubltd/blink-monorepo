@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { View } from "react-native";
 import MapView, { PROVIDER_DEFAULT, type Region } from "react-native-maps";
-import { MapPin } from "lucide-react-native";
+import { MapPinMarker } from "./icons/map-pin";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 
@@ -76,7 +76,7 @@ export function LocationPicker({
         className="absolute inset-0 items-center justify-center"
       >
         <View style={{ marginTop: -20 }}>
-          <MapPin size={40} color="#0A0E16" fill="#FFC50B" />
+          <MapPinMarker size={40} />
         </View>
       </View>
 

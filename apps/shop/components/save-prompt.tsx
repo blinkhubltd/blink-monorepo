@@ -1,6 +1,6 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { X } from "lucide-react-native";
+import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -51,7 +51,7 @@ export function SavePrompt({
           accessibilityLabel="Dismiss"
           hitSlop={8}
         >
-          <X size={16} color="#5A6372" />
+          <Icon name="close" size={16} tone="body" />
         </Pressable>
       </View>
     </View>

@@ -82,9 +82,17 @@ export function routeForNotification(input: {
   const productDetails = /^\/product-details\/([A-Za-z0-9_-]+)$/.exec(route);
   if (productDetails) return `/product/${productDetails[1]}`;
 
+  // Saved items became the Wishlist tab. Rows written before that still say
+  // `/saved`, and they are data this app cannot migrate, so the old path is
+  // translated here as well as redirected in app/saved.tsx. Belt and braces
+  // deliberately: `app/notifications.tsx` pushes this result through
+  // `router.push(destination as never)`, which defeats typed routes, so a path
+  // this function gets wrong fails at runtime rather than at compile time.
+  if (route === "/saved") return "/wishlist";
+
   // Anything else is only followed if it is a path this app actually serves.
   // A stored route is data, not a command: honouring an arbitrary string would
   // let whatever wrote it choose where the app navigates.
-  const ALLOWED = ["/orders", "/cart", "/saved", "/addresses", "/"];
+  const ALLOWED = ["/orders", "/cart", "/wishlist", "/addresses", "/"];
   return ALLOWED.includes(route) ? route : null;
 }

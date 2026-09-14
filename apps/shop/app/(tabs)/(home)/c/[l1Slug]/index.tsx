@@ -1,7 +1,7 @@
 import { FlatList, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronRight } from "lucide-react-native";
+import { Icon } from "../../../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
@@ -9,7 +9,7 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
 import { useCategoryFromSlugs } from "../../../../../lib/catalogue";
-import { ScreenHeader } from "../../../../../components/screen-header";
+import { BrandHeader } from "../../../../../components/brand-header";
 import { NotFoundState } from "../../../../../components/states";
 
 /**
@@ -47,8 +47,8 @@ export default function SubcategoriesScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
-        eyebrow="Shop"
+      <BrandHeader
+        eyebrow="Home"
         title={level1.name}
         subtitle={`${children.length} ${
           children.length === 1 ? "subcategory" : "subcategories"
@@ -94,7 +94,7 @@ export default function SubcategoriesScreen() {
                 </Text>
               </View>
 
-              <ChevronRight size={20} color="#818A99" />
+              <Icon name="chevron-forward" size={20} tone="subtle" />
             </Pressable>
           );
         }}

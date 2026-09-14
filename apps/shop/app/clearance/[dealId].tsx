@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
-import { Minus, Plus } from "lucide-react-native";
+import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -15,7 +15,7 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 import { Pressable } from "react-native";
 
-import { ScreenHeader } from "../../components/screen-header";
+import { BrandHeader } from "../../components/brand-header";
 import { NotFoundState } from "../../components/states";
 import { formatKES } from "../../lib/format";
 import {
@@ -94,7 +94,7 @@ export default function ClearanceDealScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader eyebrow="Clearance" title={deal.name} showCart={false} />
+      <BrandHeader eyebrow="Clearance" title={deal.name} showCart={false} />
 
       <ScrollView contentContainerClassName="pb-space-11">
         <View className="bg-muted aspect-[4/3] w-full">
@@ -228,7 +228,7 @@ export default function ClearanceDealScreen() {
               disabled={quantity <= 1}
               className="rounded-pill size-[32px] items-center justify-center active:opacity-70 disabled:opacity-40"
             >
-              <Minus size={16} color="#0A0E16" />
+              <Icon name="remove" size={16} tone="strong" />
             </Pressable>
             <Text size="sm" weight="semibold" className="min-w-[20px] text-center">
               {quantity}
@@ -242,7 +242,7 @@ export default function ClearanceDealScreen() {
               disabled={quantity >= max}
               className="rounded-pill size-[32px] items-center justify-center active:opacity-70 disabled:opacity-40"
             >
-              <Plus size={16} color="#0A0E16" />
+              <Icon name="add" size={16} tone="strong" />
             </Pressable>
           </View>
         ) : null}

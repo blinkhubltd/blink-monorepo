@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { Heart, Minus, Plus } from "lucide-react-native";
+import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
@@ -135,10 +135,24 @@ export function ProductCard({
             hitSlop={6}
             className="right-space-2 top-space-2 bg-card size-[34px] rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
           >
-            <Heart
+            {/*
+              A different glyph, not a `fill` prop: Ionicons has no fill, so
+              filled-ness is `heart` against `heart-outline`.
+
+              Three states, not two. `saved` is undefined until the wishlist
+              query resolves, and it renders as the subtle outline so "unknown"
+              reads as neither saved nor explicitly unsaved — previously
+              undefined was indistinguishable from false.
+
+              The saved colour was #D83A34, which is in no palette; `destructive`
+              is #E23B33.
+            */}
+            <Icon
+              name={saved === true ? "heart" : "heart-outline"}
               size={17}
-              color={saved === true ? "#D83A34" : "#5A6372"}
-              fill={saved === true ? "#D83A34" : "transparent"}
+              tone={
+                saved === true ? "destructive" : saved === false ? "body" : "subtle"
+              }
             />
           </Pressable>
         ) : null}
@@ -168,7 +182,7 @@ export function ProductCard({
                   hitSlop={6}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
                 >
-                  <Minus size={16} color="#FFFFFF" />
+                  <Icon name="remove" size={16} tone="onInverse" />
                 </Pressable>
                 <Text
                   variant="onInverse"
@@ -187,7 +201,7 @@ export function ProductCard({
                   disabled={quantityInCart >= product.quantity}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-40"
                 >
-                  <Plus size={16} color="#FFFFFF" />
+                  <Icon name="add" size={16} tone="onInverse" />
                 </Pressable>
               </View>
             ) : (
@@ -198,7 +212,7 @@ export function ProductCard({
                 hitSlop={6}
                 className="size-control-sm rounded-pill bg-inverse items-center justify-center shadow-md active:scale-[0.94]"
               >
-                <Plus size={18} color="#FFFFFF" />
+                <Icon name="add" size={18} tone="onInverse" />
               </Pressable>
             )}
           </View>
