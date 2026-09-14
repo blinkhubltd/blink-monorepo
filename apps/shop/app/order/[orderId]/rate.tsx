@@ -11,7 +11,7 @@ import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
-import { BrandHeader } from "../../../components/brand-header";
+import { ScreenHeader } from "../../../components/screen-header";
 import { NotFoundState } from "../../../components/states";
 
 /**
@@ -49,7 +49,7 @@ export default function RateDeliveryScreen() {
   if (context === undefined) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <BrandHeader title="Rate your delivery" showCart={false} />
+        <ScreenHeader title="Rate your delivery" />
         <View className="px-screen gap-space-3">
           <Skeleton className="h-[18px] w-2/3 rounded-sm" />
           <Skeleton className="h-[44px] w-full rounded-md" />
@@ -100,10 +100,9 @@ export default function RateDeliveryScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
+      <ScreenHeader
         eyebrow={`Order ${context.reference.slice(-6).toUpperCase()}`}
         title="Rate your delivery"
-        showCart={false}
       />
 
       <View className="px-screen gap-space-5">

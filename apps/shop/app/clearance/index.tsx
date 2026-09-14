@@ -11,7 +11,7 @@ import { Icon } from "../../components/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 
-import { BrandHeader } from "../../components/brand-header";
+import { ScreenHeader } from "../../components/screen-header";
 import {
   ClearanceCard,
   ClearanceCardSkeleton,
@@ -89,11 +89,10 @@ export default function ClearanceScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
+      <ScreenHeader
         eyebrow="Clearance"
         title="Deals near you"
         subtitle="Short-dated stock at a discount, from shops that can reach you"
-        showCart={false}
       />
 
       {/*

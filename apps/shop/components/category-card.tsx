@@ -2,53 +2,46 @@ import { Pressable, View } from "react-native";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
-import { Icon } from "./icon";
 
 import type { CategoryNodeForShop } from "../lib/catalogue";
 
 /**
- * A top-level category, as a full-width card in a single-column list.
+ * A category, as a full-width card — used for both the top-level Home list
+ * and the subcategory screen, the same component either way, since there is
+ * nothing genuinely different about a subcategory's presentation.
  *
- * Replaces the previous two-column `CategoryTile` grid, to match the Home
- * screen design exactly: a 168px photo, name, a secondary line, and an
- * explicit "View products" call to action with a yellow arrow square.
+ * ── Deliberately simple, not a hint-row-and-arrow-chip card ────────────────
  *
- * ── The secondary line is a subcategory count, not a description ─────────
+ * Image, name, description. No "Browse categories"/"View products" hint
+ * line, no arrow affordance, no subcategory-count badge — the whole card is
+ * already the tap target, so a second visual cue announcing that is noise.
+ * Separation from the page comes from `shadow-card` alone, no border: a
+ * hairline plus a shadow doubles up on the same job.
  *
- * The design's mock data invents a marketing description per category
- * ("Everyday items you need at home, like groceries…"). This app's real
- * category data has no description field — adding one would be a schema
- * change well beyond restyling this screen. The subcategory count already
- * shown by the tile this replaces fills the same visual slot honestly: it is
- * real data already in the tree's cache, not prose invented to fill a line.
- *
- * What is still deliberately NOT here, per the tile this replaces: a product
- * count. It would need a coverage-dependent scan per card and would read as
- * a confidently precise number that is frequently wrong the instant the
- * customer's address changes.
+ * `description` is real seeded/authored copy (see
+ * `packages/backend/convex/data/categories.ts`'s `backfillMissingDescriptions`
+ * for how older rows get a placeholder) — rendered only when present, rather
+ * than falling back to invented text or the subcategory count the previous
+ * version of this card showed.
  */
 
 const IMAGE_FALLBACK_BG = "bg-blink-50";
 
 export function CategoryCard({
   category,
-  childCount,
   onPress,
 }: {
   category: CategoryNodeForShop;
-  childCount: number;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${category.name}, ${childCount} ${
-        childCount === 1 ? "subcategory" : "subcategories"
-      }`}
-      className="border-hairline border-border bg-card overflow-hidden rounded-lg shadow-xs active:opacity-95"
+      accessibilityLabel={category.name}
+      className="bg-card overflow-hidden rounded-lg shadow-card active:opacity-90"
     >
-      <View className="h-[168px] w-full">
+      <View className="h-[150px] w-full">
         {category.imageUrl ? (
           <OptimizedImage
             source={{ uri: category.imageUrl }}
@@ -76,42 +69,32 @@ export function CategoryCard({
         )}
       </View>
 
-      <View className="gap-space-1 px-space-5 pb-[14px] pt-space-5">
-        <Text weight="bold" numberOfLines={1} className="text-[19px] text-strong">
+      <View className="gap-space-1 p-space-4">
+        <Text weight="semibold" numberOfLines={1} size="base" className="text-strong">
           {category.name}
         </Text>
-        <Text
-          numberOfLines={2}
-          className="text-muted-foreground text-[14px] leading-[21px]"
-        >
-          {childCount} {childCount === 1 ? "subcategory" : "subcategories"}
-        </Text>
-
-        <View className="mt-[14px] flex-row items-center justify-between gap-space-4">
-          <Text weight="semibold" className="text-[14px] text-strong">
-            View products
+        {category.description ? (
+          <Text size="caption" variant="subtle" numberOfLines={2}>
+            {category.description}
           </Text>
-          <View className="bg-primary size-[36px] items-center justify-center rounded-[10px]">
-            <Icon name="arrow-forward" size={18} tone="onBrand" />
-          </View>
-        </View>
+        ) : null}
       </View>
     </Pressable>
   );
 }
 
 /**
- * Placeholder at the exact geometry of the real card, so nothing shifts
+ * Placeholder at roughly the geometry of the real card, so nothing shifts
  * position when the data arrives.
  */
 export function CategoryCardSkeleton() {
   return (
-    <View className="border-hairline border-border bg-card overflow-hidden rounded-lg">
-      <Skeleton className="h-[168px] w-full rounded-none" />
-      <View className="gap-space-2 px-space-5 pb-[14px] pt-space-5">
-        <Skeleton className="h-[19px] w-3/5 rounded-sm" />
-        <Skeleton className="h-[14px] w-2/5 rounded-sm" />
-        <Skeleton className="mt-[6px] h-[36px] w-full rounded-md" />
+    <View className="bg-card overflow-hidden rounded-lg shadow-card">
+      <Skeleton className="h-[150px] w-full rounded-none" />
+      <View className="gap-space-2 p-space-4">
+        <Skeleton className="h-[15px] w-3/5 rounded-sm" />
+        <Skeleton className="h-[11px] w-full rounded-sm" />
+        <Skeleton className="h-[11px] w-4/5 rounded-sm" />
       </View>
     </View>
   );

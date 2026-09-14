@@ -310,6 +310,36 @@ export const backfillCategoriesSearchText = mutation({
   },
 });
 
+/**
+ * Fills in a placeholder for any category still missing `description`.
+ *
+ * Never overwrites a real one — only rows where the field is unset, which are
+ * exclusively rows created before the admin form started requiring it. Meant
+ * to be run once per environment via the dashboard's function runner (see
+ * `seed.ts`'s header comment for why: the deploy key lacks
+ * `deployment:functions:run`), so the category cards have something real to
+ * render immediately; the admin's edit form is where actual copy goes after.
+ */
+export const backfillMissingDescriptions = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await assertPermission(ctx, "categories:UPDATE");
+    const categories = await ctx.db.query("categories").collect();
+    let updatedCount = 0;
+
+    for (const category of categories) {
+      if (category.description) continue;
+      await ctx.db.patch(category._id, {
+        description: `${category.name} — everything you need, delivered in minutes.`,
+        updated_at: Date.now(),
+      });
+      updatedCount += 1;
+    }
+
+    return { updatedCount };
+  },
+});
+
 export const getAllCategories = query({
   args: {},
   handler: async (ctx) => {

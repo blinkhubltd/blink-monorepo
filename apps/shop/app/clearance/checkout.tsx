@@ -16,7 +16,7 @@ import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 
-import { BrandHeader } from "../../components/brand-header";
+import { ScreenHeader } from "../../components/screen-header";
 import {
   AddressPicker,
   DeliveryAddressSection,
@@ -216,7 +216,7 @@ export default function ClearanceCheckoutScreen() {
   if (!isLoaded) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <BrandHeader eyebrow="Clearance" title="Checkout" showCart={false} />
+        <ScreenHeader eyebrow="Clearance" title="Checkout" />
       </SafeAreaView>
     );
   }
@@ -253,13 +253,12 @@ export default function ClearanceCheckoutScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
+      <ScreenHeader
         eyebrow="Clearance"
         title="Checkout"
         subtitle={`${quote.itemCount} ${quote.itemCount === 1 ? "item" : "items"}${
           quote.vendorCount > 1 ? ` · ${quote.vendorCount} deliveries` : ""
         }`}
-        showCart={false}
       />
 
       <KeyboardAvoidingView
@@ -549,7 +548,7 @@ function Gate({
 }) {
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader eyebrow="Clearance" title="Checkout" showCart={false} />
+      <ScreenHeader eyebrow="Clearance" title="Checkout" />
       <View className="gap-space-4 px-screen py-space-8 items-center">
         <Text size="lg" weight="semibold" className="text-center">
           {title}

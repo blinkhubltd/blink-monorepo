@@ -32,6 +32,7 @@ export type CategoryNodeForShop = {
   _id: Id<"categories">;
   name: string;
   slug: string;
+  description?: string;
   parent_category_id?: Id<"categories">;
   sort_order: number;
   depth: number | null;
