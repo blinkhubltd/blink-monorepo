@@ -21,11 +21,11 @@ export function CartIconButton() {
       onPress={() => router.push("/cart")}
       accessibilityRole="button"
       accessibilityLabel={count > 0 ? `Basket, ${count} items` : "Basket, empty"}
-      className="size-control rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
+      className="size-control-sm rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
     >
-      <Icon name="bag-outline" size={20} tone="onBrandPill" />
+      <Icon name="cart-outline" size={16} tone="onBrandPill" />
       {count > 0 ? (
-        <View className="bg-destructive right-space-1 top-space-1 min-w-[16px] h-[16px] rounded-pill absolute items-center justify-center px-[4px]">
+        <View className="bg-destructive right-[1px] top-[1px] min-w-[14px] h-[14px] rounded-pill absolute items-center justify-center px-[3px]">
           {/* No white-on-destructive Text variant exists yet, and this is its
               only consumer — an override, not a case for a new shared variant. */}
           <Text size="caption" weight="bold" className="text-destructive-foreground">

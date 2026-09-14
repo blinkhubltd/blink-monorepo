@@ -16,9 +16,9 @@ export function SearchIconButton() {
       onPress={() => router.push("/search")}
       accessibilityRole="search"
       accessibilityLabel="Search products"
-      className="size-control rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
+      className="size-control-sm rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
     >
-      <Icon name="search" size={20} tone="onBrandPill" />
+      <Icon name="search" size={16} tone="onBrandPill" />
     </Pressable>
   );
 }

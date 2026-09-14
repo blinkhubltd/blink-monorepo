@@ -103,24 +103,26 @@ export function BrandHeader({
     >
       <StatusBar style="dark" />
 
-      <View className="h-control-lg flex-row items-center justify-between">
+      <View
+        className={`flex-row items-center ${showLocation ? "h-control-sm" : "h-control justify-between"}`}
+      >
         {showLocation ? (
           <Pressable
             onPress={() => router.push("/addresses")}
             accessibilityRole="button"
             accessibilityLabel={`Delivery location: ${locationLabel}. Tap to change.`}
-            className="h-control-lg gap-space-3 rounded-pill bg-card shrink flex-row items-center pl-[14px] pr-space-2 active:opacity-90"
+            className="h-control-sm gap-space-2 rounded-pill bg-card flex-1 shrink flex-row items-center pl-[10px] pr-[6px] mr-space-4 active:opacity-90"
           >
             <Icon
               name={locationState === "denied" ? "alert-circle" : "location"}
-              size={locationState === "denied" ? 18 : 16}
+              size={locationState === "denied" ? 16 : 14}
               tone={locationState === "denied" ? "destructive" : "price"}
             />
             <Text size="sm" numberOfLines={1} className="shrink">
               {locationLabel}
             </Text>
-            <View className="size-[24px] bg-secondary rounded-pill items-center justify-center">
-              <Icon name="chevron-down" size={16} tone="body" />
+            <View className="size-[20px] bg-secondary rounded-pill items-center justify-center">
+              <Icon name="chevron-down" size={12} tone="body" />
             </View>
           </Pressable>
         ) : showBack ? (
