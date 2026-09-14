@@ -542,6 +542,7 @@ export default function ProductsPage() {
               vendors={vendors.data}
               onSubmit={handleFormSubmit}
               onCancel={() => form.setOpen(false)}
+              onFileUpload={handleFileUpload}
             />
           ) : (
             <ProductForm

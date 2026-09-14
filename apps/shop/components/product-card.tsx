@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { Icon } from "./icon";
 
@@ -36,6 +37,15 @@ import { formatKES } from "../lib/format";
  * The old card could render "Featured" and "Hot 🔥" simultaneously, shifting the
  * second one down to `top-10`. Two badges that mean nothing in particular is
  * noise; this shows at most one, by priority.
+ *
+ * ── 4. The stepper is a transient reveal, not a permanent state ────────────
+ *
+ * Tapping "+" adds one and shows the −/qty/+ stepper for 3 seconds, then it
+ * collapses back to a plain "+" — regardless of whether the item is still in
+ * the basket. This is `showStepper`, local and separate from `quantityInCart`
+ * (which still drives the card's own "in basket" border): the stepper is a
+ * momentary affordance for the tap that just happened, not a standing readout
+ * of basket contents — that readout is the basket itself.
  */
 
 export type ProductForCard = {
@@ -87,6 +97,42 @@ export function ProductCard({
   const lowStock = !outOfStock && product.quantity <= LOW_STOCK_THRESHOLD;
   const inCart = quantityInCart > 0;
   const unit = unitLabel(product);
+
+  const [showStepper, setShowStepper] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, []);
+
+  const revealStepper = () => {
+    setShowStepper(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setShowStepper(false), 3000);
+  };
+
+  const handleAdd = () => {
+    onAdd();
+    revealStepper();
+  };
+
+  const handleIncrement = () => {
+    onIncrement();
+    revealStepper();
+  };
+
+  const handleDecrement = () => {
+    onDecrement();
+    if (quantityInCart <= 1) {
+      // Going to zero — nothing left for the stepper to show.
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      setShowStepper(false);
+    } else {
+      revealStepper();
+    }
+  };
 
   return (
     <Pressable
@@ -173,19 +219,19 @@ export function ProductCard({
         */}
         {!outOfStock ? (
           <View className="bottom-space-2 right-space-2 absolute">
-            {inCart ? (
-              <View className="h-control-sm gap-space-1 rounded-pill bg-inverse px-space-1 flex-row items-center">
+            {showStepper ? (
+              <View className="h-control-sm gap-space-1 rounded-pill bg-primary px-space-1 flex-row items-center">
                 <Pressable
-                  onPress={onDecrement}
+                  onPress={handleDecrement}
                   accessibilityRole="button"
                   accessibilityLabel={`Remove one ${product.name}`}
                   hitSlop={6}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
                 >
-                  <Icon name="remove" size={16} tone="onInverse" />
+                  <Icon name="remove" size={16} tone="onBrand" />
                 </Pressable>
                 <Text
-                  variant="onInverse"
+                  variant="onBrand"
                   size="label"
                   weight="semibold"
                   className="min-w-[16px] text-center"
@@ -193,7 +239,7 @@ export function ProductCard({
                   {quantityInCart}
                 </Text>
                 <Pressable
-                  onPress={onIncrement}
+                  onPress={handleIncrement}
                   accessibilityRole="button"
                   accessibilityLabel={`Add another ${product.name}`}
                   hitSlop={6}
@@ -201,18 +247,18 @@ export function ProductCard({
                   disabled={quantityInCart >= product.quantity}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-40"
                 >
-                  <Icon name="add" size={16} tone="onInverse" />
+                  <Icon name="add" size={16} tone="onBrand" />
                 </Pressable>
               </View>
             ) : (
               <Pressable
-                onPress={onAdd}
+                onPress={handleAdd}
                 accessibilityRole="button"
                 accessibilityLabel={`Add ${product.name} to basket`}
                 hitSlop={6}
-                className="size-control-sm rounded-pill bg-inverse items-center justify-center shadow-md active:scale-[0.94]"
+                className="size-control-sm rounded-pill bg-primary items-center justify-center shadow-md active:scale-[0.94]"
               >
-                <Icon name="add" size={18} tone="onInverse" />
+                <Icon name="add" size={18} tone="onBrand" />
               </Pressable>
             )}
           </View>
