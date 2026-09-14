@@ -111,12 +111,6 @@ module.exports = {
           DEFAULT: "var(--color-on-brand-pill)",
           foreground: "var(--color-on-brand-pill-foreground)",
         },
-        // The "add to cart" affordance — its own token, not `info`. See
-        // global.css for why.
-        "cart-cta": {
-          DEFAULT: "var(--color-cart-cta)",
-          foreground: "var(--color-cart-cta-foreground)",
-        },
         // Brand-fixed ramps. These do not theme — per the DS, the yellow is
         // the identity and the ink pills are ink in both schemes.
         blink: {

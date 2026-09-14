@@ -50,10 +50,6 @@ export type TokenColor =
   | "brand"
   /** --color-price */
   | "price"
-  /** --color-cart-cta — the add-to-cart affordance, fixed both schemes */
-  | "cartCta"
-  /** --color-cart-cta-foreground — the glyph on it, fixed white both schemes */
-  | "onCartCta"
   | "destructive"
   | "success"
   | "warning"
@@ -73,8 +69,6 @@ const LIGHT = {
   onInverse: "#FFFFFF",
   brand: "#FFC50B",
   price: "#6E5000",
-  cartCta: "#2563EB",
-  onCartCta: "#FFFFFF",
   destructive: "#E23B33",
   success: "#0F7A4D",
   warning: "#F5B800",
@@ -93,8 +87,6 @@ const DARK = {
   onInverse: "#0A0E16",
   brand: "#FFC50B",
   price: "#FFC50B",
-  cartCta: "#2563EB",
-  onCartCta: "#FFFFFF",
   destructive: "#E23B33",
   success: "#159B62",
   warning: "#F5B800",

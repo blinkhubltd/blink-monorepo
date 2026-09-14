@@ -220,7 +220,7 @@ export function ProductCard({
         {!outOfStock ? (
           <View className="bottom-space-2 right-space-2 absolute">
             {showStepper ? (
-              <View className="h-control-sm gap-space-1 rounded-pill bg-cart-cta px-space-1 flex-row items-center">
+              <View className="h-control-sm gap-space-1 rounded-pill bg-primary px-space-1 flex-row items-center">
                 <Pressable
                   onPress={handleDecrement}
                   accessibilityRole="button"
@@ -228,12 +228,13 @@ export function ProductCard({
                   hitSlop={6}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
                 >
-                  <Icon name="remove" size={16} tone="onCartCta" />
+                  <Icon name="remove" size={16} tone="onBrand" />
                 </Pressable>
                 <Text
+                  variant="onBrand"
                   size="label"
                   weight="semibold"
-                  className="min-w-[16px] text-center text-[#FFFFFF]"
+                  className="min-w-[16px] text-center"
                 >
                   {quantityInCart}
                 </Text>
@@ -246,7 +247,7 @@ export function ProductCard({
                   disabled={quantityInCart >= product.quantity}
                   className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-40"
                 >
-                  <Icon name="add" size={16} tone="onCartCta" />
+                  <Icon name="add" size={16} tone="onBrand" />
                 </Pressable>
               </View>
             ) : (
@@ -255,9 +256,9 @@ export function ProductCard({
                 accessibilityRole="button"
                 accessibilityLabel={`Add ${product.name} to basket`}
                 hitSlop={6}
-                className="size-control-sm rounded-pill bg-cart-cta items-center justify-center shadow-md active:scale-[0.94]"
+                className="size-control-sm rounded-pill bg-primary items-center justify-center shadow-md active:scale-[0.94]"
               >
-                <Icon name="add" size={18} tone="onCartCta" />
+                <Icon name="add" size={18} tone="onBrand" />
               </Pressable>
             )}
           </View>

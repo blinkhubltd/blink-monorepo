@@ -111,15 +111,6 @@
     --color-input: #e4e7ec;
     --color-ring: #0a0e16;
     --color-overlay: rgba(10, 14, 22, 0.55);
-
-    /* The "add to cart" affordance on product cards and the detail screen.
-     * Deliberately its own token rather than reusing `info`: `info` already
-     * means prescription messaging elsewhere in this app, and overloading it
-     * here would make both meanings ambiguous. Fixed both schemes, same
-     * reasoning as `on-brand-pill` — a filled action button, not status text
-     * read against a shifting background. */
-    --color-cart-cta: #2563eb;
-    --color-cart-cta-foreground: #ffffff;
   }
 
   .dark {
@@ -196,9 +187,5 @@
     --color-input: #3a4150; /* ink-700 */
     --color-ring: #ffc50b;
     --color-overlay: rgba(10, 14, 22, 0.72);
-
-    /* Fixed both schemes — see :root. */
-    --color-cart-cta: #2563eb;
-    --color-cart-cta-foreground: #ffffff;
   }
 }

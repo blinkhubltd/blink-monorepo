@@ -117,7 +117,7 @@ export default function ProductDetailScreen() {
       <ScrollView contentContainerClassName="pb-space-11">
         <View className="gap-space-1 px-screen pb-space-3">
           {product.vendor ? (
-            <Text size="sm" weight="medium" className="text-cart-cta">
+            <Text size="sm" weight="medium" variant="muted">
               More from {product.vendor.name}
             </Text>
           ) : null}
@@ -386,32 +386,24 @@ export default function ProductDetailScreen() {
           </View>
         ) : null}
 
-        {/*
-          A plain Button here can't have its label re-tinted independently of
-          `variant` (the shared component's text colour is derived from
-          `variant`, not overridable via `className`) — this is a one-off
-          Pressable rather than a change to a component shared with rider.
-        */}
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          size="lg"
+          full={inBasket === 0}
+          className={inBasket > 0 ? "flex-1" : undefined}
           disabled={!sellable}
-          className={`h-control-lg px-space-7 rounded-md bg-cart-cta items-center justify-center active:scale-[0.96] disabled:opacity-50 ${
-            inBasket > 0 ? "flex-1" : "w-full"
-          }`}
+          label={
+            !sellable
+              ? "Unavailable"
+              : inBasket > 0
+                ? `In basket · ${formatKES(product.price * inBasket)}`
+                : `Add to basket · ${formatKES(product.price)}`
+          }
           onPress={() =>
             inBasket > 0
               ? router.push("/cart")
               : cart.add(product._id as Id<"products">, 1)
           }
-        >
-          <Text weight="semibold" className="text-[#FFFFFF]">
-            {!sellable
-              ? "Unavailable"
-              : inBasket > 0
-                ? `In basket · ${formatKES(product.price * inBasket)}`
-                : `Add to basket · ${formatKES(product.price)}`}
-          </Text>
-        </Pressable>
+        />
       </View>
     </SafeAreaView>
   );
