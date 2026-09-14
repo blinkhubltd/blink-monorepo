@@ -44,7 +44,6 @@ import {
 import { cn } from "@/lib/utils";
 import type { Id } from "@repo/backend/dataModel";
 import { Badge } from "@repo/ui/components/ui/badge";
-import { CategoryForm } from "./CategoryForm";
 import { Button } from "@repo/ui/components/ui/button";
 import { Checkbox } from "@repo/ui/components/ui/checkbox";
 import {
@@ -84,14 +83,6 @@ import {
   TableHeader,
   TableRow,
 } from "@repo/ui/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@repo/ui/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -134,7 +125,7 @@ export function CategoryTable({
   categories,
   searchQuery = "",
   onSearchQueryChange,
-  onUpdateCategory,
+  onEditCategory,
   onDeleteCategory,
   onSelectionChange,
   paginationMeta,
@@ -147,7 +138,7 @@ export function CategoryTable({
   categories: Category[];
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
-  onUpdateCategory: (category: any) => Promise<void>;
+  onEditCategory: (category: Category) => void;
   onDeleteCategory: (id: Id<"categories">) => Promise<void>;
   onSelectionChange?: (ids: Id<"categories">[]) => void;
   paginationMeta: {
@@ -327,16 +318,16 @@ export function CategoryTable({
         cell: ({ row }) => (
           <RowActions
             row={row}
-            onUpdateCategory={onUpdateCategory}
+            onEditCategory={onEditCategory}
             onDeleteCategory={onDeleteCategory}
-            categories={categories}
           />
         ),
         size: 60,
         enableHiding: false,
+        enableSorting: false,
       },
     ],
-    [onUpdateCategory, onDeleteCategory, categories],
+    [onEditCategory, onDeleteCategory, categories],
   );
 
   const table = useReactTable({
@@ -705,25 +696,14 @@ function StatusBadge({ status }: { status: "active" | "inactive" }) {
 
 function RowActions({
   row,
-  onUpdateCategory,
+  onEditCategory,
   onDeleteCategory,
-  categories,
 }: {
   row: Row<CategoryNode>;
-  onUpdateCategory: (category: any) => Promise<void>;
+  onEditCategory: (category: Category) => void;
   onDeleteCategory: (id: Id<"categories">) => Promise<void>;
-  categories: Category[];
 }) {
-  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-
-  const handleEdit = async (data: any) => {
-    await onUpdateCategory({
-      id: row.original._id,
-      ...data,
-    });
-    setShowEditDialog(false);
-  };
 
   const handleDelete = async () => {
     await onDeleteCategory(row.original._id);
@@ -747,7 +727,7 @@ function RowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+            <DropdownMenuItem onClick={() => onEditCategory(row.original)}>
               <HugeiconsIcon icon={EditIcon} size={16} className="mr-2" />
               <span>Edit</span>
               <DropdownMenuShortcut>⌘E</DropdownMenuShortcut>
@@ -764,25 +744,6 @@ function RowActions({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Category</DialogTitle>
-            <DialogDescription>
-              Update the category information. Only modified fields will be
-              saved.
-            </DialogDescription>
-          </DialogHeader>
-          <CategoryForm
-            categories={categories}
-            onSubmit={handleEdit}
-            onCancel={() => setShowEditDialog(false)}
-            initialCategory={row.original}
-            mode="edit"
-          />
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

@@ -4,8 +4,10 @@ import { use, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import { Id } from "@repo/backend/dataModel";
-import { ProductTable } from "@/components/products/ProductTable";
+import { ProductTable, EditProductForm } from "@/components/products/ProductTable";
 import { ProductForm } from "@/components/products/ProductForm";
+import { FormShell } from "@/components/module/form-shell";
+import { useModuleForm } from "@/components/module/use-module-form";
 
 export default function CategoryDetailsPage({
   params,
@@ -15,6 +17,7 @@ export default function CategoryDetailsPage({
   const { id } = use(params);
   const categoryId = id as unknown as Id<"categories">;
   const [selectedIds, setSelectedIds] = useState<Id<"products">[]>([]);
+  const form = useModuleForm<any>();
 
   const category = useQuery(api.data.categories.getCategoryById, { id: categoryId });
   const products =
@@ -26,6 +29,8 @@ export default function CategoryDetailsPage({
 
   if (!category) return null;
 
+  const categoryOptions = [{ _id: category._id, name: category.name }];
+
   return (
     <div className="space-y-6">
       <div>
@@ -35,7 +40,7 @@ export default function CategoryDetailsPage({
 
       {vendors && "data" in vendors && (
         <ProductForm
-          categories={[{ _id: category._id, name: category.name }]}
+          categories={categoryOptions}
           vendors={vendors.data}
           onSubmit={async (values) => {
             await createProduct(values);
@@ -48,28 +53,7 @@ export default function CategoryDetailsPage({
         categoryIdToName={
           new Map([[category._id as unknown as string, category.name]])
         }
-        onUpdateProduct={async (p) => {
-          // Map the product data with required fields for the updateProduct mutation
-          const productData = {
-            id: p.id,
-            name: p.name,
-            slug: p.slug,
-            sku: p.sku,
-            category_id: p.category_id,
-            price: p.price,
-            quantity: p.quantity,
-            status: p.status,
-            // Convert image string to storage ID if provided
-            image: p.image as Id<"_storage"> | undefined,
-            description: p.description,
-            upc: p.upc,
-            vendor_id: p.vendor_id as Id<"vendors">,
-            vendor_location: p.vendor_location,
-            tags: p.tags,
-            external_id: p.external_id,
-          };
-          await updateProduct(productData);
-        }}
+        onEditProduct={form.handleEdit}
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}
         paginationMeta={{
@@ -83,6 +67,29 @@ export default function CategoryDetailsPage({
         onPageChange={() => {}}
         onPageSizeChange={() => {}}
       />
+
+      {vendors && "data" in vendors && (
+        <FormShell
+          presentation={form.presentation}
+          open={form.open}
+          onOpenChange={form.setOpen}
+          title="Edit Product"
+          description="Update the product information."
+        >
+          {form.selected && (
+            <EditProductForm
+              product={form.selected}
+              categories={categoryOptions}
+              vendors={vendors.data}
+              onSubmit={async (values) => {
+                await updateProduct(values);
+                form.setOpen(false);
+              }}
+              onCancel={() => form.setOpen(false)}
+            />
+          )}
+        </FormShell>
+      )}
     </div>
   );
 }

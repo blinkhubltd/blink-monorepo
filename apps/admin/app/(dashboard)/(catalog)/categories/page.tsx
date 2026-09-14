@@ -29,6 +29,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@repo/ui/components/ui/dialog";
+import { FormShell } from "@/components/module/form-shell";
+import { useModuleForm } from "@/components/module/use-module-form";
 
 import type React from "react";
 import { useDashboardData } from "@/providers/DashboardDataProvider";
@@ -38,7 +40,7 @@ import { toast } from "sonner";
 import { CategoryImport } from "@/components/categories/CategoryImport";
 
 export default function CategoriesPage() {
-  const [showAddDialog, setShowAddDialog] = useState(false);
+  const form = useModuleForm<any>({ presentation: "full" });
   const [showImportDialog, setShowImportDialog] = useState(false);
   const { categories: allCategories } = useDashboardData();
   const router = useRouter();
@@ -185,68 +187,58 @@ export default function CategoriesPage() {
     backfillCategoriesSearchText,
   ]);
 
-  const handleCreateCategory = async (values: any) => {
-    await createCategory(values);
-    setShowAddDialog(false);
+  const handleFormSubmit = async (values: any) => {
+    if (form.mode === "update" && form.selected) {
+      await updateCategory({ id: form.selected._id, ...values });
+    } else {
+      await createCategory(values);
+    }
+    form.setOpen(false);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
-          <p className="text-muted-foreground">
-            Organize your products with hierarchical categories up to 3 levels
-            deep.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <HugeiconsIcon icon={FileUp} className="mr-2 h-4 w-4" />
-                Import Excel
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Import Categories from Excel</DialogTitle>
-                <DialogDescription>
-                  Upload an Excel file to bulk-create categories.
-                </DialogDescription>
-              </DialogHeader>
-              <CategoryImport
-                categories={allCategories}
-                onClose={() => setShowImportDialog(false)}
-              />
-            </DialogContent>
-          </Dialog>
+    <div className="flex flex-1 flex-col space-y-6 overflow-hidden">
+      {form.showTable && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
+            <p className="text-muted-foreground">
+              Organize your products with hierarchical categories up to 3 levels
+              deep.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <HugeiconsIcon icon={FileUp} className="mr-2 h-4 w-4" />
+                  Import Excel
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Import Categories from Excel</DialogTitle>
+                  <DialogDescription>
+                    Upload an Excel file to bulk-create categories.
+                  </DialogDescription>
+                </DialogHeader>
+                <CategoryImport
+                  categories={allCategories}
+                  onClose={() => setShowImportDialog(false)}
+                />
+              </DialogContent>
+            </Dialog>
 
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button className="text-yellow-400">
-                <HugeiconsIcon icon={PlusIcon} className="mr-2 h-4 w-4 text-yellow-400" />
-                Add Category
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create New Category</DialogTitle>
-                <DialogDescription>
-                  Add a new category to organize your products. Categories can
-                  be nested up to 3 levels deep.
-                </DialogDescription>
-              </DialogHeader>
-              <CategoryForm
-                categories={parentOptions}
-                onSubmit={handleCreateCategory}
-                onCancel={() => setShowAddDialog(false)}
-              />
-            </DialogContent>
-          </Dialog>
+            <Button className="text-yellow-400" onClick={form.handleNew}>
+              <HugeiconsIcon icon={PlusIcon} className="mr-2 h-4 w-4 text-yellow-400" />
+              Add Category
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
+      {form.showTable && (
+      <>
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -321,9 +313,7 @@ export default function CategoriesPage() {
             onSearchQueryChange={setSearchQuery}
             statusFilter={statusFilter}
             onStatusFilterChange={setStatusFilter}
-            onUpdateCategory={async (category) => {
-              await updateCategory(category);
-            }}
+            onEditCategory={form.handleEdit}
             onDeleteCategory={async (id) => {
               await deleteCategory({ id });
             }}
@@ -341,6 +331,28 @@ export default function CategoriesPage() {
           />
         </CardContent>
       </Card>
+      </>
+      )}
+
+      <FormShell
+        presentation={form.presentation}
+        open={form.open}
+        onOpenChange={form.setOpen}
+        title={form.mode === "update" ? "Edit Category" : "Create New Category"}
+        description={
+          form.mode === "update"
+            ? "Update the category information."
+            : "Add a new category to organize your products. Categories can be nested up to 3 levels deep."
+        }
+      >
+        <CategoryForm
+          categories={parentOptions}
+          onSubmit={handleFormSubmit}
+          onCancel={() => form.setOpen(false)}
+          initialCategory={form.selected}
+          mode={form.mode === "update" ? "edit" : "create"}
+        />
+      </FormShell>
     </div>
   );
 }
