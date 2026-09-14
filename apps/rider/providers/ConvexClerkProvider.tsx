@@ -55,6 +55,30 @@ function readConvexUrl(): string {
   return url;
 }
 
+/**
+ * Read here, in first-party source, and passed explicitly below.
+ *
+ * `@clerk/clerk-expo` falls back to `process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`
+ * itself when the prop is omitted (ClerkProvider.js:54), which works in
+ * development and fails in every release build: `babel-preset-expo` inlines
+ * `process.env.EXPO_PUBLIC_*` only where first-party code references it, never
+ * inside Clerk's shipped dist, so at runtime the fallback resolves to `""` and
+ * ClerkProvider throws "Missing publishableKey" on the first render.
+ *
+ * `lib/location-task.ts` reading the same variable does not rescue this —
+ * inlining is per reference, per file, and Clerk's own read site is a different
+ * file. Diagnosed from a launch crash in apps/shop; the same omission was here.
+ */
+function readClerkPublishableKey(): string {
+  const key = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (!key) {
+    throw new Error(
+      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is not set. Copy apps/rider/.env.example to .env.local.",
+    );
+  }
+  return key;
+}
+
 export function ConvexClerkProvider({
   children,
 }: {
@@ -71,7 +95,10 @@ export function ConvexClerkProvider({
   );
 
   return (
-    <ClerkProvider tokenCache={tokenCache}>
+    <ClerkProvider
+      publishableKey={readClerkPublishableKey()}
+      tokenCache={tokenCache}
+    >
       <ConvexProviderWithClerk client={client} useAuth={useAuth}>
         {children}
       </ConvexProviderWithClerk>
