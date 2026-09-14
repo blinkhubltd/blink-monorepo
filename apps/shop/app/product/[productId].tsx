@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,8 +15,6 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
 import { useCart } from "../../providers/CartProvider";
-import { ScreenHeader } from "../../components/screen-header";
-import { CartIconButton } from "../../components/cart-icon-button";
 import { NotFoundState } from "../../components/states";
 import { ProductCard } from "../../components/product-card";
 import { formatKES } from "../../lib/format";
@@ -48,14 +47,27 @@ import { SaveError, SavePrompt } from "../../components/save-prompt";
  *      quantity and the backend ADDED it — a line at 5 became 6. The basket API
  *      is absolute now, not a delta, so that class is gone.
  *
- * Also: no discount UI. `getProductDetails` returns `hasDiscount: false`,
- * `discountPercentage: 0` and `originalPrice === price` as hardcoded stubs, so a
- * strike-through would print the same number twice.
+ * ── The discount row is real, even though nothing feeds it yet ────────────
+ *
+ * `getProductDetails` returns `hasDiscount: false`, `discountPercentage: 0` and
+ * `originalPrice === price` as hardcoded stubs (real discounts exist today only
+ * on the separate clearance catalogue) — so the strike-through/percent-off row
+ * below is gated on `product.hasDiscount` and renders nothing right now. That is
+ * a property of the data, not of this screen: the layout is ready the moment a
+ * real discount exists, rather than needing to be built twice.
+ *
+ * ── No "Customizable" badge, no delivery-window text ───────────────────────
+ *
+ * Both appear in some reference retail apps' product screens. Neither has
+ * backing data here — there is no per-product "customizable" flag and no
+ * per-product delivery-window estimate computed anywhere in this app — so
+ * showing either would be inventing information, not presenting it.
  */
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const cart = useCart();
   const wishlist = useWishlist();
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   const product = useQuery(
     api.data.products.getProductDetails,
@@ -84,13 +96,36 @@ export default function ProductDetailScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <ScreenHeader
-        eyebrow={product.category?.name}
-        title={product.name}
-        right={<CartIconButton plain />}
-      />
+      {/*
+        A close X, not a back chevron — this screen reads as a sheet over the
+        catalogue now, matching the reference design, even though it is still
+        the same shareable/deep-linkable route underneath (see the file
+        comment above). No cart icon here: the pinned bottom bar already is
+        the add-to-cart affordance, and the reference has none either.
+      */}
+      <View className="flex-row justify-end px-screen pt-space-3">
+        <Pressable
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          className="size-control-sm rounded-pill bg-secondary items-center justify-center active:opacity-80"
+        >
+          <Icon name="close" size={18} tone="strong" />
+        </Pressable>
+      </View>
 
       <ScrollView contentContainerClassName="pb-space-11">
+        <View className="gap-space-1 px-screen pb-space-3">
+          {product.vendor ? (
+            <Text size="sm" weight="medium" className="text-cart-cta">
+              More from {product.vendor.name}
+            </Text>
+          ) : null}
+          <Text size="h3" weight="bold">
+            {product.name}
+          </Text>
+        </View>
+
         <View className="bg-muted aspect-[4/3] w-full">
           {images[0] ? (
             <OptimizedImage
@@ -156,17 +191,28 @@ export default function ProductDetailScreen() {
         <SaveError message={wishlist.error} onDismiss={wishlist.dismissError} />
 
         <View className="gap-space-5 px-screen pt-space-5">
-          <View className="gap-space-2">
-            {product.unit_value || product.unit_type ? (
-              <Text size="sm" variant="muted">
-                {[product.unit_value, product.unit_type]
-                  .filter(Boolean)
-                  .join(" ")}
+          <View className="gap-space-1">
+            <View className="gap-space-2 flex-row flex-wrap items-center">
+              <Text variant="price" size="priceLg">
+                {formatKES(product.price)}
               </Text>
-            ) : null}
-            {/* No strike-through: originalPrice always equals price. */}
-            <Text variant="price" size="priceLg">
-              {formatKES(product.price)}
+              {product.hasDiscount ? (
+                <>
+                  <Text
+                    size="base"
+                    variant="muted"
+                    className="line-through"
+                  >
+                    {formatKES(product.originalPrice)}
+                  </Text>
+                  <Text size="sm" weight="bold" variant="destructive">
+                    {product.discountPercentage}% off
+                  </Text>
+                </>
+              ) : null}
+            </View>
+            <Text size="caption" variant="subtle">
+              Including VAT
             </Text>
           </View>
 
@@ -198,30 +244,57 @@ export default function ProductDetailScreen() {
             </View>
           ) : null}
 
-          {product.vendor ? (
-            <>
-              <Separator />
-              <View className="gap-space-1">
-                <Text size="caption" variant="eyebrow">
-                  Sold by
-                </Text>
-                <Text size="base" weight="semibold">
-                  {product.vendor.name}
-                </Text>
-              </View>
-            </>
+          {product.unit_value || product.unit_type || product.vendor ? (
+            <View className="gap-space-3 flex-row">
+              {product.unit_value || product.unit_type ? (
+                <View className="bg-secondary gap-space-1 p-space-3 flex-1 rounded-md">
+                  <Text size="caption" variant="subtle">
+                    Pack Size
+                  </Text>
+                  <Text size="sm" weight="semibold">
+                    {[product.unit_value, product.unit_type]
+                      .filter(Boolean)
+                      .join(" ")}
+                  </Text>
+                </View>
+              ) : null}
+              {product.vendor ? (
+                <View className="bg-secondary gap-space-1 p-space-3 flex-1 rounded-md">
+                  <Text size="caption" variant="subtle">
+                    Sold &amp; Shipped
+                  </Text>
+                  <Text size="sm" weight="semibold" numberOfLines={1}>
+                    {product.vendor.name}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           ) : null}
 
           {product.description ? (
             <>
               <Separator />
-              <View className="gap-space-2">
-                <Text size="base" weight="semibold">
-                  About this item
-                </Text>
-                <Text size="sm" variant="muted">
-                  {product.description}
-                </Text>
+              <View className="gap-space-3">
+                <Pressable
+                  onPress={() => setDescriptionExpanded((v) => !v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: descriptionExpanded }}
+                  className="flex-row items-center justify-between"
+                >
+                  <Text size="base" weight="semibold">
+                    Description
+                  </Text>
+                  <Icon
+                    name={descriptionExpanded ? "remove" : "add"}
+                    size={18}
+                    tone="body"
+                  />
+                </Pressable>
+                {descriptionExpanded ? (
+                  <Text size="sm" variant="muted">
+                    {product.description}
+                  </Text>
+                ) : null}
               </View>
             </>
           ) : null}
@@ -313,24 +386,32 @@ export default function ProductDetailScreen() {
           </View>
         ) : null}
 
-        <Button
-          size="lg"
-          full={inBasket === 0}
-          className={inBasket > 0 ? "flex-1" : undefined}
+        {/*
+          A plain Button here can't have its label re-tinted independently of
+          `variant` (the shared component's text colour is derived from
+          `variant`, not overridable via `className`) — this is a one-off
+          Pressable rather than a change to a component shared with rider.
+        */}
+        <Pressable
+          accessibilityRole="button"
           disabled={!sellable}
-          label={
-            !sellable
-              ? "Unavailable"
-              : inBasket > 0
-                ? `In basket · ${formatKES(product.price * inBasket)}`
-                : `Add to basket · ${formatKES(product.price)}`
-          }
+          className={`h-control-lg px-space-7 rounded-md bg-cart-cta items-center justify-center active:scale-[0.96] disabled:opacity-50 ${
+            inBasket > 0 ? "flex-1" : "w-full"
+          }`}
           onPress={() =>
             inBasket > 0
               ? router.push("/cart")
               : cart.add(product._id as Id<"products">, 1)
           }
-        />
+        >
+          <Text weight="semibold" className="text-[#FFFFFF]">
+            {!sellable
+              ? "Unavailable"
+              : inBasket > 0
+                ? `In basket · ${formatKES(product.price * inBasket)}`
+                : `Add to basket · ${formatKES(product.price)}`}
+          </Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
