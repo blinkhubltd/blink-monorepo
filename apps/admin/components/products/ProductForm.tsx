@@ -513,11 +513,20 @@ export function ProductForm({
             : undefined,
         upc: formData.upc ? Number.parseInt(formData.upc) : undefined,
         item_number: formData.item_number?.trim() || undefined,
-        images: images.length > 0 ? images : undefined,
         tags: formData.tags.length > 0 ? formData.tags : undefined,
         requires_prescription: showPrescriptionField
           ? formData.requires_prescription
           : undefined,
+        // Convex's `db.patch` deletes a field when it is present with an
+        // explicit `undefined` value, distinct from being absent entirely.
+        // `images` has no "current value" tracked in this form's state (only
+        // newly-picked files are), so — unlike the fields above, which really
+        // do reflect the user's current intent — an untouched image input
+        // must leave the key out of `submitData` completely on edit, not set
+        // it to `undefined`. Getting this wrong is why editing a product's
+        // price or stock (without touching images) was silently wiping its
+        // previously-uploaded images on every save.
+        ...(images.length > 0 ? { images } : {}),
         ...(isEditMode && productId && { id: productId }),
       };
 
