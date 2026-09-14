@@ -398,6 +398,7 @@ export const productsByIds = query({
             category_id: product.category_id,
             vendor_id: product.vendor_id,
             imageUrl: images.find((u): u is string => !!u) ?? null,
+            images: images.filter((u): u is string => !!u),
             // Purchasability is decided here rather than in the client, so the
             // cart screen and the checkout gate cannot disagree about whether a
             // line is orderable.
@@ -420,6 +421,7 @@ interface SearchResult {
   requires_prescription: boolean;
   category_id: Id<"categories">;
   imageUrl: string | null;
+  images: string[];
   vendor: { _id: Id<"vendors">; name: string; distanceMeters: number } | null;
 }
 
@@ -528,6 +530,7 @@ export const searchProductsByCoverage = query({
           requires_prescription: product.requires_prescription ?? false,
           category_id: product.category_id,
           imageUrl: images.find((u): u is string => !!u) ?? null,
+          images: images.filter((u): u is string => !!u),
           vendor:
             vendor && product.vendor_id
               ? {

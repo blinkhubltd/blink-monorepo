@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, ScrollView, View, type NativeSyntheticEvent, type NativeScrollEvent } from "react-native";
 import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -42,10 +42,9 @@ import { formatKES } from "../lib/format";
  *
  * Tapping "+" adds one and shows the −/qty/+ stepper for 3 seconds, then it
  * collapses back to a plain "+" — regardless of whether the item is still in
- * the basket. This is `showStepper`, local and separate from `quantityInCart`
- * (which still drives the card's own "in basket" border): the stepper is a
- * momentary affordance for the tap that just happened, not a standing readout
- * of basket contents — that readout is the basket itself.
+ * the basket. This is `showStepper`, local and separate from `quantityInCart`:
+ * the stepper is a momentary affordance for the tap that just happened, not a
+ * standing readout of basket contents — that readout is the basket itself.
  */
 
 export type ProductForCard = {
@@ -57,6 +56,8 @@ export type ProductForCard = {
   unit_type?: string;
   requires_prescription?: boolean;
   imageUrl: string | null;
+  /** Every resolved image, for the auto-scrolling gallery. Falls back to `imageUrl` when absent. */
+  images?: string[];
 };
 
 /** At or below this, the card says how few are left. */
@@ -95,11 +96,46 @@ export function ProductCard({
 }) {
   const outOfStock = product.quantity <= 0;
   const lowStock = !outOfStock && product.quantity <= LOW_STOCK_THRESHOLD;
-  const inCart = quantityInCart > 0;
   const unit = unitLabel(product);
+  const gallery =
+    product.images && product.images.length > 0
+      ? product.images
+      : product.imageUrl
+        ? [product.imageUrl]
+        : [];
 
   const [showStepper, setShowStepper] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Auto-scrolling image gallery ──
+  //
+  // Only wired up when there is more than one image — a single-image card
+  // pays none of this cost. Width is measured on layout rather than assumed,
+  // since the card's width depends on the grid it's placed in.
+  const [imageWidth, setImageWidth] = useState(0);
+  const [activeImage, setActiveImage] = useState(0);
+  const galleryRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (gallery.length <= 1 || imageWidth === 0) return;
+    const timer = setInterval(() => {
+      setActiveImage((prev) => {
+        const next = (prev + 1) % gallery.length;
+        galleryRef.current?.scrollTo({ x: next * imageWidth, animated: true });
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [gallery.length, imageWidth]);
+
+  const handleGalleryScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    if (imageWidth === 0) return;
+    setActiveImage(
+      Math.round(e.nativeEvent.contentOffset.x / imageWidth),
+    );
+  };
 
   useEffect(() => {
     return () => {
@@ -141,14 +177,37 @@ export function ProductCard({
       accessibilityLabel={`${product.name}, ${formatKES(product.price)}${
         outOfStock ? ", out of stock" : ""
       }`}
-      className={`border-hairline bg-card flex-1 overflow-hidden rounded-xl shadow-xs active:opacity-95 ${
-        inCart ? "border-primary" : "border-border"
-      }`}
+      className="border-hairline border-border bg-card flex-1 overflow-hidden rounded-lg shadow-xs active:opacity-95"
     >
-      <View className="bg-muted aspect-square w-full">
-        {product.imageUrl ? (
+      <View
+        className="bg-muted aspect-square w-full"
+        onLayout={(e) => setImageWidth(e.nativeEvent.layout.width)}
+      >
+        {gallery.length > 1 && imageWidth > 0 ? (
+          <ScrollView
+            ref={galleryRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleGalleryScrollEnd}
+            style={{ height: imageWidth }}
+          >
+            {gallery.map((uri, index) => (
+              <OptimizedImage
+                key={index}
+                source={{ uri }}
+                contentFit="contain"
+                style={{ width: imageWidth, height: imageWidth }}
+                className={`p-space-3 rounded-none ${
+                  outOfStock ? "opacity-60" : ""
+                }`}
+                accessibilityIgnoresInvertColors
+              />
+            ))}
+          </ScrollView>
+        ) : gallery[0] ? (
           <OptimizedImage
-            source={{ uri: product.imageUrl }}
+            source={{ uri: gallery[0] }}
             contentFit="contain"
             className={`p-space-3 h-full w-full rounded-none ${
               outOfStock ? "opacity-60" : ""
@@ -208,7 +267,11 @@ export function ProductCard({
           {outOfStock ? (
             <Badge variant="secondary" label="Out of stock" />
           ) : lowStock ? (
-            <Badge variant="warning" label={`Only ${product.quantity} left`} />
+            <Badge
+              variant="warning"
+              label={`Only ${product.quantity} left`}
+              className="px-space-2 py-0"
+            />
           ) : null}
         </View>
 
@@ -267,6 +330,23 @@ export function ProductCard({
 
       <View className="gap-space-1 p-space-3">
         {/*
+          Gallery position, left-aligned below the image — not overlaid on it,
+          so it never competes with the save/add controls for a tap target.
+        */}
+        {gallery.length > 1 ? (
+          <View className="gap-space-1 pb-space-1 flex-row">
+            {gallery.map((_, index) => (
+              <View
+                key={index}
+                className={`h-[4px] rounded-pill ${
+                  index === activeImage ? "w-[10px] bg-strong" : "w-[4px] bg-border"
+                }`}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {/*
           Fixed height on the name so cards align across a row whether the name
           wraps to one line or two.
         */}
@@ -284,7 +364,7 @@ export function ProductCard({
 
         {/* The inviolate row. Price is always here, basket or no basket. */}
         <View className="gap-space-2 flex-row items-center justify-between">
-          <Text variant="price" size="price">
+          <Text variant="price" size="price" className="text-black">
             {formatKES(product.price)}
           </Text>
           {product.requires_prescription ? (

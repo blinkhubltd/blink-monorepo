@@ -1,4 +1,10 @@
 import { Pressable, View } from "react-native";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -20,6 +26,16 @@ import { formatKES } from "../lib/format";
  *     gone inactive or out of stock since it was added still rendered with a
  *     price and counted toward the total. Here it is visibly struck out, does
  *     not count, and offers removal.
+ *
+ * ── Leaving the basket fades, it doesn't just vanish ──────────────────────
+ *
+ * Removing a line, or decrementing the last unit of one, shrinks and fades the
+ * row before calling `onRemove`/`onDecrement` — a plain RN `Animated.View`
+ * driven by Reanimated shared values, wrapping the NativeWind-styled row
+ * rather than carrying `className` itself (NativeWind's interop targets core
+ * RN components, not Reanimated's wrapped ones). A plain decrement that isn't
+ * emptying the line stays instant; only the "this row is about to disappear"
+ * transitions animate.
  */
 
 export interface BasketLine {
@@ -46,8 +62,31 @@ export function BasketLineRow({
 }) {
   const atStockLimit = line.quantity >= line.available;
 
+  const opacity = useSharedValue(1);
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  const animateOutThen = (action: () => void) => {
+    opacity.value = withTiming(0, { duration: 200 });
+    scale.value = withTiming(0.96, { duration: 200 }, (finished) => {
+      if (finished) runOnJS(action)();
+    });
+  };
+
+  const handleRemove = () => animateOutThen(onRemove);
+  const handleDecrement = () => {
+    // The last unit — decrementing empties the line, so it gets the same
+    // fade-out as an explicit remove rather than instantly disappearing.
+    if (line.quantity <= 1) animateOutThen(onDecrement);
+    else onDecrement();
+  };
+
   return (
-    <View className="gap-space-3 px-screen py-space-4 flex-row">
+    <Animated.View style={animatedStyle}>
+      <View className="gap-space-3 px-screen py-space-4 flex-row">
       <View className="bg-muted size-[72px] overflow-hidden rounded-md">
         {line.imageUrl ? (
           <OptimizedImage
@@ -72,7 +111,7 @@ export function BasketLineRow({
             {line.name}
           </Text>
           <Pressable
-            onPress={onRemove}
+            onPress={handleRemove}
             accessibilityRole="button"
             accessibilityLabel={`Remove ${line.name}`}
             hitSlop={8}
@@ -106,7 +145,7 @@ export function BasketLineRow({
           {line.isPurchasable ? (
             <View className="h-control-sm gap-space-1 rounded-pill bg-muted px-space-1 flex-row items-center">
               <Pressable
-                onPress={onDecrement}
+                onPress={handleDecrement}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove one ${line.name}`}
                 hitSlop={6}
@@ -135,6 +174,7 @@ export function BasketLineRow({
           ) : null}
         </View>
       </View>
-    </View>
+      </View>
+    </Animated.View>
   );
 }

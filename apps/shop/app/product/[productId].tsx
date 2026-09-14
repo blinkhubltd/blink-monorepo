@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, Share, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery } from "convex/react";
@@ -108,7 +108,7 @@ export default function ProductDetailScreen() {
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Close"
-          className="size-control-sm rounded-pill bg-secondary items-center justify-center active:opacity-80"
+          className="size-control-sm rounded-pill bg-card border-hairline border-border shadow-xs items-center justify-center active:opacity-80"
         >
           <Icon name="close" size={18} tone="strong" />
         </Pressable>
@@ -118,7 +118,7 @@ export default function ProductDetailScreen() {
         <View className="gap-space-1 px-screen pb-space-3">
           {product.vendor ? (
             <Text size="sm" weight="medium" variant="muted">
-              More from {product.vendor.name}
+              More from Blink
             </Text>
           ) : null}
           <Text size="h3" weight="bold">
@@ -145,42 +145,25 @@ export default function ProductDetailScreen() {
           )}
 
           {/*
-            Saving, over the image. The old screen rendered its heart from a
-            query that returns `undefined` while in flight, so a saved product
-            drew as unsaved on every mount — and a tap in that window removed it.
-            `saved` is only true once the answer has arrived.
+            Share, over the image — in place of the wishlist heart on this
+            screen. Saving is still reachable from every card (the grid,
+            search, and the related-products rail below), so nothing is lost;
+            this is the one place a customer is looking at a single product
+            they might want to send to someone else.
           */}
           <Pressable
-            onPress={() => void wishlist.toggle(product._id as Id<"products">)}
-            accessibilityRole="button"
-            accessibilityState={{
-              selected: wishlist.loaded && wishlist.isSaved(product._id),
-            }}
-            accessibilityLabel={
-              wishlist.loaded && wishlist.isSaved(product._id)
-                ? "Remove from saved items"
-                : "Save this item"
+            onPress={() =>
+              void Share.share({
+                message: `Check out ${product.name} on Blink: https://blink.app/product/${product._id}`,
+                url: `https://blink.app/product/${product._id}`,
+              })
             }
+            accessibilityRole="button"
+            accessibilityLabel="Share this product"
             hitSlop={8}
             className="right-space-4 top-space-4 bg-card size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
           >
-            <Icon
-              name={
-                wishlist.loaded && wishlist.isSaved(product._id)
-                  ? "heart"
-                  : "heart-outline"
-              }
-              size={20}
-              // Subtle until the wishlist query resolves, so "unknown" does not
-              // render as an explicit "not saved". #D83A34 was off-palette.
-              tone={
-                !wishlist.loaded
-                  ? "subtle"
-                  : wishlist.isSaved(product._id)
-                    ? "destructive"
-                    : "body"
-              }
-            />
+            <Icon name="share-outline" size={20} tone="body" />
           </Pressable>
         </View>
 
@@ -264,7 +247,7 @@ export default function ProductDetailScreen() {
                     Sold &amp; Shipped
                   </Text>
                   <Text size="sm" weight="semibold" numberOfLines={1}>
-                    {product.vendor.name}
+                    Blink
                   </Text>
                 </View>
               ) : null}
@@ -328,6 +311,9 @@ export default function ProductDetailScreen() {
                             (item.images ?? []).find(
                               (u): u is string => typeof u === "string",
                             ) ?? null,
+                          images: (item.images ?? []).filter(
+                            (u): u is string => typeof u === "string",
+                          ),
                         }}
                         quantityInCart={cart.quantityOf(
                           item._id as Id<"products">,
@@ -359,51 +345,54 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Pinned bar. Guests see the identical control — the gate is checkout. */}
-      <View className="border-hairline border-border bg-card px-screen py-space-4 gap-space-3 flex-row items-center">
-        {inBasket > 0 ? (
-          <View className="h-control gap-space-2 bg-muted px-space-3 flex-row items-center rounded-md">
-            <Button
-              variant="ghost"
-              size="iconSm"
-              label="−"
+      {/*
+        Pinned bar. One control, not a stepper plus a separate button: not in
+        the basket, it's a single "Add to basket" affordance; once it is, the
+        same space becomes the add/remove toggle. Going to the basket itself
+        is the cart tab's job, not this bar's.
+      */}
+      <View className="border-hairline border-border bg-card px-screen py-space-4 flex-row items-center">
+        {!sellable ? (
+          <Button size="lg" full disabled label="Unavailable" />
+        ) : inBasket > 0 ? (
+          <View className="h-control-lg gap-space-3 bg-primary px-space-3 flex-1 flex-row items-center justify-between rounded-md">
+            <Pressable
               onPress={() => cart.decrement(product._id as Id<"products">)}
-            />
-            <Text
-              size="base"
-              weight="semibold"
-              className="min-w-[24px] text-center"
+              accessibilityRole="button"
+              accessibilityLabel={`Remove one ${product.name}`}
+              hitSlop={8}
+              className="rounded-pill size-[36px] items-center justify-center active:opacity-70"
             >
-              {inBasket}
+              <Icon name="remove" size={20} tone="onBrand" />
+            </Pressable>
+            <Text variant="onBrand" size="base" weight="semibold">
+              {inBasket} in basket · {formatKES(product.price * inBasket)}
             </Text>
-            <Button
-              variant="ghost"
-              size="iconSm"
-              label="+"
-              disabled={inBasket >= product.quantity}
+            <Pressable
               onPress={() => cart.increment(product._id as Id<"products">)}
-            />
+              accessibilityRole="button"
+              accessibilityLabel={`Add another ${product.name}`}
+              hitSlop={8}
+              // Cannot exceed what the shop actually has.
+              disabled={inBasket >= product.quantity}
+              className="rounded-pill size-[36px] items-center justify-center active:opacity-70 disabled:opacity-40"
+            >
+              <Icon name="add" size={20} tone="onBrand" />
+            </Pressable>
           </View>
-        ) : null}
-
-        <Button
-          size="lg"
-          full={inBasket === 0}
-          className={inBasket > 0 ? "flex-1" : undefined}
-          disabled={!sellable}
-          label={
-            !sellable
-              ? "Unavailable"
-              : inBasket > 0
-                ? `In basket · ${formatKES(product.price * inBasket)}`
-                : `Add to basket · ${formatKES(product.price)}`
-          }
-          onPress={() =>
-            inBasket > 0
-              ? router.push("/cart")
-              : cart.add(product._id as Id<"products">, 1)
-          }
-        />
+        ) : (
+          <Pressable
+            onPress={() => cart.add(product._id as Id<"products">, 1)}
+            accessibilityRole="button"
+            accessibilityLabel={`Add ${product.name} to basket`}
+            className="h-control-lg gap-space-2 bg-primary flex-1 flex-row items-center justify-center rounded-md active:opacity-90"
+          >
+            <Icon name="add" size={20} tone="onBrand" />
+            <Text variant="onBrand" size="base" weight="semibold">
+              Add to basket · {formatKES(product.price)}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
