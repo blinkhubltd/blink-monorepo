@@ -711,6 +711,37 @@ export function ProductForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-4">
+          {isEditMode &&
+            (() => {
+              const existingImages = (initialValues?.images ?? []).filter(
+                (u): u is string => typeof u === "string" && u.length > 0,
+              );
+              if (existingImages.length === 0) return null;
+              return (
+                <div className="space-y-2">
+                  <Label>Current Images</Label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {existingImages.map((url, index) => (
+                      <div
+                        key={index}
+                        className="w-20 h-20 border border-gray-200 rounded-lg overflow-hidden"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={`Current product image ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Uploading new images below replaces these.
+                  </p>
+                </div>
+              );
+            })()}
+
           {onFileUpload && (
             <div className="space-y-2">
               <Label htmlFor="image">Product Images</Label>

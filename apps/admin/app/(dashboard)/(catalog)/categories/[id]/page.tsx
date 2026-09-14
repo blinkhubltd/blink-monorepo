@@ -26,6 +26,24 @@ export default function CategoryDetailsPage({
     useQuery(api.data.vendors.getActiveVendors, { cursor: null, limit: 100 }) ?? [];
   const updateProduct = useMutation(api.data.products.updateProduct);
   const createProduct = useMutation(api.data.products.createProduct);
+  const generateUploadUrl = useMutation(api.data.files.generateUploadUrl);
+
+  const handleFileUpload = async (files: File[]): Promise<string[]> => {
+    const uploadPromises = files.map(async (file) => {
+      const uploadUrl = await generateUploadUrl();
+      const uploadResult = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!uploadResult.ok) {
+        throw new Error(`Failed to upload ${file.name}`);
+      }
+      const { storageId } = await uploadResult.json();
+      return storageId;
+    });
+    return Promise.all(uploadPromises);
+  };
 
   if (!category) return null;
 
@@ -45,6 +63,7 @@ export default function CategoryDetailsPage({
           onSubmit={async (values) => {
             await createProduct(values);
           }}
+          onFileUpload={handleFileUpload}
         />
       )}
 
@@ -86,6 +105,7 @@ export default function CategoryDetailsPage({
                 form.setOpen(false);
               }}
               onCancel={() => form.setOpen(false)}
+              onFileUpload={handleFileUpload}
             />
           )}
         </FormShell>

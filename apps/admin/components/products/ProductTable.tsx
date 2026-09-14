@@ -1031,12 +1031,14 @@ export function EditProductForm({
   vendors,
   onSubmit,
   onCancel,
+  onFileUpload,
 }: {
   product: Product;
   categories: { _id: Id<"categories">; name: string }[];
   vendors: { _id: string; name: string; status: string }[];
   onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
+  onFileUpload?: (files: File[]) => Promise<string[]>;
 }) {
   const initialValues = {
     name: product.name,
@@ -1064,6 +1066,7 @@ export function EditProductForm({
       initialValues={initialValues}
       isEditMode={true}
       productId={product._id}
+      onFileUpload={onFileUpload}
     />
   );
 }
