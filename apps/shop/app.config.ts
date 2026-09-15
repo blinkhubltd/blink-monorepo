@@ -163,6 +163,15 @@ const config: ExpoConfig = {
 
   experiments: { typedRoutes: true },
 
+  // From `eas update:configure` — written here by hand since that command
+  // can't patch a dynamic (`app.config.ts`) config itself.
+  updates: {
+    url: "https://u.expo.dev/0f2a5b65-85ce-4984-a80e-111abc4ceafd",
+  },
+  runtimeVersion: {
+    policy: "appVersion",
+  },
+
   extra: {
     router: {},
     eas: { projectId: "0f2a5b65-85ce-4984-a80e-111abc4ceafd" },
