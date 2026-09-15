@@ -12,6 +12,7 @@ import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 
 import { ScreenHeader } from "../../components/screen-header";
+import { CartIconButton } from "../../components/cart-icon-button";
 import { ProductCard, ProductCardSkeleton } from "../../components/product-card";
 import { useCart } from "../../providers/CartProvider";
 import { useWishlist } from "../../lib/use-wishlist";
@@ -82,6 +83,7 @@ export default function WishlistScreen() {
             ? `${wishlist.count} ${wishlist.count === 1 ? "item" : "items"}`
             : undefined
         }
+        right={<CartIconButton plain />}
       />
 
       {wishlist.error ? (

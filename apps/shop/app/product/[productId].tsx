@@ -18,6 +18,7 @@ import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
 import { Icon } from "../../components/icon";
+import { CartIconButton } from "../../components/cart-icon-button";
 import { SheetBackdrop } from "../../components/sheet-backdrop";
 import { useTokenColors } from "../../lib/token-colors";
 
@@ -174,10 +175,13 @@ export default function ProductDetailScreen() {
       <>
         {/*
           A close X, not a back chevron — the top edge is the sheet's own
-          handle/rounded corner, not the close affordance. No cart icon here:
-          the pinned bottom bar already is the add-to-cart affordance.
+          handle/rounded corner, not the close affordance. The cart icon on
+          the other side is the one place this screen lets a customer go
+          straight to checkout without closing the sheet and hunting for
+          basket access elsewhere first.
         */}
-        <View className="px-screen pb-space-2 flex-row justify-end">
+        <View className="px-screen pb-space-2 flex-row items-center justify-between">
+          <CartIconButton plain />
           <Pressable
             onPress={handleClose}
             accessibilityRole="button"

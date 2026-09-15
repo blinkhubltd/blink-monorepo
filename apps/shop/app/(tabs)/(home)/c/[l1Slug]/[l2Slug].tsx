@@ -20,6 +20,7 @@ import {
   ProductCardSkeleton,
 } from "../../../../../components/product-card";
 import { ScreenHeader } from "../../../../../components/screen-header";
+import { CartIconButton } from "../../../../../components/cart-icon-button";
 import { useWishlist } from "../../../../../lib/use-wishlist";
 import {
   SaveError,
@@ -130,6 +131,7 @@ export default function ProductsScreen() {
           eyebrow={level1.name}
           title={level2.name}
           meta={countLabel ?? undefined}
+          right={<CartIconButton plain />}
         />
         <Level2PillRow
           categories={siblings}

@@ -7,6 +7,7 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
 import { useCategoryFromSlugs } from "../../../../../lib/catalogue";
 import { ScreenHeader } from "../../../../../components/screen-header";
+import { CartIconButton } from "../../../../../components/cart-icon-button";
 import {
   CategoryCard,
   CategoryCardSkeleton,
@@ -47,6 +48,7 @@ export default function SubcategoriesScreen() {
         subtitle={`${children.length} ${
           children.length === 1 ? "subcategory" : "subcategories"
         } · ${leafTotal} product ${leafTotal === 1 ? "type" : "types"}`}
+        right={<CartIconButton plain />}
       />
 
       <FlatList
