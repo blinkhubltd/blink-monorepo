@@ -1,11 +1,18 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Pressable, Share, View } from "react-native";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Pressable,
+  Share,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import BottomSheet, {
   BottomSheetFooter,
   BottomSheetScrollView,
   BottomSheetView,
   type BottomSheetFooterProps,
+  type BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
@@ -92,6 +99,15 @@ export default function ProductDetailScreen() {
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["92%"], []);
 
+  // ── The image gallery ──
+  //
+  // Matches the product card's carousel: every image, auto-advancing every
+  // 2s, still manually swipeable. Width is measured on layout since it spans
+  // whatever the sheet's own width turns out to be, not a fixed value.
+  const [imageWidth, setImageWidth] = useState(0);
+  const [activeImage, setActiveImage] = useState(0);
+  const galleryRef = useRef<BottomSheetScrollViewMethods>(null);
+
   const product = useQuery(
     api.data.products.getProductDetails,
     productId ? { productId: productId as Id<"products"> } : "skip",
@@ -117,6 +133,28 @@ export default function ProductDetailScreen() {
         (u): u is string => typeof u === "string" && u.length > 0,
       )
     : [];
+
+  useEffect(() => {
+    if (images.length <= 1 || imageWidth === 0) return;
+    const timer = setInterval(() => {
+      setActiveImage((prev) => {
+        const next = (prev + 1) % images.length;
+        galleryRef.current?.scrollTo({ x: next * imageWidth, animated: true });
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(timer);
+    // `images` is a freshly filtered array every render; its length is the
+    // real dependency, not the array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images.length, imageWidth]);
+
+  const handleGalleryScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    if (imageWidth === 0) return;
+    setActiveImage(Math.round(e.nativeEvent.contentOffset.x / imageWidth));
+  };
 
   // Loading first, always. Conflating `undefined` with `null` is what made the
   // old screen spin forever on a deleted product.
@@ -165,8 +203,31 @@ export default function ProductDetailScreen() {
             </Text>
           </View>
 
-          <View className="bg-muted aspect-[4/3] w-full">
-            {images[0] ? (
+          <View
+            className="bg-muted aspect-[4/3] w-full"
+            onLayout={(e) => setImageWidth(e.nativeEvent.layout.width)}
+          >
+            {images.length > 1 && imageWidth > 0 ? (
+              <BottomSheetScrollView
+                ref={galleryRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handleGalleryScrollEnd}
+                style={{ height: (imageWidth * 3) / 4 }}
+              >
+                {images.map((uri, index) => (
+                  <OptimizedImage
+                    key={index}
+                    source={{ uri }}
+                    contentFit="contain"
+                    style={{ width: imageWidth, height: (imageWidth * 3) / 4 }}
+                    className={`rounded-none ${sellable ? "" : "opacity-60"}`}
+                    accessibilityIgnoresInvertColors
+                  />
+                ))}
+              </BottomSheetScrollView>
+            ) : images[0] ? (
               <OptimizedImage
                 source={{ uri: images[0] }}
                 contentFit="contain"
@@ -177,7 +238,11 @@ export default function ProductDetailScreen() {
               />
             ) : (
               <View className="h-full w-full items-center justify-center">
-                <Text variant="subtle" size="sm" style={{ color: colors.subtle }}>
+                <Text
+                  variant="subtle"
+                  size="sm"
+                  style={{ color: colors.subtle }}
+                >
                   No image
                 </Text>
               </View>
@@ -206,6 +271,20 @@ export default function ProductDetailScreen() {
             </Pressable>
           </View>
 
+          {/* Gallery position, matching the product card's dot row. */}
+          {images.length > 1 ? (
+            <View className="gap-space-1 px-screen pt-space-2 flex-row">
+              {images.map((_, index) => (
+                <View
+                  key={index}
+                  className={`h-[4px] rounded-pill ${
+                    index === activeImage ? "w-[10px] bg-strong" : "w-[4px] bg-border"
+                  }`}
+                />
+              ))}
+            </View>
+          ) : null}
+
           <SavePrompt
             visible={wishlist.requiresSignIn}
             onDismiss={wishlist.dismissSignIn}
@@ -218,11 +297,7 @@ export default function ProductDetailScreen() {
           <View className="gap-space-5 px-screen pt-space-5">
             <View className="gap-space-1">
               <View className="gap-space-2 flex-row flex-wrap items-center">
-                <Text
-                  variant="price"
-                  size="priceLg"
-                  style={{ color: colors.price }}
-                >
+                <Text size="priceLg" weight="bold" style={{ color: colors.strong }}>
                   {formatKES(product.price)}
                 </Text>
                 {product.hasDiscount ? (
@@ -488,6 +563,11 @@ export default function ProductDetailScreen() {
       ref={sheetRef}
       index={0}
       snapPoints={snapPoints}
+      // v5 defaults this to true, which sizes the sheet to its content's
+      // measured height instead of the snap point — that's what was
+      // collapsing it down to ~30% right after the open animation reached
+      // 92%. Explicit snapPoints means explicit sizing, not measured.
+      enableDynamicSizing={false}
       enablePanDownToClose
       onClose={() => router.back()}
       backgroundStyle={{
