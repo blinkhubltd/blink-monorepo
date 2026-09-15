@@ -43,10 +43,17 @@ export interface BasketLine {
   quantity: number;
   name: string;
   price: number;
+  unit_value?: number;
+  unit_type?: string;
   imageUrl: string | null;
   isPurchasable: boolean;
   available: number;
   requiresPrescription: boolean;
+}
+
+function unitLabel(line: BasketLine): string | null {
+  if (!line.unit_value && !line.unit_type) return null;
+  return [line.unit_value, line.unit_type].filter(Boolean).join(" ");
 }
 
 export function BasketLineRow({
@@ -87,7 +94,7 @@ export function BasketLineRow({
   return (
     <Animated.View style={animatedStyle}>
       <View className="gap-space-3 px-screen py-space-4 flex-row">
-      <View className="bg-muted size-[72px] overflow-hidden rounded-md">
+      <View className="bg-card border-hairline border-border size-[72px] overflow-hidden rounded-md">
         {line.imageUrl ? (
           <OptimizedImage
             source={{ uri: line.imageUrl }}
@@ -121,6 +128,12 @@ export function BasketLineRow({
           </Pressable>
         </View>
 
+        {unitLabel(line) ? (
+          <Text size="caption" variant="subtle">
+            {unitLabel(line)}
+          </Text>
+        ) : null}
+
         {!line.isPurchasable ? (
           <Badge variant="secondary" label="No longer available" />
         ) : line.requiresPrescription ? (
@@ -135,9 +148,10 @@ export function BasketLineRow({
 
         <View className="gap-space-3 flex-row items-center justify-between">
           <Text
-            variant={line.isPurchasable ? "price" : "subtle"}
+            weight="bold"
             size="price"
-            className={line.isPurchasable ? "" : "line-through"}
+            variant={line.isPurchasable ? "default" : "subtle"}
+            className={line.isPurchasable ? "text-strong" : "line-through"}
           >
             {formatKES(line.price * line.quantity)}
           </Text>
@@ -147,11 +161,24 @@ export function BasketLineRow({
               <Pressable
                 onPress={handleDecrement}
                 accessibilityRole="button"
-                accessibilityLabel={`Remove one ${line.name}`}
+                accessibilityLabel={
+                  line.quantity <= 1
+                    ? `Remove ${line.name}`
+                    : `Remove one ${line.name}`
+                }
                 hitSlop={6}
                 className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
               >
-                <Icon name="remove" size={16} tone="neutralIcon" />
+                {/*
+                  Decrementing the last unit removes the line entirely, so the
+                  icon says that plainly instead of promising "one fewer" and
+                  emptying the basket instead.
+                */}
+                <Icon
+                  name={line.quantity <= 1 ? "trash-outline" : "remove"}
+                  size={16}
+                  tone="neutralIcon"
+                />
               </Pressable>
               <Text
                 size="label"

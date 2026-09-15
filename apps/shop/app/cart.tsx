@@ -38,7 +38,7 @@ function DeliveryAddressBar() {
       <Icon
         name={state === "denied" ? "alert-circle" : "location"}
         size={16}
-        tone={state === "denied" ? "destructive" : "price"}
+        tone={state === "denied" ? "destructive" : "brand"}
       />
       <Text size="sm" weight="medium" numberOfLines={1} className="flex-1">
         {label}
@@ -137,7 +137,10 @@ export default function CartScreen() {
       <FlashList
         data={cart.items}
         keyExtractor={(item) => item.product}
-        ItemSeparatorComponent={() => <Separator />}
+        // No hard rule between rows — the bordered image box already gives
+        // each line its own visual anchor, and a line-per-item read is what
+        // was making this screen feel like a plain settings list rather than
+        // a basket.
         contentContainerClassName="pb-space-8"
         renderItem={({ item }) => (
           <BasketLineRow
@@ -211,7 +214,7 @@ export default function CartScreen() {
               <Text size="sm" weight="semibold">
                 Total
               </Text>
-              <Text variant="price" size="price">
+              <Text weight="bold" size="price" className="text-strong">
                 {formatKES(orderTotal)}
               </Text>
             </View>
