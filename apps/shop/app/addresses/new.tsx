@@ -18,17 +18,19 @@ import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Label } from "@repo/mobile-ui/components/ui/label";
 import { Switch } from "@repo/mobile-ui/components/ui/switch";
+import { Separator } from "@repo/mobile-ui/components/ui/separator";
+import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
 import { ScreenHeader } from "../../components/screen-header";
 import { SectionCard } from "../../components/checkout/sections";
 import { LocationPicker, NAIROBI } from "../../components/location-picker";
 import { useLocation } from "../../providers/LocationProvider";
+import { useReverseGeocode } from "../../lib/use-reverse-geocode";
 import {
   DEFAULT_COUNTRY,
   SUGGESTED_LABELS,
   addressBlockers,
   cleanLines,
-  formatPoint,
   isUsablePoint,
   replacementFor,
   type Point,
@@ -107,6 +109,21 @@ export default function EditAddressScreen() {
 
   const effectivePoint = point ?? (isUsablePoint(devicePoint) ? devicePoint : null);
 
+  // What the pin actually is, in words — this is the fix for the screen
+  // showing raw coordinates. Purely a display/prefill convenience: the point
+  // itself, not this text, is what gets saved.
+  const geocoded = useReverseGeocode(effectivePoint);
+
+  // A safe, single-field prefill: the full formatted address is too much to
+  // dump into "Building, street or estate" (it already repeats the city and
+  // country), but the city component alone is exactly what that field wants
+  // and nothing this screen already shows elsewhere. Never overwrites typing,
+  // and never runs while editing an existing entry.
+  useEffect(() => {
+    if (editingLabel || city.trim().length > 0 || !geocoded.city) return;
+    setCity(geocoded.city);
+  }, [editingLabel, city, geocoded.city]);
+
   const covering = useQuery(
     api.data.coverage.vendorsCoveringPoint,
     isUsablePoint(effectivePoint)
@@ -181,40 +198,77 @@ export default function EditAddressScreen() {
             onChange={setPoint}
           />
 
-          <View className="gap-space-3 flex-row items-center">
+          {/*
+            Everything about THIS pin — what it is, in words; the button to
+            recentre on the device's own location; and whether anyone can
+            actually deliver here — read as one decision, so it is one card,
+            not three loose lines under the map.
+          */}
+          <View className="border-hairline border-border bg-card gap-space-4 p-space-4 rounded-lg">
+            <View className="gap-space-3 flex-row items-start">
+              <View className="bg-secondary size-[36px] rounded-pill items-center justify-center">
+                <Icon name="location" size={18} tone="brand" />
+              </View>
+              <View className="gap-space-1 flex-1">
+                <Text
+                  size="caption"
+                  weight="semibold"
+                  variant="subtle"
+                  className="uppercase tracking-label"
+                >
+                  Pin location
+                </Text>
+                {geocoded.loading ? (
+                  <Skeleton className="h-[18px] w-4/5 rounded-sm" />
+                ) : (
+                  <Text size="sm" weight="medium" numberOfLines={2}>
+                    {geocoded.address ?? "Drag the map so the pin sits on your spot"}
+                  </Text>
+                )}
+              </View>
+            </View>
+
             <Button
               size="sm"
               variant="outline"
-              label={requesting ? "Locating…" : "Use my location"}
+              label={requesting ? "Locating…" : "Use my current location"}
               icon={<Icon name="locate-outline" size={16} tone="strong" />}
               loading={requesting}
               onPress={() => void request()}
             />
-            <Text size="caption" variant="subtle" className="flex-1">
-              {formatPoint(effectivePoint)}
-            </Text>
-          </View>
 
-          {denied ? (
-            <Text size="caption" variant="subtle">
-              Location permission is off, so the map starts on Nairobi — drag it
-              to your spot.
-            </Text>
-          ) : null}
+            {denied ? (
+              <Text size="caption" variant="subtle">
+                Location permission is off, so the map starts on Nairobi —
+                drag it to your spot.
+              </Text>
+            ) : null}
 
-          {/*
-            The coverage answer, next to the decision it affects. Three states,
-            all distinct: still checking, covered by N shops, covered by none.
-          */}
-          <View className="gap-space-2 flex-row items-center">
-            <Icon name="storefront-outline" size={16} tone="body" />
-            <Text size="caption" variant={covered === false ? "destructive" : "subtle"}>
-              {covered === null
-                ? "Checking which shops reach this spot…"
-                : covered
-                  ? `${covering!.length} ${covering!.length === 1 ? "shop delivers" : "shops deliver"} here`
-                  : "No shop delivers to this spot yet"}
-            </Text>
+            <Separator />
+
+            {/*
+              The coverage answer, next to the decision it affects. Three
+              states, all distinct: still checking, covered by N shops, or
+              covered by none.
+            */}
+            <View className="gap-space-2 flex-row items-center">
+              <Icon
+                name="storefront-outline"
+                size={16}
+                tone={covered === false ? "destructive" : "body"}
+              />
+              <Text
+                size="caption"
+                weight="medium"
+                variant={covered === false ? "destructive" : "subtle"}
+              >
+                {covered === null
+                  ? "Checking which shops reach this spot…"
+                  : covered
+                    ? `${covering!.length} ${covering!.length === 1 ? "shop delivers" : "shops deliver"} here`
+                    : "No shop delivers to this spot yet"}
+              </Text>
+            </View>
           </View>
 
           <SectionCard title="What should we call it?">

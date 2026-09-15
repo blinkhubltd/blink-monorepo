@@ -12,6 +12,7 @@ import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 
 import { ScreenHeader } from "../../components/screen-header";
+import { CartIconButton } from "../../components/cart-icon-button";
 import { ProductCard, ProductCardSkeleton } from "../../components/product-card";
 import { useCart } from "../../providers/CartProvider";
 import { useWishlist } from "../../lib/use-wishlist";
@@ -52,15 +53,19 @@ export default function WishlistScreen() {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
         <ScreenHeader title="Wishlist" showBack={false} />
+        {/* Icon, heading+description, button — the same grouping and 40px
+            icon size as every other empty state in components/states.tsx. */}
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <Icon name="heart-outline" size={36} tone="subtle" />
-          <Text size="lg" weight="semibold" className="text-center">
-            Sign in to save items
-          </Text>
-          <Text size="sm" variant="muted" className="text-center">
-            Saved items follow your account, so they are there on your next
-            visit and on your other devices.
-          </Text>
+          <Icon name="heart-outline" size={40} tone="subtle" />
+          <View className="gap-space-2">
+            <Text size="lg" weight="semibold" className="text-center">
+              Sign in to save items
+            </Text>
+            <Text size="sm" variant="muted" className="text-center">
+              Saved items follow your account, so they are there on your next
+              visit and on your other devices.
+            </Text>
+          </View>
           <Button
             label="Sign in"
             onPress={() => router.push("/(auth)/sign-in")}
@@ -82,6 +87,7 @@ export default function WishlistScreen() {
             ? `${wishlist.count} ${wishlist.count === 1 ? "item" : "items"}`
             : undefined
         }
+        right={<CartIconButton plain />}
       />
 
       {wishlist.error ? (
@@ -95,20 +101,33 @@ export default function WishlistScreen() {
       ) : null}
 
       {loading ? (
-        <View className="px-screen gap-space-4 flex-row">
-          <ProductCardSkeleton />
-          <ProductCardSkeleton />
+        // A full 2-column grid, not two lonely cards in a row — matches the
+        // catalogue's own ProductGridSkeleton so the wishlist doesn't look
+        // like it stopped loading halfway.
+        <View className="px-screen flex-row flex-wrap">
+          {Array.from({ length: 6 }, (_, i) => (
+            <View
+              key={i}
+              className={`mb-space-4 w-1/2 ${
+                i % 2 === 0 ? "pr-space-2" : "pl-space-2"
+              }`}
+            >
+              <ProductCardSkeleton />
+            </View>
+          ))}
         </View>
       ) : wishlist.count === 0 ? (
         <View className="gap-space-4 px-screen py-space-10 items-center">
-          <Icon name="heart-outline" size={36} tone="subtle" />
-          <Text size="lg" weight="semibold">
-            Nothing saved yet
-          </Text>
-          <Text size="sm" variant="muted" className="text-center">
-            Tap the heart on anything you want to come back to. Saving does not
-            hold stock, so popular items can still sell out.
-          </Text>
+          <Icon name="heart-outline" size={40} tone="subtle" />
+          <View className="gap-space-2">
+            <Text size="lg" weight="semibold" className="text-center">
+              Nothing saved yet
+            </Text>
+            <Text size="sm" variant="muted" className="text-center">
+              Tap the heart on anything you want to come back to. Saving does
+              not hold stock, so popular items can still sell out.
+            </Text>
+          </View>
           <Button
             label="Start shopping"
             // `navigate`, not `replace`. From a tab root, replace("/") swaps

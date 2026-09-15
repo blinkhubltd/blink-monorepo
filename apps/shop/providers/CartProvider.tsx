@@ -55,6 +55,8 @@ type CartState = {
     quantity: number;
     name: string;
     price: number;
+    unit_value?: number;
+    unit_type?: string;
     imageUrl: string | null;
     /** Active and in stock. Decided server-side so cart and checkout agree. */
     isPurchasable: boolean;
@@ -229,6 +231,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           quantity: line.quantity,
           name: product.name,
           price: product.price,
+          unit_value: product.unit_value,
+          unit_type: product.unit_type,
           imageUrl: product.imageUrl,
           isPurchasable: product.isPurchasable,
           available: product.quantity,
