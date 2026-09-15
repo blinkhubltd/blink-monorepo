@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Share, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -62,7 +62,35 @@ import { SaveError, SavePrompt } from "../../components/save-prompt";
  * backing data here — there is no per-product "customizable" flag and no
  * per-product delivery-window estimate computed anywhere in this app — so
  * showing either would be inventing information, not presenting it.
+ *
+ * ── A real bottom sheet, not a page styled to look like one ────────────────
+ *
+ * `app/_layout.tsx` presents this route as `transparentModal` +
+ * `slide_from_bottom`, so the catalogue stays visible (dimmed) behind it. This
+ * component supplies everything native chrome doesn't: the dim backdrop
+ * (tap it to dismiss, same as the close button), and the rounded card itself,
+ * pinned to the bottom and sized to `92%` of the screen — "most of the
+ * screen", not all of it, so the dimmed catalogue peeking above it is what
+ * reads as "this is a sheet over something" rather than just another page.
+ * `ProductSheet` wraps all three states (loading, not found, loaded) so the
+ * backdrop+card chrome never flickers in only after data resolves.
  */
+function ProductSheet({ children }: { children: ReactNode }) {
+  return (
+    <View className="flex-1 justify-end">
+      <Pressable
+        onPress={() => router.back()}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        className="bg-overlay absolute inset-0"
+      />
+      <View className="bg-background h-[92%] rounded-t-2xl overflow-hidden">
+        {children}
+      </View>
+    </View>
+  );
+}
+
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const cart = useCart();
@@ -80,9 +108,19 @@ export default function ProductDetailScreen() {
 
   // Loading first, always. Conflating `undefined` with `null` is what made the
   // old screen spin forever on a deleted product.
-  if (product === undefined) return <ProductSkeleton />;
+  if (product === undefined) {
+    return (
+      <ProductSheet>
+        <ProductSkeleton />
+      </ProductSheet>
+    );
+  }
   if (product === null) {
-    return <NotFoundState what="product" onBack={() => router.replace("/")} />;
+    return (
+      <ProductSheet>
+        <NotFoundState what="product" onBack={() => router.replace("/")} />
+      </ProductSheet>
+    );
   }
 
   // The old screen never read `status`, so an Inactive or Archived product
@@ -95,15 +133,14 @@ export default function ProductDetailScreen() {
   );
 
   return (
-    <SafeAreaView edges={["top"]} className="bg-background flex-1">
+    <ProductSheet>
+      <SafeAreaView edges={["bottom"]} className="bg-background flex-1">
       {/*
-        A close X, not a back chevron — this screen reads as a sheet over the
-        catalogue now, matching the reference design, even though it is still
-        the same shareable/deep-linkable route underneath (see the file
-        comment above). No cart icon here: the pinned bottom bar already is
-        the add-to-cart affordance, and the reference has none either.
+        A close X, not a back chevron — the top edge is the sheet's own
+        rounded corner, not the close affordance. No cart icon here: the
+        pinned bottom bar already is the add-to-cart affordance.
       */}
-      <View className="px-screen pt-space-3 flex-row justify-end">
+      <View className="px-screen pt-space-4 flex-row justify-end">
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
@@ -390,13 +427,14 @@ export default function ProductDetailScreen() {
           </Pressable>
         )}
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ProductSheet>
   );
 }
 
 function ProductSkeleton() {
   return (
-    <SafeAreaView edges={["top"]} className="bg-background flex-1">
+    <SafeAreaView edges={["bottom"]} className="bg-background flex-1">
       <View className="px-screen py-space-4 gap-space-2">
         <Skeleton className="h-[12px] w-1/4 rounded-sm" />
         <Skeleton className="h-[28px] w-3/4 rounded-sm" />

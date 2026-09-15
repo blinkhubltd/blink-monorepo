@@ -140,7 +140,24 @@ export default function RootLayout() {
             */}
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="product/[productId]" />
+                  {/*
+                    A bottom sheet, not a pushed page — `transparentModal` lets
+                    the catalogue show through behind it (the screen itself
+                    draws the dim backdrop + rounded card), and
+                    `slide_from_bottom` gives it the sheet's entrance. Still
+                    the same deep-linkable `/product/[productId]` route
+                    underneath: opened directly (a shared link, a cold start)
+                    it has no catalogue behind it, so the backdrop shows
+                    whatever this app's background colour is instead — a
+                    reasonable fallback, not a broken state.
+                  */}
+                  <Stack.Screen
+                    name="product/[productId]"
+                    options={{
+                      presentation: "transparentModal",
+                      animation: "slide_from_bottom",
+                    }}
+                  />
                   {/*
                     Search is a pushed route rather than a tab, matching the app
                     this replaces, which reached it from a control in the
