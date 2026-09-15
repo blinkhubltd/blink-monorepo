@@ -1,11 +1,17 @@
-import { useState, type ReactNode } from "react";
-import { Pressable, ScrollView, Share, View } from "react-native";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { Pressable, Share, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import BottomSheet, {
+  BottomSheetFooter,
+  BottomSheetScrollView,
+  BottomSheetView,
+  type BottomSheetFooterProps,
+} from "@gorhom/bottom-sheet";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
 import { Icon } from "../../components/icon";
+import { useTokenColors } from "../../lib/token-colors";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -63,39 +69,28 @@ import { SaveError, SavePrompt } from "../../components/save-prompt";
  * per-product delivery-window estimate computed anywhere in this app — so
  * showing either would be inventing information, not presenting it.
  *
- * ── A real bottom sheet, not a page styled to look like one ────────────────
+ * ── A real bottom sheet, via @gorhom/bottom-sheet ───────────────────────────
  *
  * `app/_layout.tsx` presents this route as `transparentModal` +
- * `slide_from_bottom`, so the catalogue stays visible (dimmed) behind it. This
- * component supplies everything native chrome doesn't: the dim backdrop
- * (tap it to dismiss, same as the close button), and the rounded card itself,
- * pinned to the bottom and sized to `92%` of the screen — "most of the
- * screen", not all of it, so the dimmed catalogue peeking above it is what
- * reads as "this is a sheet over something" rather than just another page.
- * `ProductSheet` wraps all three states (loading, not found, loaded) so the
- * backdrop+card chrome never flickers in only after data resolves.
+ * `slide_from_bottom`, so the catalogue stays mounted (and visible) behind it.
+ * `BottomSheet` itself supplies the rest: the rounded card at a single snap
+ * point (`92%` of the screen — "most of it", not all), the swipe-down-to-close
+ * gesture (`enablePanDownToClose`), and the drag handle. There is deliberately
+ * no `backdropComponent`, so the area above the sheet is plain and undimmed —
+ * the catalogue shows through as-is, not behind a scrim. `onClose` fires for
+ * every dismissal path (the close button via `sheetRef.close()`, the swipe,
+ * the OS back gesture closing the sheet before the route) and is the one place
+ * `router.back()` is called, so the two can never disagree about whether the
+ * sheet or the route closed first.
  */
-function ProductSheet({ children }: { children: ReactNode }) {
-  return (
-    <View className="flex-1 justify-end">
-      <Pressable
-        onPress={() => router.back()}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
-        className="bg-overlay absolute inset-0"
-      />
-      <View className="bg-background h-[92%] rounded-t-2xl overflow-hidden">
-        {children}
-      </View>
-    </View>
-  );
-}
-
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const cart = useCart();
   const wishlist = useWishlist();
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const colors = useTokenColors();
+  const sheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => ["92%"], []);
 
   const product = useQuery(
     api.data.products.getProductDetails,
@@ -106,335 +101,374 @@ export default function ProductDetailScreen() {
     productId ? { productId: productId as Id<"products">, limit: 4 } : "skip",
   );
 
-  // Loading first, always. Conflating `undefined` with `null` is what made the
-  // old screen spin forever on a deleted product.
-  if (product === undefined) {
-    return (
-      <ProductSheet>
-        <ProductSkeleton />
-      </ProductSheet>
-    );
-  }
-  if (product === null) {
-    return (
-      <ProductSheet>
-        <NotFoundState what="product" onBack={() => router.replace("/")} />
-      </ProductSheet>
-    );
-  }
+  const handleClose = () => sheetRef.current?.close();
 
   // The old screen never read `status`, so an Inactive or Archived product
   // rendered as fully buyable. `getRelatedProducts` filters on it; detail did
   // not — the two disagreed.
-  const sellable = product.status === "Active" && product.quantity > 0;
-  const inBasket = cart.quantityOf(product._id as Id<"products">);
-  const images = (product.images ?? []).filter(
-    (u): u is string => typeof u === "string" && u.length > 0,
-  );
+  const sellable = product
+    ? product.status === "Active" && product.quantity > 0
+    : false;
+  const inBasket = product
+    ? cart.quantityOf(product._id as Id<"products">)
+    : 0;
+  const images = product
+    ? (product.images ?? []).filter(
+        (u): u is string => typeof u === "string" && u.length > 0,
+      )
+    : [];
 
-  return (
-    <ProductSheet>
-      <SafeAreaView edges={["bottom"]} className="bg-background flex-1">
-      {/*
-        A close X, not a back chevron — the top edge is the sheet's own
-        rounded corner, not the close affordance. No cart icon here: the
-        pinned bottom bar already is the add-to-cart affordance.
-      */}
-      <View className="px-screen pt-space-4 flex-row justify-end">
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          className="size-control-sm rounded-pill bg-gray-200 items-center justify-center active:opacity-80"
-        >
-          <Icon name="close" size={18} tone="neutralIcon" />
-        </Pressable>
-      </View>
-
-      <ScrollView contentContainerClassName="pb-space-11">
-        <View className="gap-space-1 px-screen pb-space-3">
-          {product.vendor ? (
-            <Text size="sm" weight="medium" variant="muted">
-              More from Blink
-            </Text>
-          ) : null}
-          <Text size="h3" weight="bold">
-            {product.name}
-          </Text>
-        </View>
-
-        <View className="bg-muted aspect-[4/3] w-full">
-          {images[0] ? (
-            <OptimizedImage
-              source={{ uri: images[0] }}
-              contentFit="contain"
-              className={`h-full w-full rounded-none ${
-                sellable ? "" : "opacity-60"
-              }`}
-              accessibilityIgnoresInvertColors
-            />
-          ) : (
-            <View className="h-full w-full items-center justify-center">
-              <Text variant="subtle" size="sm">
-                No image
-              </Text>
-            </View>
-          )}
-
-          {/*
-            Share, over the image — in place of the wishlist heart on this
-            screen. Saving is still reachable from every card (the grid,
-            search, and the related-products rail below), so nothing is lost;
-            this is the one place a customer is looking at a single product
-            they might want to send to someone else.
-          */}
+  // Loading first, always. Conflating `undefined` with `null` is what made the
+  // old screen spin forever on a deleted product.
+  let body: ReactNode;
+  if (product === undefined) {
+    body = <ProductSkeleton />;
+  } else if (product === null) {
+    body = (
+      <BottomSheetView style={{ flex: 1 }}>
+        <NotFoundState what="product" onBack={() => router.replace("/")} />
+      </BottomSheetView>
+    );
+  } else {
+    body = (
+      <>
+        {/*
+          A close X, not a back chevron — the top edge is the sheet's own
+          handle/rounded corner, not the close affordance. No cart icon here:
+          the pinned bottom bar already is the add-to-cart affordance.
+        */}
+        <View className="px-screen pb-space-2 flex-row justify-end">
           <Pressable
-            onPress={() =>
-              void Share.share({
-                message: `Check out ${product.name} on Blink: https://blink.app/product/${product._id}`,
-                url: `https://blink.app/product/${product._id}`,
-              })
-            }
+            onPress={handleClose}
             accessibilityRole="button"
-            accessibilityLabel="Share this product"
-            hitSlop={8}
-            className="right-space-4 top-space-4 bg-gray-200 size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+            accessibilityLabel="Close"
+            className="size-control-sm rounded-pill bg-gray-200 items-center justify-center active:opacity-80"
           >
-            <Icon name="share-social-outline" size={20} tone="neutralIcon" />
+            <Icon name="close" size={18} tone="neutralIcon" />
           </Pressable>
         </View>
 
-        <SavePrompt
-          visible={wishlist.requiresSignIn}
-          onDismiss={wishlist.dismissSignIn}
-        />
-        <SaveError message={wishlist.error} onDismiss={wishlist.dismissError} />
-
-        <View className="gap-space-5 px-screen pt-space-5">
-          <View className="gap-space-1">
-            <View className="gap-space-2 flex-row flex-wrap items-center">
-              <Text variant="price" size="priceLg">
-                {formatKES(product.price)}
+        <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 44 }}>
+          <View className="gap-space-1 px-screen pb-space-3">
+            {product.vendor ? (
+              <Text size="sm" weight="medium" variant="muted">
+                More from Blink
               </Text>
-              {product.hasDiscount ? (
-                <>
-                  <Text size="base" variant="muted" className="line-through">
-                    {formatKES(product.originalPrice)}
-                  </Text>
-                  <Text size="sm" weight="bold" variant="destructive">
-                    {product.discountPercentage}% off
-                  </Text>
-                </>
-              ) : null}
-            </View>
-            <Text size="caption" variant="subtle">
-              Including VAT
+            ) : null}
+            <Text size="h3" weight="bold">
+              {product.name}
             </Text>
           </View>
 
-          <View className="gap-space-2 flex-row flex-wrap">
-            {!sellable ? (
-              <Badge variant="secondary" label="Currently unavailable" />
-            ) : product.isLowStock ? (
-              <Badge
-                variant="warning"
-                label={`Only ${product.quantity} left`}
+          <View className="bg-muted aspect-[4/3] w-full">
+            {images[0] ? (
+              <OptimizedImage
+                source={{ uri: images[0] }}
+                contentFit="contain"
+                className={`h-full w-full rounded-none ${
+                  sellable ? "" : "opacity-60"
+                }`}
+                accessibilityIgnoresInvertColors
               />
             ) : (
-              <Badge variant="success" label="In stock" />
+              <View className="h-full w-full items-center justify-center">
+                <Text variant="subtle" size="sm">
+                  No image
+                </Text>
+              </View>
             )}
-            {product.requires_prescription ? (
-              <Badge variant="info" label="Prescription needed" />
-            ) : null}
+
+            {/*
+              Share, over the image — in place of the wishlist heart on this
+              screen. Saving is still reachable from every card (the grid,
+              search, and the related-products rail below), so nothing is
+              lost; this is the one place a customer is looking at a single
+              product they might want to send to someone else.
+            */}
+            <Pressable
+              onPress={() =>
+                void Share.share({
+                  message: `Check out ${product.name} on Blink: https://blink.app/product/${product._id}`,
+                  url: `https://blink.app/product/${product._id}`,
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Share this product"
+              hitSlop={8}
+              className="right-space-4 top-space-4 bg-gray-200 size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+            >
+              <Icon name="share-social-outline" size={20} tone="neutralIcon" />
+            </Pressable>
           </View>
 
-          {product.requires_prescription ? (
-            <View className="bg-warning-soft p-space-4 gap-space-1 rounded-md">
-              <Text size="sm" weight="semibold">
-                This item needs a valid prescription
-              </Text>
-              <Text size="sm">
-                You will be asked to upload one at checkout before it can be
-                dispatched.
-              </Text>
-            </View>
-          ) : null}
+          <SavePrompt
+            visible={wishlist.requiresSignIn}
+            onDismiss={wishlist.dismissSignIn}
+          />
+          <SaveError
+            message={wishlist.error}
+            onDismiss={wishlist.dismissError}
+          />
 
-          {product.unit_value || product.unit_type || product.vendor ? (
-            <View className="gap-space-3 flex-row">
-              {product.unit_value || product.unit_type ? (
-                <View className="bg-secondary gap-space-1 p-space-3 flex-1 rounded-md">
-                  <Text size="caption" variant="subtle">
-                    Pack Size
-                  </Text>
-                  <Text size="sm" weight="semibold">
-                    {[product.unit_value, product.unit_type]
-                      .filter(Boolean)
-                      .join(" ")}
-                  </Text>
-                </View>
-              ) : null}
-              {product.vendor ? (
-                <View className="bg-secondary gap-space-1 p-space-3 flex-1 rounded-md">
-                  <Text size="caption" variant="subtle">
-                    Sold &amp; Shipped
-                  </Text>
-                  <Text size="sm" weight="semibold" numberOfLines={1}>
-                    Blink
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          {product.description ? (
-            <>
-              <Separator />
-              <View className="gap-space-3">
-                <Pressable
-                  onPress={() => setDescriptionExpanded((v) => !v)}
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: descriptionExpanded }}
-                  className="flex-row items-center justify-between"
-                >
-                  <Text size="base" weight="semibold">
-                    Description
-                  </Text>
-                  <Icon
-                    name={descriptionExpanded ? "remove" : "add"}
-                    size={18}
-                    tone="body"
-                  />
-                </Pressable>
-                {descriptionExpanded ? (
-                  <Text size="sm" variant="muted">
-                    {product.description}
-                  </Text>
+          <View className="gap-space-5 px-screen pt-space-5">
+            <View className="gap-space-1">
+              <View className="gap-space-2 flex-row flex-wrap items-center">
+                <Text variant="price" size="priceLg">
+                  {formatKES(product.price)}
+                </Text>
+                {product.hasDiscount ? (
+                  <>
+                    <Text
+                      size="base"
+                      variant="muted"
+                      className="line-through"
+                    >
+                      {formatKES(product.originalPrice)}
+                    </Text>
+                    <Text size="sm" weight="bold" variant="destructive">
+                      {product.discountPercentage}% off
+                    </Text>
+                  </>
                 ) : null}
               </View>
-            </>
-          ) : null}
+              <Text size="caption" variant="subtle">
+                Including VAT
+              </Text>
+            </View>
 
-          {related && related.length > 0 ? (
-            <>
-              <Separator />
-              <View className="gap-space-3">
-                <Text size="base" weight="semibold">
-                  You might also like
+            <View className="gap-space-2 flex-row flex-wrap">
+              {!sellable ? (
+                <Badge variant="secondary" label="Currently unavailable" />
+              ) : product.isLowStock ? (
+                <Badge
+                  variant="warning"
+                  label={`Only ${product.quantity} left`}
+                />
+              ) : (
+                <Badge variant="success" label="In stock" />
+              )}
+              {product.requires_prescription ? (
+                <Badge variant="info" label="Prescription needed" />
+              ) : null}
+            </View>
+
+            {product.requires_prescription ? (
+              <View className="bg-warning-soft p-space-4 gap-space-1 rounded-md">
+                <Text size="sm" weight="semibold">
+                  This item needs a valid prescription
                 </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerClassName="gap-space-4"
-                >
-                  {related.map((item) => (
-                    // The same card as the grid, at a fixed width. One card
-                    // component, two contexts.
-                    <View key={item._id} className="w-[156px]">
-                      <ProductCard
-                        product={{
-                          _id: item._id,
-                          name: item.name,
-                          price: item.price,
-                          quantity: item.quantity,
-                          unit_value: item.unit_value,
-                          unit_type: item.unit_type,
-                          requires_prescription: item.requires_prescription,
-                          imageUrl:
-                            (item.images ?? []).find(
-                              (u): u is string => typeof u === "string",
-                            ) ?? null,
-                          images: (item.images ?? []).filter(
-                            (u): u is string => typeof u === "string",
-                          ),
-                        }}
-                        quantityInCart={cart.quantityOf(
-                          item._id as Id<"products">,
-                        )}
-                        saved={wishlist.isSaved(item._id)}
-                        onToggleSave={() =>
-                          void wishlist.toggle(item._id as Id<"products">)
-                        }
-                        onPress={() =>
-                          // `replace`, not `push`: the old screen pushed, so
-                          // hopping through related products grew the stack
-                          // without bound and back never reached the category.
-                          router.replace(`/product/${item._id}`)
-                        }
-                        onAdd={() => cart.add(item._id as Id<"products">, 1)}
-                        onIncrement={() =>
-                          cart.increment(item._id as Id<"products">)
-                        }
-                        onDecrement={() =>
-                          cart.decrement(item._id as Id<"products">)
-                        }
-                      />
-                    </View>
-                  ))}
-                </ScrollView>
+                <Text size="sm">
+                  You will be asked to upload one at checkout before it can
+                  be dispatched.
+                </Text>
               </View>
-            </>
-          ) : null}
-        </View>
-      </ScrollView>
+            ) : null}
 
-      {/*
-        Pinned bar. One control, not a stepper plus a separate button: not in
-        the basket, it's a single "Add to basket" affordance; once it is, the
-        same space becomes the add/remove toggle. Going to the basket itself
-        is the cart tab's job, not this bar's.
-      */}
-      <View className="border-hairline border-border bg-card px-screen py-space-4 flex-row items-center">
-        {!sellable ? (
-          <Button size="lg" full disabled label="Unavailable" />
-        ) : inBasket > 0 ? (
-          <View className="h-control-lg gap-space-3 bg-primary px-space-3 flex-1 flex-row items-center justify-between rounded-md">
+            {product.unit_value || product.unit_type || product.vendor ? (
+              <View className="gap-space-3 flex-row">
+                {product.unit_value || product.unit_type ? (
+                  <View className="bg-secondary gap-space-1 p-space-3 flex-1 rounded-md">
+                    <Text size="caption" variant="subtle">
+                      Pack Size
+                    </Text>
+                    <Text size="sm" weight="semibold">
+                      {[product.unit_value, product.unit_type]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </Text>
+                  </View>
+                ) : null}
+                {product.vendor ? (
+                  <View className="bg-secondary gap-space-1 p-space-3 flex-1 rounded-md">
+                    <Text size="caption" variant="subtle">
+                      Sold &amp; Shipped
+                    </Text>
+                    <Text size="sm" weight="semibold" numberOfLines={1}>
+                      Blink
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {product.description ? (
+              <>
+                <Separator />
+                <View className="gap-space-3">
+                  <Pressable
+                    onPress={() => setDescriptionExpanded((v) => !v)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: descriptionExpanded }}
+                    className="flex-row items-center justify-between"
+                  >
+                    <Text size="base" weight="semibold">
+                      Description
+                    </Text>
+                    <Icon
+                      name={descriptionExpanded ? "remove" : "add"}
+                      size={18}
+                      tone="body"
+                    />
+                  </Pressable>
+                  {descriptionExpanded ? (
+                    <Text size="sm" variant="muted">
+                      {product.description}
+                    </Text>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
+            {related && related.length > 0 ? (
+              <>
+                <Separator />
+                <View className="gap-space-3">
+                  <Text size="base" weight="semibold">
+                    You might also like
+                  </Text>
+                  <BottomSheetScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 16 }}
+                  >
+                    {related.map((item) => (
+                      // The same card as the grid, at a fixed width. One card
+                      // component, two contexts.
+                      <View key={item._id} className="w-[156px]">
+                        <ProductCard
+                          product={{
+                            _id: item._id,
+                            name: item.name,
+                            price: item.price,
+                            quantity: item.quantity,
+                            unit_value: item.unit_value,
+                            unit_type: item.unit_type,
+                            requires_prescription: item.requires_prescription,
+                            imageUrl:
+                              (item.images ?? []).find(
+                                (u): u is string => typeof u === "string",
+                              ) ?? null,
+                            images: (item.images ?? []).filter(
+                              (u): u is string => typeof u === "string",
+                            ),
+                          }}
+                          quantityInCart={cart.quantityOf(
+                            item._id as Id<"products">,
+                          )}
+                          saved={wishlist.isSaved(item._id)}
+                          onToggleSave={() =>
+                            void wishlist.toggle(item._id as Id<"products">)
+                          }
+                          onPress={() =>
+                            // `replace`, not `push`: hopping through related
+                            // products should not grow the sheet's own stack
+                            // without bound.
+                            router.replace(`/product/${item._id}`)
+                          }
+                          onAdd={() =>
+                            cart.add(item._id as Id<"products">, 1)
+                          }
+                          onIncrement={() =>
+                            cart.increment(item._id as Id<"products">)
+                          }
+                          onDecrement={() =>
+                            cart.decrement(item._id as Id<"products">)
+                          }
+                        />
+                      </View>
+                    ))}
+                  </BottomSheetScrollView>
+                </View>
+              </>
+            ) : null}
+          </View>
+        </BottomSheetScrollView>
+      </>
+    );
+  }
+
+  const renderFooter = (props: BottomSheetFooterProps) =>
+    product ? (
+      <BottomSheetFooter {...props} bottomInset={0}>
+        {/*
+          Pinned bar. One control, not a stepper plus a separate button: not
+          in the basket, it's a single "Add to basket" affordance; once it
+          is, the same space becomes the add/remove toggle. Going to the
+          basket itself is the cart tab's job, not this bar's.
+        */}
+        <View className="border-hairline border-border bg-card px-screen py-space-4 flex-row items-center">
+          {!sellable ? (
+            <Button size="lg" full disabled label="Unavailable" />
+          ) : inBasket > 0 ? (
+            <View className="h-control-lg gap-space-3 bg-primary px-space-3 flex-1 flex-row items-center justify-between rounded-md">
+              <Pressable
+                onPress={() =>
+                  cart.decrement(product._id as Id<"products">)
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Remove one ${product.name}`}
+                hitSlop={8}
+                className="rounded-pill size-[36px] items-center justify-center active:opacity-70"
+              >
+                <Icon name="remove" size={20} tone="onBrand" />
+              </Pressable>
+              <Text variant="onBrand" size="base" weight="semibold">
+                {inBasket} in basket · {formatKES(product.price * inBasket)}
+              </Text>
+              <Pressable
+                onPress={() =>
+                  cart.increment(product._id as Id<"products">)
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Add another ${product.name}`}
+                hitSlop={8}
+                // Cannot exceed what the shop actually has.
+                disabled={inBasket >= product.quantity}
+                className="rounded-pill size-[36px] items-center justify-center active:opacity-70 disabled:opacity-40"
+              >
+                <Icon name="add" size={20} tone="onBrand" />
+              </Pressable>
+            </View>
+          ) : (
             <Pressable
-              onPress={() => cart.decrement(product._id as Id<"products">)}
+              onPress={() => cart.add(product._id as Id<"products">, 1)}
               accessibilityRole="button"
-              accessibilityLabel={`Remove one ${product.name}`}
-              hitSlop={8}
-              className="rounded-pill size-[36px] items-center justify-center active:opacity-70"
-            >
-              <Icon name="remove" size={20} tone="onBrand" />
-            </Pressable>
-            <Text variant="onBrand" size="base" weight="semibold">
-              {inBasket} in basket · {formatKES(product.price * inBasket)}
-            </Text>
-            <Pressable
-              onPress={() => cart.increment(product._id as Id<"products">)}
-              accessibilityRole="button"
-              accessibilityLabel={`Add another ${product.name}`}
-              hitSlop={8}
-              // Cannot exceed what the shop actually has.
-              disabled={inBasket >= product.quantity}
-              className="rounded-pill size-[36px] items-center justify-center active:opacity-70 disabled:opacity-40"
+              accessibilityLabel={`Add ${product.name} to basket`}
+              className="h-control-lg gap-space-2 bg-primary flex-1 flex-row items-center justify-center rounded-md active:opacity-90"
             >
               <Icon name="add" size={20} tone="onBrand" />
+              <Text variant="onBrand" size="base" weight="semibold">
+                Add to basket · {formatKES(product.price)}
+              </Text>
             </Pressable>
-          </View>
-        ) : (
-          <Pressable
-            onPress={() => cart.add(product._id as Id<"products">, 1)}
-            accessibilityRole="button"
-            accessibilityLabel={`Add ${product.name} to basket`}
-            className="h-control-lg gap-space-2 bg-primary flex-1 flex-row items-center justify-center rounded-md active:opacity-90"
-          >
-            <Icon name="add" size={20} tone="onBrand" />
-            <Text variant="onBrand" size="base" weight="semibold">
-              Add to basket · {formatKES(product.price)}
-            </Text>
-          </Pressable>
-        )}
-      </View>
-      </SafeAreaView>
-    </ProductSheet>
+          )}
+        </View>
+      </BottomSheetFooter>
+    ) : null;
+
+  return (
+    <BottomSheet
+      ref={sheetRef}
+      index={0}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      onClose={() => router.back()}
+      backgroundStyle={{
+        backgroundColor: colors.card,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+      }}
+      handleIndicatorStyle={{ backgroundColor: colors.border }}
+      footerComponent={renderFooter}
+    >
+      {body}
+    </BottomSheet>
   );
 }
 
 function ProductSkeleton() {
   return (
-    <SafeAreaView edges={["bottom"]} className="bg-background flex-1">
+    <BottomSheetView style={{ flex: 1 }}>
       <View className="px-screen py-space-4 gap-space-2">
         <Skeleton className="h-[12px] w-1/4 rounded-sm" />
         <Skeleton className="h-[28px] w-3/4 rounded-sm" />
@@ -446,6 +480,6 @@ function ProductSkeleton() {
         <Skeleton className="h-[15px] w-full rounded-sm" />
         <Skeleton className="h-[15px] w-5/6 rounded-sm" />
       </View>
-    </SafeAreaView>
+    </BottomSheetView>
   );
 }

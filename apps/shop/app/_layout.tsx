@@ -141,21 +141,24 @@ export default function RootLayout() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
                   {/*
-                    A bottom sheet, not a pushed page — `transparentModal` lets
-                    the catalogue show through behind it (the screen itself
-                    draws the dim backdrop + rounded card), and
-                    `slide_from_bottom` gives it the sheet's entrance. Still
+                    A bottom sheet (via @gorhom/bottom-sheet inside the
+                    screen), not a pushed page — `transparentModal` is what
+                    lets the catalogue show through, undimmed, behind it. The
+                    screen's own animation is `fade` rather than
+                    `slide_from_bottom`: the sheet's slide-up motion is
+                    `BottomSheet`'s own open animation, and stacking the
+                    navigator's slide on top of that doubled the motion. Still
                     the same deep-linkable `/product/[productId]` route
                     underneath: opened directly (a shared link, a cold start)
-                    it has no catalogue behind it, so the backdrop shows
-                    whatever this app's background colour is instead — a
-                    reasonable fallback, not a broken state.
+                    it has no catalogue behind it, so the sheet opens over
+                    this app's plain background instead — a reasonable
+                    fallback, not a broken state.
                   */}
                   <Stack.Screen
                     name="product/[productId]"
                     options={{
                       presentation: "transparentModal",
-                      animation: "slide_from_bottom",
+                      animation: "fade",
                     }}
                   />
                   {/*
