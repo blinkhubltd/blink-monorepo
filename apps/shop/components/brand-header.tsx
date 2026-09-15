@@ -111,7 +111,7 @@ export function BrandHeader({
             onPress={() => router.push("/addresses")}
             accessibilityRole="button"
             accessibilityLabel={`Delivery location: ${locationLabel}. Tap to change.`}
-            className="h-control-sm gap-space-2 rounded-pill bg-card flex-1 shrink flex-row items-center pl-[10px] pr-[6px] mr-space-4 active:opacity-90"
+            className="h-control-sm gap-space-2 rounded-pill bg-card shadow-xs flex-1 shrink flex-row items-center pl-[10px] pr-[6px] mr-space-4 active:opacity-90"
           >
             <Icon
               name={locationState === "denied" ? "alert-circle" : "location"}
@@ -121,7 +121,7 @@ export function BrandHeader({
             <Text size="sm" numberOfLines={1} className="shrink">
               {locationLabel}
             </Text>
-            <View className="size-[20px] bg-secondary rounded-pill items-center justify-center">
+            <View className="size-[20px] bg-secondary border-hairline border-strong rounded-pill items-center justify-center">
               <Icon name="chevron-down" size={12} tone="body" />
             </View>
           </Pressable>

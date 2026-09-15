@@ -43,7 +43,7 @@ export function ScreenHeader({
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Back"
-          className="size-control-sm rounded-pill bg-secondary items-center justify-center active:opacity-90"
+          className="size-control-sm rounded-pill bg-secondary border-hairline border-strong items-center justify-center active:opacity-90"
         >
           <Icon name="chevron-back" size={18} tone="strong" />
         </Pressable>

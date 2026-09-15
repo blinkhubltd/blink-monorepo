@@ -138,7 +138,7 @@ export function ClearanceCard({
                 accessibilityRole="button"
                 accessibilityLabel={`Add ${deal.name}`}
                 hitSlop={6}
-                className="bg-primary size-control-sm rounded-pill items-center justify-center active:opacity-80"
+                className="bg-primary size-control-sm rounded-pill shadow-md items-center justify-center active:opacity-80"
               >
                 <Icon name="add" size={20} tone="onBrand" />
               </Pressable>

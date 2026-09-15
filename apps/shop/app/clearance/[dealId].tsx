@@ -219,7 +219,7 @@ export default function ClearanceDealScreen() {
       {/* Pinned action, with the price beside it so it never scrolls away. */}
       <View className="border-hairline border-border bg-card px-screen py-space-3 gap-space-3 flex-row items-center">
         {!unavailable ? (
-          <View className="h-control gap-space-2 rounded-pill bg-muted px-space-2 flex-row items-center">
+          <View className="h-control gap-space-2 rounded-pill bg-muted border-hairline border-strong px-space-2 flex-row items-center">
             <Pressable
               onPress={() => setQuantity((q) => Math.max(1, q - 1))}
               accessibilityRole="button"

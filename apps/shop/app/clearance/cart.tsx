@@ -208,7 +208,7 @@ export default function ClearanceCartScreen() {
 
                 {item.sellable ? (
                   <View className="gap-space-2 pt-space-1 flex-row items-center">
-                    <View className="h-control-sm gap-space-1 rounded-pill bg-muted px-space-1 flex-row items-center">
+                    <View className="h-control-sm gap-space-1 rounded-pill bg-muted border-hairline border-strong px-space-1 flex-row items-center">
                       <Pressable
                         onPress={() =>
                           change(
