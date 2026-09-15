@@ -151,11 +151,16 @@ export default function ProductDetailScreen() {
         <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 44 }}>
           <View className="gap-space-1 px-screen pb-space-3">
             {product.vendor ? (
-              <Text size="sm" weight="medium" variant="muted">
+              <Text
+                size="sm"
+                weight="medium"
+                variant="muted"
+                style={{ color: colors.body }}
+              >
                 More from Blink
               </Text>
             ) : null}
-            <Text size="h3" weight="bold">
+            <Text size="h3" weight="bold" style={{ color: colors.strong }}>
               {product.name}
             </Text>
           </View>
@@ -172,7 +177,7 @@ export default function ProductDetailScreen() {
               />
             ) : (
               <View className="h-full w-full items-center justify-center">
-                <Text variant="subtle" size="sm">
+                <Text variant="subtle" size="sm" style={{ color: colors.subtle }}>
                   No image
                 </Text>
               </View>
@@ -213,7 +218,11 @@ export default function ProductDetailScreen() {
           <View className="gap-space-5 px-screen pt-space-5">
             <View className="gap-space-1">
               <View className="gap-space-2 flex-row flex-wrap items-center">
-                <Text variant="price" size="priceLg">
+                <Text
+                  variant="price"
+                  size="priceLg"
+                  style={{ color: colors.price }}
+                >
                   {formatKES(product.price)}
                 </Text>
                 {product.hasDiscount ? (
@@ -222,16 +231,26 @@ export default function ProductDetailScreen() {
                       size="base"
                       variant="muted"
                       className="line-through"
+                      style={{ color: colors.body }}
                     >
                       {formatKES(product.originalPrice)}
                     </Text>
-                    <Text size="sm" weight="bold" variant="destructive">
+                    <Text
+                      size="sm"
+                      weight="bold"
+                      variant="destructive"
+                      style={{ color: colors.destructive }}
+                    >
                       {product.discountPercentage}% off
                     </Text>
                   </>
                 ) : null}
               </View>
-              <Text size="caption" variant="subtle">
+              <Text
+                size="caption"
+                variant="subtle"
+                style={{ color: colors.subtle }}
+              >
                 Including VAT
               </Text>
             </View>
@@ -301,7 +320,11 @@ export default function ProductDetailScreen() {
                     accessibilityState={{ expanded: descriptionExpanded }}
                     className="flex-row items-center justify-between"
                   >
-                    <Text size="base" weight="semibold">
+                    <Text
+                      size="base"
+                      weight="semibold"
+                      style={{ color: colors.strong }}
+                    >
                       Description
                     </Text>
                     <Icon
@@ -311,7 +334,11 @@ export default function ProductDetailScreen() {
                     />
                   </Pressable>
                   {descriptionExpanded ? (
-                    <Text size="sm" variant="muted">
+                    <Text
+                      size="sm"
+                      variant="muted"
+                      style={{ color: colors.body }}
+                    >
                       {product.description}
                     </Text>
                   ) : null}
@@ -323,7 +350,11 @@ export default function ProductDetailScreen() {
               <>
                 <Separator />
                 <View className="gap-space-3">
-                  <Text size="base" weight="semibold">
+                  <Text
+                    size="base"
+                    weight="semibold"
+                    style={{ color: colors.strong }}
+                  >
                     You might also like
                   </Text>
                   <BottomSheetScrollView
@@ -396,7 +427,13 @@ export default function ProductDetailScreen() {
           is, the same space becomes the add/remove toggle. Going to the
           basket itself is the cart tab's job, not this bar's.
         */}
-        <View className="border-hairline border-border bg-card px-screen py-space-4 flex-row items-center">
+        <View
+          className="border-hairline px-screen py-space-4 flex-row items-center"
+          style={{
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+          }}
+        >
           {!sellable ? (
             <Button size="lg" full disabled label="Unavailable" />
           ) : inBasket > 0 ? (

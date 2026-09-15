@@ -36,6 +36,12 @@ import { useColorScheme } from "nativewind";
 export type TokenColor =
   /** --color-strong — headings, primary icon weight */
   | "strong"
+  /**
+   * --color-foreground — default body text. Only needed where a `Text`'s
+   * colour has to be pinned via `style` rather than its usual `className`;
+   * see the note on `useTokenColors` about why that's sometimes necessary.
+   */
+  | "foreground"
   /** --color-muted-foreground — the default icon weight */
   | "body"
   /** --color-subtle — de-emphasised icons, placeholders */
@@ -69,6 +75,7 @@ export type TokenColor =
 
 const LIGHT = {
   strong: "#0A0E16",
+  foreground: "#242A36",
   body: "#5A6372",
   subtle: "#818A99",
   onBrand: "#0A0E16",
@@ -88,6 +95,7 @@ const LIGHT = {
 
 const DARK = {
   strong: "#FFFFFF",
+  foreground: "#E4E7EC",
   body: "#A8B0BC",
   subtle: "#818A99",
   onBrand: "#0A0E16", // the yellow does not flip, so neither does its foreground
@@ -113,6 +121,19 @@ export const TOKEN_COLORS = { light: LIGHT, dark: DARK };
  * `useColorScheme` here is NativeWind's, the same one `app/_layout.tsx` reads
  * for the status bar — not React Native's — so it follows NativeWind's notion of
  * the active scheme and stays in step with what the classes are doing.
+ *
+ * ── A second reason to need this, beyond "the prop isn't className" ────────
+ *
+ * `app/product/[productId].tsx`'s sheet is the first place in this app where
+ * `className`-resolved colours and a `style`-driven colour disagreed on the
+ * active scheme at the same time: `@gorhom/bottom-sheet`'s `backgroundStyle`
+ * (a plain prop, always correct) rendered the sheet's own background in dark
+ * mode, while ordinary `<Text>`/`<View>` children a few lines below it, using
+ * `variant`/`bg-*` classes exactly like everywhere else in the app, kept
+ * resolving to their light-mode colours regardless — black text on a dark
+ * sheet. Content that sits directly on a colour supplied through this file
+ * pins its own colour through this file too, rather than trusting the two to
+ * agree.
  */
 export function useTokenColors(): Record<TokenColor, string> {
   const { colorScheme } = useColorScheme();
