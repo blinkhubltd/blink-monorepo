@@ -131,7 +131,7 @@ export default function ProductDetailScreen() {
             <OptimizedImage
               source={{ uri: images[0] }}
               contentFit="contain"
-              className={`p-space-6 h-full w-full rounded-none ${
+              className={`h-full w-full rounded-none ${
                 sellable ? "" : "opacity-60"
               }`}
               accessibilityIgnoresInvertColors
