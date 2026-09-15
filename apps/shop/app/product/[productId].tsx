@@ -1,16 +1,24 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Pressable, Share, View } from "react-native";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Pressable,
+  Share,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import BottomSheet, {
   BottomSheetFooter,
   BottomSheetScrollView,
   BottomSheetView,
   type BottomSheetFooterProps,
+  type BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
 import { Icon } from "../../components/icon";
+import { SheetBackdrop } from "../../components/sheet-backdrop";
 import { useTokenColors } from "../../lib/token-colors";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -72,16 +80,17 @@ import { SaveError, SavePrompt } from "../../components/save-prompt";
  * ── A real bottom sheet, via @gorhom/bottom-sheet ───────────────────────────
  *
  * `app/_layout.tsx` presents this route as `transparentModal` +
- * `slide_from_bottom`, so the catalogue stays mounted (and visible) behind it.
- * `BottomSheet` itself supplies the rest: the rounded card at a single snap
- * point (`92%` of the screen — "most of it", not all), the swipe-down-to-close
- * gesture (`enablePanDownToClose`), and the drag handle. There is deliberately
- * no `backdropComponent`, so the area above the sheet is plain and undimmed —
- * the catalogue shows through as-is, not behind a scrim. `onClose` fires for
- * every dismissal path (the close button via `sheetRef.close()`, the swipe,
- * the OS back gesture closing the sheet before the route) and is the one place
- * `router.back()` is called, so the two can never disagree about whether the
- * sheet or the route closed first.
+ * `slide_from_bottom`, so the catalogue stays mounted behind it. `BottomSheet`
+ * itself supplies the rest: the rounded card at a single snap point (`92%` of
+ * the screen — "most of it", not all), the swipe-down-to-close gesture
+ * (`enablePanDownToClose`), and the drag handle. `backdropComponent` is
+ * `SheetBackdrop` (components/sheet-backdrop.tsx), not gorhom's own — theirs
+ * fades in lockstep with the sheet's entire rise, which read as the dimming
+ * itself sliding up together with the sheet; this one reaches full opacity
+ * almost immediately instead. `onClose` fires for every dismissal path (the
+ * close button via `sheetRef.close()`, the swipe, the backdrop tap, the OS
+ * back gesture) and is the one place `router.back()` is called, so none of
+ * them can disagree about whether the sheet or the route closed first.
  */
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
@@ -91,6 +100,15 @@ export default function ProductDetailScreen() {
   const colors = useTokenColors();
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["92%"], []);
+
+  // ── The image gallery ──
+  //
+  // Matches the product card's carousel: every image, auto-advancing every
+  // 2s, still manually swipeable. Width is measured on layout since it spans
+  // whatever the sheet's own width turns out to be, not a fixed value.
+  const [imageWidth, setImageWidth] = useState(0);
+  const [activeImage, setActiveImage] = useState(0);
+  const galleryRef = useRef<BottomSheetScrollViewMethods>(null);
 
   const product = useQuery(
     api.data.products.getProductDetails,
@@ -117,6 +135,28 @@ export default function ProductDetailScreen() {
         (u): u is string => typeof u === "string" && u.length > 0,
       )
     : [];
+
+  useEffect(() => {
+    if (images.length <= 1 || imageWidth === 0) return;
+    const timer = setInterval(() => {
+      setActiveImage((prev) => {
+        const next = (prev + 1) % images.length;
+        galleryRef.current?.scrollTo({ x: next * imageWidth, animated: true });
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(timer);
+    // `images` is a freshly filtered array every render; its length is the
+    // real dependency, not the array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images.length, imageWidth]);
+
+  const handleGalleryScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    if (imageWidth === 0) return;
+    setActiveImage(Math.round(e.nativeEvent.contentOffset.x / imageWidth));
+  };
 
   // Loading first, always. Conflating `undefined` with `null` is what made the
   // old screen spin forever on a deleted product.
@@ -151,17 +191,45 @@ export default function ProductDetailScreen() {
         <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 44 }}>
           <View className="gap-space-1 px-screen pb-space-3">
             {product.vendor ? (
-              <Text size="sm" weight="medium" variant="muted">
+              <Text
+                size="sm"
+                weight="medium"
+                variant="muted"
+                style={{ color: colors.body }}
+              >
                 More from Blink
               </Text>
             ) : null}
-            <Text size="h3" weight="bold">
+            <Text size="h3" weight="bold" style={{ color: colors.strong }}>
               {product.name}
             </Text>
           </View>
 
-          <View className="bg-muted aspect-[4/3] w-full">
-            {images[0] ? (
+          <View
+            className="bg-muted aspect-[4/3] w-full"
+            onLayout={(e) => setImageWidth(e.nativeEvent.layout.width)}
+          >
+            {images.length > 1 && imageWidth > 0 ? (
+              <BottomSheetScrollView
+                ref={galleryRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={handleGalleryScrollEnd}
+                style={{ height: (imageWidth * 3) / 4 }}
+              >
+                {images.map((uri, index) => (
+                  <OptimizedImage
+                    key={index}
+                    source={{ uri }}
+                    contentFit="contain"
+                    style={{ width: imageWidth, height: (imageWidth * 3) / 4 }}
+                    className={`rounded-none ${sellable ? "" : "opacity-60"}`}
+                    accessibilityIgnoresInvertColors
+                  />
+                ))}
+              </BottomSheetScrollView>
+            ) : images[0] ? (
               <OptimizedImage
                 source={{ uri: images[0] }}
                 contentFit="contain"
@@ -172,7 +240,11 @@ export default function ProductDetailScreen() {
               />
             ) : (
               <View className="h-full w-full items-center justify-center">
-                <Text variant="subtle" size="sm">
+                <Text
+                  variant="subtle"
+                  size="sm"
+                  style={{ color: colors.subtle }}
+                >
                   No image
                 </Text>
               </View>
@@ -201,6 +273,20 @@ export default function ProductDetailScreen() {
             </Pressable>
           </View>
 
+          {/* Gallery position, matching the product card's dot row. */}
+          {images.length > 1 ? (
+            <View className="gap-space-1 px-screen pt-space-2 flex-row">
+              {images.map((_, index) => (
+                <View
+                  key={index}
+                  className={`h-[4px] rounded-pill ${
+                    index === activeImage ? "w-[10px] bg-strong" : "w-[4px] bg-border"
+                  }`}
+                />
+              ))}
+            </View>
+          ) : null}
+
           <SavePrompt
             visible={wishlist.requiresSignIn}
             onDismiss={wishlist.dismissSignIn}
@@ -213,7 +299,7 @@ export default function ProductDetailScreen() {
           <View className="gap-space-5 px-screen pt-space-5">
             <View className="gap-space-1">
               <View className="gap-space-2 flex-row flex-wrap items-center">
-                <Text variant="price" size="priceLg">
+                <Text size="priceLg" weight="bold" style={{ color: colors.strong }}>
                   {formatKES(product.price)}
                 </Text>
                 {product.hasDiscount ? (
@@ -222,16 +308,26 @@ export default function ProductDetailScreen() {
                       size="base"
                       variant="muted"
                       className="line-through"
+                      style={{ color: colors.body }}
                     >
                       {formatKES(product.originalPrice)}
                     </Text>
-                    <Text size="sm" weight="bold" variant="destructive">
+                    <Text
+                      size="sm"
+                      weight="bold"
+                      variant="destructive"
+                      style={{ color: colors.destructive }}
+                    >
                       {product.discountPercentage}% off
                     </Text>
                   </>
                 ) : null}
               </View>
-              <Text size="caption" variant="subtle">
+              <Text
+                size="caption"
+                variant="subtle"
+                style={{ color: colors.subtle }}
+              >
                 Including VAT
               </Text>
             </View>
@@ -301,7 +397,11 @@ export default function ProductDetailScreen() {
                     accessibilityState={{ expanded: descriptionExpanded }}
                     className="flex-row items-center justify-between"
                   >
-                    <Text size="base" weight="semibold">
+                    <Text
+                      size="base"
+                      weight="semibold"
+                      style={{ color: colors.strong }}
+                    >
                       Description
                     </Text>
                     <Icon
@@ -311,7 +411,11 @@ export default function ProductDetailScreen() {
                     />
                   </Pressable>
                   {descriptionExpanded ? (
-                    <Text size="sm" variant="muted">
+                    <Text
+                      size="sm"
+                      variant="muted"
+                      style={{ color: colors.body }}
+                    >
                       {product.description}
                     </Text>
                   ) : null}
@@ -323,7 +427,11 @@ export default function ProductDetailScreen() {
               <>
                 <Separator />
                 <View className="gap-space-3">
-                  <Text size="base" weight="semibold">
+                  <Text
+                    size="base"
+                    weight="semibold"
+                    style={{ color: colors.strong }}
+                  >
                     You might also like
                   </Text>
                   <BottomSheetScrollView
@@ -396,7 +504,13 @@ export default function ProductDetailScreen() {
           is, the same space becomes the add/remove toggle. Going to the
           basket itself is the cart tab's job, not this bar's.
         */}
-        <View className="border-hairline border-border bg-card px-screen py-space-4 flex-row items-center">
+        <View
+          className="border-hairline px-screen py-space-4 flex-row items-center"
+          style={{
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+          }}
+        >
           {!sellable ? (
             <Button size="lg" full disabled label="Unavailable" />
           ) : inBasket > 0 ? (
@@ -451,6 +565,11 @@ export default function ProductDetailScreen() {
       ref={sheetRef}
       index={0}
       snapPoints={snapPoints}
+      // v5 defaults this to true, which sizes the sheet to its content's
+      // measured height instead of the snap point — that's what was
+      // collapsing it down to ~30% right after the open animation reached
+      // 92%. Explicit snapPoints means explicit sizing, not measured.
+      enableDynamicSizing={false}
       enablePanDownToClose
       onClose={() => router.back()}
       backgroundStyle={{
@@ -460,6 +579,13 @@ export default function ProductDetailScreen() {
       }}
       handleIndicatorStyle={{ backgroundColor: colors.border }}
       footerComponent={renderFooter}
+      backdropComponent={(props) => (
+        <SheetBackdrop
+          {...props}
+          onPress={handleClose}
+          overlayColor={colors.overlay}
+        />
+      )}
     >
       {body}
     </BottomSheet>
