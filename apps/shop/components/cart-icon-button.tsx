@@ -35,10 +35,31 @@ export function CartIconButton({ plain = false }: { plain?: boolean }) {
         tone={plain ? "strong" : "onBrandPill"}
       />
       {count > 0 ? (
-        <View className="bg-destructive right-[1px] top-[1px] min-w-[14px] h-[14px] rounded-pill absolute items-center justify-center px-[3px]">
-          {/* No white-on-destructive Text variant exists yet, and this is its
-              only consumer — an override, not a case for a new shared variant. */}
-          <Text size="caption" weight="bold" className="text-destructive-foreground">
+        <View
+          className="bg-destructive rounded-pill absolute items-center justify-center"
+          style={{
+            right: -4,
+            top: -4,
+            minWidth: 16,
+            height: 16,
+            paddingHorizontal: count > 9 ? 4 : 0,
+          }}
+        >
+          {/*
+            No white-on-destructive Text variant exists yet, and this is its
+            only consumer — an override, not a case for a new shared variant.
+
+            `size="caption"` is the DS's smallest type step, but even that is
+            11px/15px — a 15px line height inside a 16px-tall badge is what
+            was making the digit sit low and the whole thing read as
+            oversized for a single character. A fixed, tight lineHeight equal
+            to the font size is what a numeral this small actually needs.
+          */}
+          <Text
+            weight="bold"
+            className="text-destructive-foreground"
+            style={{ fontSize: 10, lineHeight: 12 }}
+          >
             {count > 99 ? "99+" : count}
           </Text>
         </View>
