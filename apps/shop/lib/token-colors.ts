@@ -65,6 +65,8 @@ export type TokenColor =
   | "border"
   /** --color-card — surfaces in style objects */
   | "card"
+  /** --color-overlay — a sheet/dialog's dim backdrop, in style objects */
+  | "overlay"
   /**
    * Tailwind's gray-800, fixed in both modes — for an icon on a plain
    * `bg-gray-200` pill (the back/close chip family). Deliberately not a
@@ -90,6 +92,7 @@ const LIGHT = {
   transit: "#EA580C",
   border: "#E4E7EC",
   card: "#FFFFFF",
+  overlay: "rgba(10, 14, 22, 0.55)",
   neutralIcon: "#1F2937",
 } satisfies Record<TokenColor, string>;
 
@@ -110,6 +113,7 @@ const DARK = {
   transit: "#FB923C",
   border: "#242A36",
   card: "#151A24",
+  overlay: "rgba(10, 14, 22, 0.72)",
   neutralIcon: "#1F2937",
 } satisfies Record<TokenColor, string>;
 

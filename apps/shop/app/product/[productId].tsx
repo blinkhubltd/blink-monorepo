@@ -18,6 +18,7 @@ import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
 import { Icon } from "../../components/icon";
+import { SheetBackdrop } from "../../components/sheet-backdrop";
 import { useTokenColors } from "../../lib/token-colors";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -79,16 +80,17 @@ import { SaveError, SavePrompt } from "../../components/save-prompt";
  * ── A real bottom sheet, via @gorhom/bottom-sheet ───────────────────────────
  *
  * `app/_layout.tsx` presents this route as `transparentModal` +
- * `slide_from_bottom`, so the catalogue stays mounted (and visible) behind it.
- * `BottomSheet` itself supplies the rest: the rounded card at a single snap
- * point (`92%` of the screen — "most of it", not all), the swipe-down-to-close
- * gesture (`enablePanDownToClose`), and the drag handle. There is deliberately
- * no `backdropComponent`, so the area above the sheet is plain and undimmed —
- * the catalogue shows through as-is, not behind a scrim. `onClose` fires for
- * every dismissal path (the close button via `sheetRef.close()`, the swipe,
- * the OS back gesture closing the sheet before the route) and is the one place
- * `router.back()` is called, so the two can never disagree about whether the
- * sheet or the route closed first.
+ * `slide_from_bottom`, so the catalogue stays mounted behind it. `BottomSheet`
+ * itself supplies the rest: the rounded card at a single snap point (`92%` of
+ * the screen — "most of it", not all), the swipe-down-to-close gesture
+ * (`enablePanDownToClose`), and the drag handle. `backdropComponent` is
+ * `SheetBackdrop` (components/sheet-backdrop.tsx), not gorhom's own — theirs
+ * fades in lockstep with the sheet's entire rise, which read as the dimming
+ * itself sliding up together with the sheet; this one reaches full opacity
+ * almost immediately instead. `onClose` fires for every dismissal path (the
+ * close button via `sheetRef.close()`, the swipe, the backdrop tap, the OS
+ * back gesture) and is the one place `router.back()` is called, so none of
+ * them can disagree about whether the sheet or the route closed first.
  */
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
@@ -577,6 +579,13 @@ export default function ProductDetailScreen() {
       }}
       handleIndicatorStyle={{ backgroundColor: colors.border }}
       footerComponent={renderFooter}
+      backdropComponent={(props) => (
+        <SheetBackdrop
+          {...props}
+          onPress={handleClose}
+          overlayColor={colors.overlay}
+        />
+      )}
     >
       {body}
     </BottomSheet>
