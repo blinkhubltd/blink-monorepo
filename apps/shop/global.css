@@ -108,7 +108,19 @@
      * gray-100/gray-200 relationship the reference design leans on. NOTE this
      * relation inverts in dark; see there. */
     --color-hairline-soft: #eff1f5; /* ink-100 */
-    --color-input: #e4e7ec;
+    /*
+     * Deliberately NOT the same value as --color-border. It was, and the bug
+     * was exactly what that sounds like: an Input's own box (bg-card,
+     * border-input) sitting inside a SectionCard (also bg-card, border-border)
+     * had no visible edge at all — same white fill, same near-invisible
+     * hairline, so a bordered card full of "invisible" input boxes read as a
+     * single undifferentiated block with no clue where to tap. ink-300, one
+     * real step darker than the hairline, is what gives every Input a
+     * boundary against a card behind it. Dark mode never had this bug —
+     * --color-input there (ink-700) was already a distinct step from
+     * --color-border (ink-800).
+     */
+    --color-input: #cbd2d9;
     --color-ring: #0a0e16;
     --color-overlay: rgba(10, 14, 22, 0.55);
   }

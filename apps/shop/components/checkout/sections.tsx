@@ -27,7 +27,19 @@ export function SectionCard({
   return (
     <View className="border-hairline border-border bg-card gap-space-3 p-space-5 rounded-lg">
       <View className="gap-space-3 flex-row items-center justify-between">
-        <Text size="base" weight="semibold">
+        {/*
+          A card kicker, not a peer-weight heading: small caps at the same
+          size as a field label, so it reads as "here is what this card is
+          about" rather than competing with the fields it introduces for the
+          same visual weight — which is what made a form of several cards
+          feel like a wall of oversized headings.
+        */}
+        <Text
+          size="label"
+          weight="bold"
+          variant="subtle"
+          className="uppercase tracking-label"
+        >
           {title}
         </Text>
         {action}
