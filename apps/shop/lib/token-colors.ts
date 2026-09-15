@@ -58,7 +58,14 @@ export type TokenColor =
   /** --color-border — hairlines in style objects */
   | "border"
   /** --color-card — surfaces in style objects */
-  | "card";
+  | "card"
+  /**
+   * Tailwind's gray-800, fixed in both modes — for an icon on a plain
+   * `bg-gray-200` pill (the back/close chip family). Deliberately not a
+   * `--color-*` var: this pairing is a fixed light-gray chip by request,
+   * not a themed surface that should flip in dark mode.
+   */
+  | "neutralIcon";
 
 const LIGHT = {
   strong: "#0A0E16",
@@ -76,6 +83,7 @@ const LIGHT = {
   transit: "#EA580C",
   border: "#E4E7EC",
   card: "#FFFFFF",
+  neutralIcon: "#1F2937",
 } satisfies Record<TokenColor, string>;
 
 const DARK = {
@@ -94,6 +102,7 @@ const DARK = {
   transit: "#FB923C",
   border: "#242A36",
   card: "#151A24",
+  neutralIcon: "#1F2937",
 } satisfies Record<TokenColor, string>;
 
 export const TOKEN_COLORS = { light: LIGHT, dark: DARK };

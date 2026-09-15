@@ -47,7 +47,7 @@ export function LowStockBanner({ className }: LowStockBannerProps) {
   // string the query used to trust as-is.
   const stockAlerts = useQuery(
     api.data.stock_alerts.getStockAlerts,
-    user
+    user?.role
       ? {
           vendorId: vendorId,
         }

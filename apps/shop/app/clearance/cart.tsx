@@ -208,7 +208,7 @@ export default function ClearanceCartScreen() {
 
                 {item.sellable ? (
                   <View className="gap-space-2 pt-space-1 flex-row items-center">
-                    <View className="h-control-sm gap-space-1 rounded-pill bg-muted border-hairline border-strong px-space-1 flex-row items-center">
+                    <View className="h-control-sm gap-space-1 rounded-pill bg-gray-200 px-space-1 flex-row items-center">
                       <Pressable
                         onPress={() =>
                           change(
@@ -221,12 +221,12 @@ export default function ClearanceCartScreen() {
                         hitSlop={6}
                         className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
                       >
-                        <Icon name="remove" size={14} tone="strong" />
+                        <Icon name="remove" size={14} tone="neutralIcon" />
                       </Pressable>
                       <Text
                         size="label"
                         weight="semibold"
-                        className="min-w-[16px] text-center"
+                        className="min-w-[16px] text-center text-gray-800"
                       >
                         {item.quantity}
                       </Text>
@@ -241,7 +241,7 @@ export default function ClearanceCartScreen() {
                         disabled={item.quantity >= item.available}
                         className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-40"
                       >
-                        <Icon name="add" size={14} tone="strong" />
+                        <Icon name="add" size={14} tone="neutralIcon" />
                       </Pressable>
                     </View>
                     <View className="flex-1" />

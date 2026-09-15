@@ -198,9 +198,7 @@ export function ProductCard({
                 source={{ uri }}
                 contentFit="contain"
                 style={{ width: imageWidth, height: imageWidth }}
-                className={`p-space-3 rounded-none ${
-                  outOfStock ? "opacity-60" : ""
-                }`}
+                className={`rounded-none ${outOfStock ? "opacity-60" : ""}`}
                 accessibilityIgnoresInvertColors
               />
             ))}
@@ -209,7 +207,7 @@ export function ProductCard({
           <OptimizedImage
             source={{ uri: gallery[0] }}
             contentFit="contain"
-            className={`p-space-3 h-full w-full rounded-none ${
+            className={`h-full w-full rounded-none ${
               outOfStock ? "opacity-60" : ""
             }`}
             accessibilityIgnoresInvertColors

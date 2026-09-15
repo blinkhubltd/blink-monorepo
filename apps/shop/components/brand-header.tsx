@@ -121,8 +121,8 @@ export function BrandHeader({
             <Text size="sm" numberOfLines={1} className="shrink">
               {locationLabel}
             </Text>
-            <View className="size-[20px] bg-secondary border-hairline border-strong rounded-pill items-center justify-center">
-              <Icon name="chevron-down" size={12} tone="body" />
+            <View className="size-[20px] bg-gray-200 rounded-pill items-center justify-center">
+              <Icon name="chevron-down" size={12} tone="neutralIcon" />
             </View>
           </Pressable>
         ) : showBack ? (

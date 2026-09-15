@@ -43,9 +43,9 @@ export function ScreenHeader({
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Back"
-          className="size-control-sm rounded-pill bg-secondary border-hairline border-strong items-center justify-center active:opacity-90"
+          className="size-control-sm rounded-pill bg-gray-200 items-center justify-center active:opacity-90"
         >
-          <Icon name="chevron-back" size={18} tone="strong" />
+          <Icon name="chevron-back" size={18} tone="neutralIcon" />
         </Pressable>
       ) : (
         // A spacer, so a root screen's title still starts at the same inset
