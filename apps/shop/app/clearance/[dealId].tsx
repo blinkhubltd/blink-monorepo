@@ -219,7 +219,7 @@ export default function ClearanceDealScreen() {
       {/* Pinned action, with the price beside it so it never scrolls away. */}
       <View className="border-hairline border-border bg-card px-screen py-space-3 gap-space-3 flex-row items-center">
         {!unavailable ? (
-          <View className="h-control gap-space-2 rounded-pill bg-muted border-hairline border-strong px-space-2 flex-row items-center">
+          <View className="h-control gap-space-2 rounded-pill bg-inverse px-space-2 flex-row items-center">
             <Pressable
               onPress={() => setQuantity((q) => Math.max(1, q - 1))}
               accessibilityRole="button"
@@ -228,9 +228,9 @@ export default function ClearanceDealScreen() {
               disabled={quantity <= 1}
               className="rounded-pill size-[32px] items-center justify-center active:opacity-70 disabled:opacity-40"
             >
-              <Icon name="remove" size={16} tone="strong" />
+              <Icon name="remove" size={16} tone="onInverse" />
             </Pressable>
-            <Text size="sm" weight="semibold" className="min-w-[20px] text-center">
+            <Text variant="onInverse" size="sm" weight="semibold" className="min-w-[20px] text-center">
               {quantity}
             </Text>
             <Pressable
@@ -242,7 +242,7 @@ export default function ClearanceDealScreen() {
               disabled={quantity >= max}
               className="rounded-pill size-[32px] items-center justify-center active:opacity-70 disabled:opacity-40"
             >
-              <Icon name="add" size={16} tone="strong" />
+              <Icon name="add" size={16} tone="onInverse" />
             </Pressable>
           </View>
         ) : null}

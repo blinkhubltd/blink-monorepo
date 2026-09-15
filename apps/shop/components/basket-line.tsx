@@ -143,7 +143,7 @@ export function BasketLineRow({
           </Text>
 
           {line.isPurchasable ? (
-            <View className="h-control-sm gap-space-1 rounded-pill bg-muted border-hairline border-strong px-space-1 flex-row items-center">
+            <View className="h-control-sm gap-space-1 rounded-pill bg-inverse px-space-1 flex-row items-center">
               <Pressable
                 onPress={handleDecrement}
                 accessibilityRole="button"
@@ -151,9 +151,10 @@ export function BasketLineRow({
                 hitSlop={6}
                 className="rounded-pill size-[26px] items-center justify-center active:opacity-70"
               >
-                <Icon name="remove" size={16} tone="strong" />
+                <Icon name="remove" size={16} tone="onInverse" />
               </Pressable>
               <Text
+                variant="onInverse"
                 size="label"
                 weight="semibold"
                 className="min-w-[20px] text-center"
@@ -168,7 +169,7 @@ export function BasketLineRow({
                 disabled={atStockLimit}
                 className="rounded-pill size-[26px] items-center justify-center active:opacity-70 disabled:opacity-30"
               >
-                <Icon name="add" size={16} tone="strong" />
+                <Icon name="add" size={16} tone="onInverse" />
               </Pressable>
             </View>
           ) : null}
