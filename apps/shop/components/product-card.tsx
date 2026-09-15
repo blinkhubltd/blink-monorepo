@@ -238,7 +238,7 @@ export function ProductCard({
                 : `Save ${product.name}`
             }
             hitSlop={6}
-            className="right-space-2 top-space-2 bg-card size-[34px] rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+            className="right-space-2 top-space-2 bg-card size-[34px] rounded-pill shadow-xs absolute items-center justify-center opacity-90 active:opacity-70"
           >
             {/*
               A different glyph, not a `fill` prop: Ionicons has no fill, so

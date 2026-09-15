@@ -103,12 +103,12 @@ export default function ProductDetailScreen() {
         comment above). No cart icon here: the pinned bottom bar already is
         the add-to-cart affordance, and the reference has none either.
       */}
-      <View className="flex-row justify-end px-screen pt-space-3">
+      <View className="px-screen pt-space-3 flex-row justify-end">
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Close"
-          className="size-control-sm rounded-pill bg-card border-hairline border-border shadow-xs items-center justify-center active:opacity-80"
+          className="size-control-sm rounded-pill bg-card border-hairline border-strong shadow-xs items-center justify-center active:opacity-80"
         >
           <Icon name="close" size={18} tone="strong" />
         </Pressable>
@@ -161,9 +161,9 @@ export default function ProductDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel="Share this product"
             hitSlop={8}
-            className="right-space-4 top-space-4 bg-card size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+            className="right-space-4 top-space-4 bg-card border-hairline border-strong shadow-xs size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
           >
-            <Icon name="share-outline" size={20} tone="body" />
+            <Icon name="share-social-outline" size={20} tone="body" />
           </Pressable>
         </View>
 
@@ -181,11 +181,7 @@ export default function ProductDetailScreen() {
               </Text>
               {product.hasDiscount ? (
                 <>
-                  <Text
-                    size="base"
-                    variant="muted"
-                    className="line-through"
-                  >
+                  <Text size="base" variant="muted" className="line-through">
                     {formatKES(product.originalPrice)}
                   </Text>
                   <Text size="sm" weight="bold" variant="destructive">
