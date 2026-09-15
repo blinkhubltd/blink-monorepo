@@ -108,9 +108,9 @@ export default function ProductDetailScreen() {
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Close"
-          className="size-control-sm rounded-pill bg-inverse items-center justify-center active:opacity-80"
+          className="size-control-sm rounded-pill bg-gray-200 items-center justify-center active:opacity-80"
         >
-          <Icon name="close" size={18} tone="onInverse" />
+          <Icon name="close" size={18} tone="neutralIcon" />
         </Pressable>
       </View>
 
@@ -161,9 +161,9 @@ export default function ProductDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel="Share this product"
             hitSlop={8}
-            className="right-space-4 top-space-4 bg-inverse size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+            className="right-space-4 top-space-4 bg-gray-200 size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
           >
-            <Icon name="share-social-outline" size={20} tone="onInverse" />
+            <Icon name="share-social-outline" size={20} tone="neutralIcon" />
           </Pressable>
         </View>
 
