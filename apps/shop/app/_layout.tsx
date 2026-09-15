@@ -9,7 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PortalHost } from "@rn-primitives/portal";
 import { PaystackProvider } from "react-native-paystack-webview";
-import { useColorScheme } from "nativewind";
+import { colorScheme, useColorScheme } from "nativewind";
 import Ionicons from "@expo/vector-icons/Ionicons";
 /**
  * Per-face subpaths, NOT the package barrel.
@@ -78,6 +78,18 @@ function InstallAttribution() {
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden, or called twice under Fast Refresh. Not fatal.
 });
+
+/**
+ * Light is the only theme for now — there is no settings screen yet to offer
+ * a choice, so following the OS's dark mode would silently opt customers into
+ * an experience nobody chose or tested end to end. `colorScheme.set` (not the
+ * `useColorScheme` hook) is what both NativeWind's classes and this app's
+ * `useTokenColors()` actually read from, so setting it once here, at module
+ * scope rather than in an effect, pins the whole app before the first paint —
+ * no flash of a system-dark UI on a device that happens to be in dark mode.
+ * Revisit this the moment a settings screen exists to let someone choose.
+ */
+colorScheme.set("light");
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();

@@ -68,7 +68,10 @@ const config: ExpoConfig = {
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "blink",
-  userInterfaceStyle: "automatic",
+  // Matches app/_layout.tsx's `colorScheme.set("light")`: no settings screen
+  // exists yet to let anyone choose dark mode, so the OS's own preference is
+  // not followed at the native level either.
+  userInterfaceStyle: "light",
   // No `newArchEnabled` and no `edgeToEdgeEnabled`: on Expo 57 the New
   // Architecture is the only architecture and Android edge-to-edge is the
   // default, so both flags were dropped from the config type. Carrying them
