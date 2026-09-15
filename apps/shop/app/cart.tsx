@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,8 +14,39 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { useCart } from "../providers/CartProvider";
 import { BasketLineRow } from "../components/basket-line";
 import { ScreenHeader } from "../components/screen-header";
+import { Icon } from "../components/icon";
+import { useAddressLabel } from "../lib/use-address-label";
 import { formatKES } from "../lib/format";
 import type { Id } from "@repo/backend/dataModel";
+
+/**
+ * Where this basket is delivering to — the same address logic
+ * `BrandHeader`'s location pill already resolves (an explicit default
+ * address, or a live geocode of the customer's point). Tapping it goes to
+ * the address book, exactly like the header pill does; this bar exists so
+ * that question doesn't wait until checkout to get asked.
+ */
+function DeliveryAddressBar() {
+  const { label, state } = useAddressLabel();
+  return (
+    <Pressable
+      onPress={() => router.push("/addresses")}
+      accessibilityRole="button"
+      accessibilityLabel={`Delivering to ${label}. Tap to change.`}
+      className="mx-screen mb-space-3 gap-space-2 bg-secondary px-space-3 py-space-3 flex-row items-center rounded-md active:opacity-80"
+    >
+      <Icon
+        name={state === "denied" ? "alert-circle" : "location"}
+        size={16}
+        tone={state === "denied" ? "destructive" : "price"}
+      />
+      <Text size="sm" weight="medium" numberOfLines={1} className="flex-1">
+        {label}
+      </Text>
+      <Icon name="chevron-forward" size={16} tone="subtle" />
+    </Pressable>
+  );
+}
 
 /**
  * The basket.
@@ -52,6 +83,9 @@ export default function CartScreen() {
 
   const unavailable = cart.items.filter((i) => !i.isPurchasable).length;
   const canCheckout = cart.items.some((i) => i.isPurchasable);
+  const orderTotal = cart.isGuest
+    ? cart.subtotal
+    : (totals?.total ?? cart.subtotal);
 
   if (cart.items.length === 0 && !cart.loading) {
     return (
@@ -78,6 +112,10 @@ export default function CartScreen() {
         title="Your basket"
         subtitle={`${cart.count} ${cart.count === 1 ? "item" : "items"}`}
       />
+
+      <View className="pt-space-3">
+        <DeliveryAddressBar />
+      </View>
 
       {cart.writeError ? (
         <View className="mx-screen mb-space-3 bg-destructive-soft p-space-4 rounded-md">
@@ -170,21 +208,20 @@ export default function CartScreen() {
             <Separator />
 
             <View className="gap-space-2 flex-row items-baseline justify-between">
-              <Text size="base" weight="semibold">
+              <Text size="sm" weight="semibold">
                 Total
               </Text>
-              <Text variant="price" size="priceLg">
-                {formatKES(
-                  cart.isGuest
-                    ? cart.subtotal
-                    : (totals?.total ?? cart.subtotal),
-                )}
+              <Text variant="price" size="price">
+                {formatKES(orderTotal)}
               </Text>
             </View>
 
             <Button
-              label={cart.isGuest ? "Sign in to check out" : "Check out"}
-              size="lg"
+              label={
+                cart.isGuest
+                  ? "Sign in to check out"
+                  : `Check out · ${formatKES(orderTotal)}`
+              }
               full
               disabled={!canCheckout}
               onPress={() => router.push("/checkout")}
