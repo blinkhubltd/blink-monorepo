@@ -24,6 +24,9 @@
     "overrides": {
       "convex": "^1.27.1",
       "@react-native/metro-config": "0.86.2"
+    },
+    "patchedDependencies": {
+      "react-native-paystack-webview@5.1.0": "patches/react-native-paystack-webview@5.1.0.patch"
     }
   }
 }

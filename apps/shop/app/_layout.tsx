@@ -149,6 +149,9 @@ export default function RootLayout() {
                 publicKey={PAYSTACK_PUBLIC_KEY}
                 currency={PAYSTACK_CURRENCY}
                 defaultChannels={[...PAYSTACK_CHANNELS]}
+                // Dev only: logs each message from the payment sheet, which is
+                // the only place Paystack's own reason for a failure appears.
+                debug={__DEV__}
               >
                 <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
                 <InstallAttribution />

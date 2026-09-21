@@ -33,7 +33,9 @@ import { join } from "node:path";
 const CONVEX = join(__dirname, "..", "convex");
 
 function read(...parts: string[]): string {
-  return readFileSync(join(CONVEX, ...parts), "utf8").split("\r\n").join("\n");
+  return readFileSync(join(CONVEX, ...parts), "utf8")
+    .split("\r\n")
+    .join("\n");
 }
 
 function stripComments(source: string): string {
@@ -104,6 +106,21 @@ describe("prepareMyPaymentSplit", () => {
     expect(body).toMatch(/computeVendorSplit\(/);
   });
 
+  it("under a test key, skips the split — after ownership and status, before any write", () => {
+    const body = fnBody(split, "prepareMyPaymentSplit");
+    const skip = body.indexOf("if (isPaystackTestKey) {");
+    expect(skip).toBeGreaterThan(-1);
+    // Still an authenticated, state-checked call, not a shortcut around them.
+    expect(body.indexOf("assertMyPayment")).toBeLessThan(skip);
+    expect(body.indexOf('payment.status !== "Pending"')).toBeLessThan(skip);
+    // Before anything writes a subaccount code onto a vendor or industry
+    // record, so test-mode codes never land on them.
+    expect(skip).toBeLessThan(body.indexOf("runMutation"));
+    expect(body.slice(skip, skip + 400)).toMatch(/split_code: null/);
+    // The old refusal is gone: test keys must be usable for checkout.
+    expect(body).not.toMatch(/is a test key \(sk_test_\) but currency/);
+  });
+
   it("reuses an existing split_code rather than recomputing", () => {
     const body = fnBody(split, "prepareMyPaymentSplit");
     expect(body).toMatch(/payment\.paystack_split_code/);
@@ -137,7 +154,9 @@ describe("the subaccount writes this flow triggers are internal", () => {
     expect(split).toMatch(
       /internal\.data\.industry\.setIndustryPaystackSubaccountCode/,
     );
-    expect(split).not.toMatch(/api\.data\.vendors\.setVendorPaystackSubaccountCode/);
+    expect(split).not.toMatch(
+      /api\.data\.vendors\.setVendorPaystackSubaccountCode/,
+    );
     expect(split).not.toMatch(/api\.data\.industry\.updateIndustry/);
   });
 

@@ -232,7 +232,11 @@ export const prepareMyPaymentSplit = action({
     ctx,
     args,
   ): Promise<{
-    split_code: string;
+    /**
+     * `null` under a test key: no split is made, and the transaction settles
+     * wholly to the platform's test balance. See `isPaystackTestKey` below.
+     */
+    split_code: string | null;
     breakdown: {
       total_minor: number;
       commission_minor: number;
@@ -247,6 +251,7 @@ export const prepareMyPaymentSplit = action({
       split_code?: string;
     } | null;
     reused: boolean;
+    testMode: boolean;
   }> => {
     // Ownership first: never spend a Paystack subaccount lookup, let alone
     // create one, on someone else's checkout.
@@ -264,12 +269,6 @@ export const prepareMyPaymentSplit = action({
     const isPaystackTestKey = String(secret).startsWith("sk_test_");
     const currency = getPaystackCurrency(secret);
 
-    if (isPaystackTestKey && currency === "KES") {
-      throw new Error(
-        "PAYSTACK_SECRET_KEY is a test key (sk_test_) but currency is enforced to KES. Use your live Paystack keys (sk_live_/pk_live_) for Kenya KES, or relax the currency enforcement if you want to test in NGN.",
-      );
-    }
-
     const payment = await ctx.runQuery(
       internal.data.payments.getPaymentByReference,
       { reference: args.reference },
@@ -277,6 +276,39 @@ export const prepareMyPaymentSplit = action({
     if (!payment) throw new Error("Payment not found for reference");
     if (payment.status !== "Pending") {
       throw new Error("Payment is not pending; cannot prepare split");
+    }
+
+    /*
+      Test mode: no split at all.
+
+      This used to throw — "test key but currency is enforced to KES" — which
+      made card checkout impossible to exercise outside production. A split
+      only routes money to vendors, and a test key moves no real money, so
+      there is nothing to route. Nothing after this point reads the split
+      either: verification, the webhook and order creation all key on the
+      reference and the stored quote. So the charge → verify → orders path runs
+      exactly as it does live, minus the payout routing.
+
+      Skipped rather than run against test subaccounts, deliberately: the code
+      below writes Paystack subaccount codes back onto vendor and industry
+      records, and codes minted under a test key are unknown to the live
+      account. Running it here would leave test-mode codes on those records,
+      to be reused the moment the key changed.
+
+      Gated on the key's own prefix, so a deployment holding a live key can
+      never reach this branch.
+    */
+    if (isPaystackTestKey) {
+      console.warn("[Split] test key: skipping vendor split", {
+        reference: args.reference,
+        currency,
+      });
+      return {
+        split_code: null,
+        breakdown: null,
+        reused: false,
+        testMode: true,
+      };
     }
     if (payment.paystack_split_code) {
       console.log("[Split] reuse existing split_code", {
@@ -287,6 +319,7 @@ export const prepareMyPaymentSplit = action({
         split_code: payment.paystack_split_code,
         breakdown: payment.paystack_split_breakdown || null,
         reused: true,
+        testMode: false,
       };
     }
 
@@ -452,12 +485,10 @@ export const prepareMyPaymentSplit = action({
     );
 
     const vendorSplit = computeVendorSplit(
-      quote.legs.map(
-        (leg: (typeof quote.legs)[number]): SplitLeg => ({
-          vendorId: leg.vendorId,
-          subtotal: leg.subtotal,
-        }),
-      ),
+      quote.legs.map((leg: (typeof quote.legs)[number]): SplitLeg => ({
+        vendorId: leg.vendorId,
+        subtotal: leg.subtotal,
+      })),
       quote.legs.map((leg: (typeof quote.legs)[number]) => leg.deliveryFee),
       (vendorId) => {
         const terms = commissionByVendor.get(vendorId);
@@ -470,7 +501,9 @@ export const prepareMyPaymentSplit = action({
       toMinorUnits(vendorSplit.deliveryFeeTotalMajor),
     );
     const totalMinor = nonNegativeInt(
-      toMinorUnits(vendorSplit.itemsTotalMajor + vendorSplit.deliveryFeeTotalMajor),
+      toMinorUnits(
+        vendorSplit.itemsTotalMajor + vendorSplit.deliveryFeeTotalMajor,
+      ),
     );
     const commissionTotalMinor = nonNegativeInt(
       toMinorUnits(vendorSplit.commissionTotalMajor),
@@ -479,10 +512,18 @@ export const prepareMyPaymentSplit = action({
       vendorSplit.vendors.map((v) => [v.vendorId, v.grossMajor] as const),
     );
     const vendorCommissionMinorById = new Map(
-      vendorSplit.vendors.map((v) => [v.vendorId, nonNegativeInt(toMinorUnits(v.commissionMajor))] as const),
+      vendorSplit.vendors.map(
+        (v) =>
+          [
+            v.vendorId,
+            nonNegativeInt(toMinorUnits(v.commissionMajor)),
+          ] as const,
+      ),
     );
     const vendorNetMinorById = new Map(
-      vendorSplit.vendors.map((v) => [v.vendorId, nonNegativeInt(toMinorUnits(v.netMajor))] as const),
+      vendorSplit.vendors.map(
+        (v) => [v.vendorId, nonNegativeInt(toMinorUnits(v.netMajor))] as const,
+      ),
     );
 
     console.log("[Split] totals", {
@@ -496,9 +537,12 @@ export const prepareMyPaymentSplit = action({
     const getOrCreatePlatformSubaccount = async (
       key: "primary" | "secondary",
     ): Promise<string> => {
-      const existing = await ctx.runQuery(api.data.paystack_subaccounts.getByKey, {
-        key,
-      });
+      const existing = await ctx.runQuery(
+        api.data.paystack_subaccounts.getByKey,
+        {
+          key,
+        },
+      );
       if (existing?.subaccount_code) {
         const exists = await paystackSubaccountExists(
           secret,
@@ -696,10 +740,13 @@ export const prepareMyPaymentSplit = action({
         subaccount_code: maskCode(subaccountCode),
       });
 
-      await ctx.runMutation(internal.data.vendors.setVendorPaystackSubaccountCode, {
-        vendorId: vendor._id,
-        subaccountCode,
-      });
+      await ctx.runMutation(
+        internal.data.vendors.setVendorPaystackSubaccountCode,
+        {
+          vendorId: vendor._id,
+          subaccountCode,
+        },
+      );
       return subaccountCode;
     };
 
@@ -809,10 +856,13 @@ export const prepareMyPaymentSplit = action({
         subaccount_code: maskCode(subaccountCode),
       });
 
-      await ctx.runMutation(internal.data.industry.setIndustryPaystackSubaccountCode, {
-        id: industryId,
-        subaccountCode,
-      });
+      await ctx.runMutation(
+        internal.data.industry.setIndustryPaystackSubaccountCode,
+        {
+          id: industryId,
+          subaccountCode,
+        },
+      );
 
       return subaccountCode;
     };
@@ -1009,7 +1059,6 @@ export const prepareMyPaymentSplit = action({
       },
     });
 
-    return { split_code: splitCode, breakdown, reused: false };
+    return { split_code: splitCode, breakdown, reused: false, testMode: false };
   },
 });
-
