@@ -310,7 +310,7 @@ export const finalizePaidOrders = internalMutation({
         if (newOrder && newOrder.order_status === "Pending") {
           await ctx.scheduler.runAfter(
             0,
-            api.data.notifications.updateOrderStatusWithNotifications,
+            internal.data.notifications.updateOrderStatusWithNotifications,
             {
               orderId: orderId,
               newStatus: "Confirmed",
@@ -494,7 +494,7 @@ export const finalizePayOnDeliveryOrders = internalMutation({
         if (base.order_status === "Confirmed") {
           await ctx.scheduler.runAfter(
             0,
-            api.data.notifications.updateOrderStatusWithNotifications,
+            internal.data.notifications.updateOrderStatusWithNotifications,
             { orderId, newStatus: "Confirmed" },
           );
         }
@@ -669,7 +669,7 @@ export const finalizePaidClearanceOrders = internalMutation({
       try {
         await ctx.scheduler.runAfter(
           0,
-          api.data.notifications.updateOrderStatusWithNotifications,
+          internal.data.notifications.updateOrderStatusWithNotifications,
           { orderId, newStatus: "Confirmed" },
         );
       } catch (e) {
@@ -829,7 +829,7 @@ export const finalizePayOnDeliveryClearanceOrders = internalMutation({
       try {
         await ctx.scheduler.runAfter(
           0,
-          api.data.notifications.updateOrderStatusWithNotifications,
+          internal.data.notifications.updateOrderStatusWithNotifications,
           { orderId, newStatus: "Confirmed" },
         );
       } catch (e) {

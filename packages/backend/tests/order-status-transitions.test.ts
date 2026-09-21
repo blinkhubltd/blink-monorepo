@@ -33,7 +33,7 @@ describe("updateOrderStatus", () => {
     const check = update.indexOf(
       "checkOrderTransition(order.order_status, args.status)",
     );
-    const write = update.indexOf("writeOrderStatus(");
+    const write = update.indexOf("applyOrderStatus(");
     expect(check).toBeGreaterThan(-1);
     expect(write).toBeGreaterThan(check);
     expect(update).toMatch(
@@ -63,7 +63,7 @@ describe("verifyDeliveryCode", () => {
   const verify = body("verifyDeliveryCode");
 
   it("marks Delivered through the writer, not the checked mutation", () => {
-    expect(verify).toMatch(/writeOrderStatus\(ctx, order, \{/);
+    expect(verify).toMatch(/applyOrderStatus\(ctx, order, "Delivered"\)/);
     expect(verify).not.toMatch(/api\.data\.orders\.updateOrderStatus/);
   });
 });
