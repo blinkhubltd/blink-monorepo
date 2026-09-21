@@ -284,6 +284,8 @@ export default function SignInScreen() {
               <Button
                 label="Create account"
                 variant="inverse"
+                size="cta"
+                full
                 loading={flow.busy}
                 onPress={() => void flow.startSignUp()}
               />

@@ -168,6 +168,8 @@ export default function ReferralScreen() {
             </Text>
             <Button
               label="Apply code"
+              size="cta"
+              full
               loading={busy}
               disabled={code.trim().length === 0 || busy}
               onPress={() => void submit()}

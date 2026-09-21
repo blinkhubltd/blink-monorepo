@@ -518,7 +518,10 @@ export default function ProductDetailScreen() {
           {!sellable ? (
             <Button size="cta" full disabled label="Unavailable" />
           ) : inBasket > 0 ? (
-            <View className="h-control-lg gap-space-3 bg-primary px-space-3 flex-1 flex-row items-center justify-between rounded-md">
+            // Same pill geometry as the "cta" Button size (h-12,
+            // rounded-[999px]) so the control does not change shape when it
+            // toggles between this and the plain Add button below.
+            <View className="h-12 gap-space-3 bg-primary px-space-3 flex-1 flex-row items-center justify-between rounded-[999px]">
               <Pressable
                 onPress={() =>
                   cart.decrement(product._id as Id<"products">)
@@ -548,17 +551,14 @@ export default function ProductDetailScreen() {
               </Pressable>
             </View>
           ) : (
-            <Pressable
-              onPress={() => cart.add(product._id as Id<"products">, 1)}
-              accessibilityRole="button"
+            <Button
+              size="cta"
+              full
+              icon={<Icon name="add" size={20} tone="onBrand" />}
+              label={`Add to basket · ${formatKES(product.price)}`}
               accessibilityLabel={`Add ${product.name} to basket`}
-              className="h-control-lg gap-space-2 bg-primary flex-1 flex-row items-center justify-center rounded-md active:opacity-90"
-            >
-              <Icon name="add" size={20} tone="onBrand" />
-              <Text variant="onBrand" size="base" weight="semibold">
-                Add to basket · {formatKES(product.price)}
-              </Text>
-            </Pressable>
+              onPress={() => cart.add(product._id as Id<"products">, 1)}
+            />
           )}
         </View>
       </BottomSheetFooter>
