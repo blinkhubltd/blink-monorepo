@@ -87,11 +87,23 @@ export function MenuRow({
         <Icon name={icon} size={17} tone={destructive ? "destructive" : "strong"} />
       </View>
 
+      {/*
+        Title and helper are pulled apart by darkening the TITLE, not by
+        lightening the helper.
+
+        They were ink-800 over ink-600 — two greys one step apart, which read
+        as one block rather than a title with a note under it. The obvious
+        fix is to drop the helper to `subtle` (ink-500), and that is the one
+        thing not done here: #818A99 on the card white is 3.48:1, which fails
+        AA for 13px text. ink-600 is 6.07:1 and stays. Taking the title to
+        ink-950 instead widens the same gap from the readable end.
+      */}
       <View className="flex-1">
         <Text
           size="base"
           weight="medium"
           variant={destructive ? "destructive" : "default"}
+          className={destructive ? undefined : "text-strong"}
         >
           {label}
         </Text>

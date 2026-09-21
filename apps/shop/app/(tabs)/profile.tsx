@@ -283,24 +283,19 @@ export default function ProfileScreen() {
             onPress={() => router.push("/settings")}
           />
           {/*
-            Always shown, where the old row was hidden from non-agents.
-            Hiding it meant the one place that explains what an agent even
-            is could only be found by someone who already was one — and the
-            screen itself gates properly, so a curious tap lands on an
-            explanation rather than a broken page.
+            Agents only. The agent programme is by arrangement — a customer
+            who is not in it has nothing to do on that screen, and a row
+            leading to "you are not an agent" is a dead end on every other
+            profile. `getMyAgentSummary` returns null for everyone else.
           */}
-          <MenuRow
-            icon="briefcase-outline"
-            label="Agent dashboard"
-            meta={
-              agent === undefined
-                ? undefined
-                : agent
-                  ? `Code ${agent.code}`
-                  : "For Blink referral agents"
-            }
-            onPress={() => router.push("/agent")}
-          />
+          {agent ? (
+            <MenuRow
+              icon="briefcase-outline"
+              label="Agent dashboard"
+              meta={`Code ${agent.code}`}
+              onPress={() => router.push("/agent")}
+            />
+          ) : null}
         </MenuSection>
 
         {/*

@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, Share, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import { Icon } from "../../components/icon";
 import QRCodeSvg from "react-native-qrcode-svg";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -18,6 +20,8 @@ import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { ScreenHeader } from "../../components/screen-header";
 import { SectionCard } from "../../components/checkout/sections";
 import { formatKES } from "../../lib/format";
+import { referralPosterHtml } from "../../lib/agent-poster";
+import { useToast } from "../../providers/ToastProvider";
 import {
   describeEarningRange,
   describePayoutStatus,
@@ -56,6 +60,7 @@ import {
  */
 export default function AgentDashboardScreen() {
   const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
 
   const summary = useQuery(
     api.data.marketing.getMyAgentSummary,
@@ -83,6 +88,15 @@ export default function AgentDashboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [range, setRange] = useState<EarningRange>("all");
+  const [exporting, setExporting] = useState(false);
+  const toast = useToast();
+  // The QR rendered for PRINT, not for screen: 512px so the PDF is crisp,
+  // and off-screen because it is an export source rather than something to
+  // look at. `react-native-qrcode-svg` hands back a base64 PNG through this
+  // ref, which is the only way to get the drawn code into HTML.
+  const posterQr = useRef<{ toDataURL: (cb: (data: string) => void) => void } | null>(
+    null,
+  );
 
   if (isLoaded && !isSignedIn) {
     return (
@@ -138,6 +152,71 @@ export default function AgentDashboardScreen() {
   // form does not flash a refusal before the answer arrives.
   const dayProblem = payoutDayProblem(payoutDays?.value);
   const visibleEarnings = filterEarningsByRange(earnings ?? [], range);
+
+  /**
+   * Render the poster to a PDF and hand it to the OS share sheet.
+   *
+   * Sharing rather than silently writing a file: `printToFileAsync` puts the
+   * PDF in the app's cache directory, which the customer has no way to
+   * browse. The share sheet is what actually gets it onto a printer, into
+   * WhatsApp, or saved to Files.
+   */
+  async function exportPoster() {
+    if (!summary) return;
+    setExporting(true);
+    try {
+      const qrDataUrl = await new Promise<string>((resolve, reject) => {
+        const ref = posterQr.current;
+        if (!ref) {
+          reject(new Error("The poster QR has not rendered yet."));
+          return;
+        }
+        // Callback-style, and it can simply never fire if the SVG has not
+        // painted — so this races a timeout rather than leaving the button
+        // spinning forever.
+        const timer = setTimeout(
+          () => reject(new Error("Timed out drawing the QR code.")),
+          5000,
+        );
+        ref.toDataURL((data: string) => {
+          clearTimeout(timer);
+          resolve(`data:image/png;base64,${data}`);
+        });
+      });
+
+      const { uri } = await Print.printToFileAsync({
+        html: referralPosterHtml({
+          qrDataUrl,
+          agentCode: summary.code,
+          // The person, from Clerk — `getMyAgentSummary` deliberately
+          // returns the zone and the code, not an identity.
+          agentName: user?.fullName ?? user?.firstName ?? undefined,
+        }),
+        base64: false,
+      });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: `Blink referral poster — ${summary.code}`,
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        // Rare (a device with no share targets at all), but silently doing
+        // nothing would read as a broken button.
+        toast("Poster saved to this app's files.");
+      }
+    } catch (caught) {
+      toast(
+        caught instanceof Error
+          ? caught.message
+          : "Could not make the poster.",
+        "destructive",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function submit() {
     setBusy(true);
@@ -293,6 +372,36 @@ export default function AgentDashboardScreen() {
                 void Share.share({
                   message: `Shop on Blink and use my code ${summary.code} when you sign up: ${referralDeepLink(summary.code)}`,
                 });
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              label="Poster (PDF)"
+              loading={exporting}
+              disabled={exporting}
+              icon={<Icon name="print-outline" size={16} tone="strong" />}
+              onPress={() => void exportPoster()}
+            />
+          </View>
+
+          {/*
+            The print source. Off-screen rather than hidden with `display`
+            or zero opacity: the SVG has to actually lay out for
+            `toDataURL` to have anything to encode. 512px so the code stays
+            sharp at poster size — the on-screen one above is 160px, which
+            prints soft.
+          */}
+          <View
+            pointerEvents="none"
+            className="absolute"
+            style={{ left: -10000, top: 0 }}
+          >
+            <QRCodeSvg
+              value={playStoreInstallLink(summary.code)}
+              size={512}
+              getRef={(ref) => {
+                posterQr.current = ref as never;
               }}
             />
           </View>
