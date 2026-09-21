@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Constants from "expo-constants";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
@@ -9,12 +10,12 @@ import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
-import { Separator } from "@repo/mobile-ui/components/ui/separator";
-import { Avatar } from "@repo/mobile-ui/components/ui/avatar";
+import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
 import { BrandHeader } from "../../components/brand-header";
+import { MenuRow, MenuSection } from "../../components/menu-list";
 import { useCart } from "../../providers/CartProvider";
-import { useLocation } from "../../providers/LocationProvider";
+import { useAddressLabel } from "../../lib/use-address-label";
 import {
   LEGAL_DOC_META,
   isLegalConfigured,
@@ -33,6 +34,21 @@ import { openExternal } from "../../lib/open-external";
  * restored on a reload, and it competed with the router as a second navigation
  * system. Its links are these rows, on a real route.
  *
+ * ── Identity sits ON the brand band, not under it ────────────────────────
+ *
+ * Matching the design: the yellow band carries the title, the avatar, the
+ * name and email, and the delivery pill; the grouped lists start below it on
+ * the page background. That is why `BrandHeader` takes children — the block
+ * belongs to the band, and rendering it underneath would read as the first
+ * card of the list rather than as who you are signed in as.
+ *
+ * ── "Where you are now" is gone, deliberately ────────────────────────────
+ *
+ * It was a row that looked like navigation and went nowhere: it re-requested
+ * GPS and printed raw coordinates. The delivery pill in the header answers
+ * the same question in words and leads somewhere useful, and the location
+ * permission itself now lives in Settings, where a permission belongs.
+ *
  * ── Signing out is ordered deliberately ──────────────────────────────────
  *
  * The rider app documents the same lesson: deregister and clean up BEFORE
@@ -43,7 +59,7 @@ export default function ProfileScreen() {
   const { isSignedIn, signOut } = useAuth();
   const { user } = useUser();
   const cart = useCart();
-  const { point, request } = useLocation();
+  const { label: addressLabel } = useAddressLabel();
 
   const [linkFailed, setLinkFailed] = useState(false);
   const [linkUnconfigured, setLinkUnconfigured] = useState(false);
@@ -83,21 +99,28 @@ export default function ProfileScreen() {
   // hidden rather than shown-and-empty: an "Agent" entry that explains it does
   // not apply to you is noise on every profile.
   const agent = useQuery(api.data.marketing.getMyAgentSummary, {});
-  const unreadCount = unread === undefined ? null : unread;
 
   if (!isSignedIn) {
     return (
       <SafeAreaView edges={["top"]} className="bg-background flex-1">
-        <BrandHeader title="Profile" showCart={false} showBack={false} />
+        <BrandHeader
+          title="Profile"
+          titleSize="h2"
+          sweep
+          showCart={false}
+          showBack={false}
+        />
         <View className="gap-space-4 px-screen py-space-10 items-center">
           <Icon name="person-outline" size={40} tone="subtle" />
-          <Text size="lg" weight="semibold" className="text-center">
-            Sign in to your account
-          </Text>
-          <Text variant="muted" size="sm" className="text-center">
-            Browsing works without an account. Sign in to check out, track
-            orders and save addresses.
-          </Text>
+          <View className="gap-space-2">
+            <Text size="lg" weight="semibold" className="text-center">
+              Sign in to your account
+            </Text>
+            <Text variant="muted" size="sm" className="text-center">
+              Browsing works without an account. Sign in to check out, track
+              orders and save addresses.
+            </Text>
+          </View>
           <Button
             label="Sign in"
             onPress={() => router.push("/(auth)/sign-in")}
@@ -109,39 +132,90 @@ export default function ProfileScreen() {
 
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
   const name = user?.fullName ?? user?.firstName ?? "";
-  const initial = (name || email || "?").charAt(0).toUpperCase();
+  const initials = initialsOf(name, email);
+
+  const addressMeta =
+    addresses === undefined
+      ? undefined
+      : addresses.length === 0
+        ? "None saved yet"
+        : addresses
+            .slice(0, 3)
+            .map((a) => a.label)
+            .join(" · ");
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader title="Profile" showCart={false} showBack={false} />
+      <BrandHeader
+        title="Profile"
+        titleSize="h2"
+        sweep
+        showBack={false}
+        right={
+          <HeaderPill
+            icon="settings-outline"
+            label="Settings"
+            onPress={() => router.push("/settings")}
+          />
+        }
+      >
+        <View className="gap-space-3 flex-row items-center">
+          {user?.imageUrl ? (
+            <OptimizedImage
+              source={{ uri: user.imageUrl }}
+              contentFit="cover"
+              className="size-[56px] rounded-pill"
+              accessibilityIgnoresInvertColors
+            />
+          ) : (
+            <View className="bg-on-brand-pill size-[56px] rounded-pill items-center justify-center">
+              <Text size="h4" weight="bold" className="text-primary">
+                {initials}
+              </Text>
+            </View>
+          )}
 
-      <ScrollView contentContainerClassName="px-screen gap-space-5 pb-space-10">
-        {/* The header is the way into editing, which is where people look. */}
-        <Pressable
-          onPress={() => router.push("/edit-profile")}
-          accessibilityRole="button"
-          accessibilityLabel="Edit your details"
-          className="gap-space-3 flex-row items-center active:opacity-70"
-        >
-          {/* The primitive renders the initial itself; no children needed. */}
-          <Avatar uri={user?.imageUrl} fallback={initial} />
-          <View className="gap-space-1 flex-1">
-            {name ? (
-              <Text size="base" weight="semibold">
-                {name}
-              </Text>
-            ) : (
-              <Text size="base" weight="semibold">
-                Add your name
-              </Text>
-            )}
-            <Text size="sm" variant="muted" numberOfLines={1}>
+          <View className="flex-1">
+            <Text
+              variant="onBrand"
+              size="h4"
+              weight="bold"
+              numberOfLines={1}
+            >
+              {name || "Add your name"}
+            </Text>
+            <Text variant="onBrand" size="sm" numberOfLines={1}>
               {email}
             </Text>
           </View>
-          <Icon name="chevron-forward" size={18} tone="subtle" />
-        </Pressable>
 
+          <HeaderPill
+            icon="pencil"
+            label="Edit profile"
+            onPress={() => router.push("/edit-profile")}
+          />
+        </View>
+
+        <Pressable
+          onPress={() => router.push("/addresses")}
+          accessibilityRole="button"
+          accessibilityLabel={`Delivering to ${addressLabel}. Change.`}
+          className="bg-card gap-space-2 px-space-3 py-space-3 rounded-md flex-row items-center active:opacity-90"
+        >
+          <Icon name="location" size={16} tone="strong" />
+          <Text size="sm" numberOfLines={1} className="flex-1">
+            Delivering to{" "}
+            <Text size="sm" weight="semibold">
+              {addressLabel}
+            </Text>
+          </Text>
+          <Text size="sm" weight="semibold">
+            Change
+          </Text>
+        </Pressable>
+      </BrandHeader>
+
+      <ScrollView contentContainerClassName="px-screen gap-space-5 py-space-4 pb-space-10">
         {/*
           Surfaced rather than swallowed: a signed-in customer with no `users`
           row cannot check out, and the Clerk webhook is the only thing that
@@ -160,67 +234,22 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <View className="border-hairline border-border bg-card rounded-lg">
-          <Row
-            icon={<Icon name="cube-outline" size={20} tone="body" />}
+        <MenuSection title="Your shopping">
+          <MenuRow
+            first
+            icon="cube-outline"
             label="Your orders"
-            detail={
+            meta={
               orders && orders.length > 0
-                ? "Track and review past orders"
+                ? "Track and reorder"
                 : "No orders yet"
             }
             onPress={() => router.push("/orders")}
           />
-          <Separator />
-          <Row
-            icon={<Icon name="location-outline" size={20} tone="body" />}
-            label="Delivery addresses"
-            detail={
-              addresses === undefined
-                ? undefined
-                : addresses.length === 0
-                  ? "None saved yet"
-                  : (addresses.find((a) => a.is_default)?.label ??
-                    `${addresses.length} saved`)
-            }
-            onPress={() => router.push("/addresses")}
-          />
-          <Separator />
-          <Row
-            icon={<Icon name="locate-outline" size={20} tone="body" />}
-            label="Where you are now"
-            detail={
-              point
-                ? `${point.lat.toFixed(3)}, ${point.lng.toFixed(3)}`
-                : "Not set — used to pick which shops to show"
-            }
-            onPress={() => void request()}
-          />
-          <Separator />
-          <Row
-            icon={<Icon name="notifications-outline" size={20} tone="body" />}
-            label="Notifications"
-            detail={
-              unreadCount === null
-                ? undefined
-                : unreadCount > 0
-                  ? `${unreadCount} unread`
-                  : "All caught up"
-            }
-            onPress={() => router.push("/notifications")}
-          />
-          <Separator />
-          {/*
-            Kept, even though Wishlist is now a tab of its own. This is the only
-            surface that shows the count, it belongs in a list of account
-            surfaces, and removing a working path because a tab exists is a
-            strict loss for anyone already used to it. Pushing a sibling tab's
-            route from inside `(tabs)` switches tabs, which is the intent.
-          */}
-          <Row
-            icon={<Icon name="heart-outline" size={20} tone="body" />}
+          <MenuRow
+            icon="heart-outline"
             label="Wishlist"
-            detail={
+            meta={
               savedCount === null
                 ? undefined
                 : savedCount === 0
@@ -229,54 +258,71 @@ export default function ProfileScreen() {
             }
             onPress={() => router.push("/wishlist")}
           />
-        </View>
+          <MenuRow
+            icon="location-outline"
+            label="Delivery addresses"
+            meta={addressMeta}
+            onPress={() => router.push("/addresses")}
+          />
+        </MenuSection>
 
-        <View className="border-hairline border-border bg-card rounded-lg">
+        <MenuSection title="Account">
+          <MenuRow
+            first
+            icon="notifications-outline"
+            label="Notifications"
+            meta="Order updates and offers"
+            badge={unread ?? null}
+            onPress={() => router.push("/notifications")}
+          />
+          <MenuRow
+            icon="settings-outline"
+            label="Settings"
+            meta="Appearance, location, about"
+            onPress={() => router.push("/settings")}
+          />
           {agent ? (
-            <>
-              <Row
-                icon={<Icon name="trending-up" size={20} tone="body" />}
-                label="Agent dashboard"
-                detail={`Code ${agent.code}`}
-                onPress={() => router.push("/agent")}
-              />
-              <Separator />
-            </>
+            <MenuRow
+              icon="briefcase-outline"
+              label="Agent dashboard"
+              meta={`Code ${agent.code}`}
+              onPress={() => router.push("/agent")}
+            />
           ) : null}
-          <Row
-            icon={<Icon name="gift-outline" size={20} tone="body" />}
+          <MenuRow
+            icon="gift-outline"
             label="Referral code"
-            detail="Credit whoever signed you up"
+            meta="Credit whoever signed you up"
             onPress={() => router.push("/referral")}
           />
-        </View>
+        </MenuSection>
 
         {/*
           Legal documents open on the website rather than being duplicated in the
           app: one copy, edited without a store release, so what the app links to
           cannot drift behind what the customer actually agreed to.
         */}
-        <View className="border-hairline border-border bg-card rounded-lg">
-          <Row
-            icon={<Icon name="document-text-outline" size={20} tone="body" />}
-            label={LEGAL_DOC_META.terms.title}
-            detail="Opens the website"
+        <MenuSection title="About Blink">
+          <MenuRow
+            first
             external
+            icon="document-text-outline"
+            label={LEGAL_DOC_META.terms.title}
+            meta="Opens the website"
             onPress={() => void openLegal("terms")}
           />
-          <Separator />
-          <Row
-            icon={<Icon name="shield-checkmark-outline" size={20} tone="body" />}
-            label={LEGAL_DOC_META.privacy.title}
-            detail="Opens the website"
+          <MenuRow
             external
+            icon="shield-checkmark-outline"
+            label={LEGAL_DOC_META.privacy.title}
+            meta="Opens the website"
             onPress={() => void openLegal("privacy")}
           />
-        </View>
+        </MenuSection>
 
         {linkUnconfigured ? (
           <Text size="caption" variant="destructive">
-            Legal documents aren't available in this build yet.
+            Legal documents aren&apos;t available in this build yet.
           </Text>
         ) : null}
 
@@ -286,67 +332,81 @@ export default function ProfileScreen() {
           </Text>
         ) : null}
 
-        {access && "roleName" in access && access.roleName ? (
-          <Text size="caption" variant="subtle">
-            Signed in as {access.roleName}
-          </Text>
-        ) : null}
-
-        <Button
-          variant="outline"
-          label="Sign out"
+        <Pressable
           onPress={() => {
             // Clear local basket state before revoking the session: after
             // signOut the token is gone and anything needing it fails.
             cart.dismissWriteError();
             void signOut();
           }}
-        />
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          className="gap-space-2 -ml-space-2 px-space-2 min-h-control flex-row items-center self-start active:opacity-70"
+        >
+          <Icon name="log-out-outline" size={17} tone="destructive" />
+          <Text size="base" weight="semibold" variant="destructive">
+            Sign out
+          </Text>
+        </Pressable>
+
+        {/*
+          The version, and the role when there is one. The design shows only
+          the version; the role line is kept because it is what staff and
+          support read back when an account behaves unexpectedly, and it
+          costs one muted line on a screen nobody scrolls to twice.
+        */}
+        <View className="gap-space-1">
+          <Text size="caption" variant="subtle">
+            Blink v{Constants.expoConfig?.version ?? "—"}
+          </Text>
+          {access && "roleName" in access && access.roleName ? (
+            <Text size="caption" variant="subtle">
+              Signed in as {access.roleName}
+            </Text>
+          ) : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Row({
+/**
+ * An ink circle on the brand band — the same control as the header's back
+ * button, which is why the geometry matches it rather than the 36px chips in
+ * the lists below.
+ */
+function HeaderPill({
   icon,
   label,
-  detail,
   onPress,
-  muted = false,
-  external = false,
 }: {
-  icon: React.ReactNode;
+  icon: "settings-outline" | "pencil";
   label: string;
-  detail?: string;
   onPress: () => void;
-  muted?: boolean;
-  /** Leaves the app. Announced, and marked with a different affordance. */
-  external?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole={external ? "link" : "button"}
-      accessibilityLabel={detail ? `${label}. ${detail}` : label}
-      accessibilityHint={external ? "Opens in your browser" : undefined}
-      className="min-h-control gap-space-3 px-space-4 py-space-4 active:bg-muted flex-row items-center"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      className="size-control rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
     >
-      {icon}
-      <View className="gap-space-1 flex-1">
-        <Text size="sm" weight="medium" variant={muted ? "subtle" : "default"}>
-          {label}
-        </Text>
-        {detail ? (
-          <Text size="caption" variant="subtle" numberOfLines={1}>
-            {detail}
-          </Text>
-        ) : null}
-      </View>
-      {external ? (
-        <Icon name="open-outline" size={16} tone="subtle" />
-      ) : (
-        <Icon name="chevron-forward" size={18} tone="subtle" />
-      )}
+      <Icon name={icon} size={18} tone="onBrandPill" />
     </Pressable>
   );
+}
+
+/**
+ * Up to two letters, from the name if there is one and the email if not.
+ *
+ * The email fallback takes the part before the `@`: an initial of "c" for
+ * charles@… is at least their initial, where the whole address would not fit
+ * and "?" says nothing.
+ */
+function initialsOf(name: string, email: string): string {
+  const source = name.trim() || email.split("@")[0]?.trim() || "";
+  const words = source.split(/[\s._-]+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
+  return (words[0]![0]! + words[1]![0]!).toUpperCase();
 }

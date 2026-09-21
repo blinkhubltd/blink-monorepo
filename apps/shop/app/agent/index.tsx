@@ -189,19 +189,64 @@ export default function AgentDashboardScreen() {
             />
           </View>
 
-          <View className="gap-space-2 flex-row">
-            <Stat
-              icon={<Icon name="people-outline" size={16} tone="body" />}
-              label="Registrations"
-              value={String(summary.registrations)}
-            />
-            <Stat
-              icon={<Icon name="qr-code-outline" size={16} tone="body" />}
-              label="Scans"
-              value={String(summary.scans)}
-            />
-          </View>
         </View>
+
+        {/*
+          The funnel, ported from the dashboard this replaces — the part of it
+          that told an agent something they could act on. Scans, installs and
+          sign-ups were three separate counters there; as a funnel they answer
+          the question an agent actually has, which is where people drop out.
+
+          This also fixes an omission: installs appeared nowhere on this
+          screen at all. The two activity tiles that used to sit above were
+          folded in here rather than kept alongside — the same numbers twice,
+          in two shapes, is not two pieces of information.
+        */}
+        <SectionCard title="Your funnel">
+          {summary.scans === 0 &&
+          summary.installs === 0 &&
+          summary.registrations === 0 ? (
+            <Text size="sm" variant="muted">
+              Nothing yet. Every scan of your code shows up here, along with
+              how many of those turned into installs and sign-ups.
+            </Text>
+          ) : (
+            <>
+              <FunnelBar
+                label="QR scans"
+                value={summary.scans}
+                max={summary.scans}
+              />
+              <FunnelBar
+                label="App installs"
+                value={summary.installs}
+                max={summary.scans}
+              />
+              <FunnelBar
+                label="Sign-ups"
+                value={summary.registrations}
+                max={summary.scans}
+              />
+
+              <Separator />
+
+              <View className="gap-space-2 flex-row">
+                <Stat
+                  icon={<Icon name="download-outline" size={16} tone="body" />}
+                  label="Scan → install"
+                  value={ratio(summary.installs, summary.scans)}
+                />
+                <Stat
+                  icon={
+                    <Icon name="person-add-outline" size={16} tone="body" />
+                  }
+                  label="Install → sign-up"
+                  value={ratio(summary.registrations, summary.installs)}
+                />
+              </View>
+            </>
+          )}
+        </SectionCard>
 
         {/* The referral code, and the one useful thing to do with it. */}
         <SectionCard title="Your referral code">
@@ -440,6 +485,58 @@ function Stat({
       </Text>
     </View>
   );
+}
+
+/**
+ * One stage of the referral funnel: a label, a count, and a bar scaled
+ * against the widest stage.
+ *
+ * Scaled against `max` rather than each bar filling its own track, because
+ * the drop between stages IS the information — three full bars would say
+ * nothing. `max` is the scan count, the top of the funnel; when a later
+ * stage somehow exceeds it (an install attributed without a scan, which the
+ * backend does allow) the bar clamps at full rather than overflowing its
+ * track.
+ */
+function FunnelBar({
+  label,
+  value,
+  max,
+}: {
+  label: string;
+  value: number;
+  max: number;
+}) {
+  const fraction = max > 0 ? Math.min(value / max, 1) : 0;
+  return (
+    <View className="gap-space-1">
+      <View className="flex-row items-baseline justify-between">
+        <Text size="sm">{label}</Text>
+        <Text size="sm" weight="semibold">
+          {value}
+        </Text>
+      </View>
+      <View className="bg-muted h-[6px] overflow-hidden rounded-pill">
+        <View
+          className="bg-primary h-full rounded-pill"
+          // A percentage width, so the bar is correct at any card width
+          // without measuring anything.
+          style={{ width: `${Math.round(fraction * 100)}%` }}
+        />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * A conversion rate, or an em dash when the denominator is zero.
+ *
+ * "0%" would be a claim — that nobody converted — where no scans means the
+ * question has not been asked yet. The old dashboard printed "0" for both.
+ */
+function ratio(numerator: number, denominator: number): string {
+  if (denominator <= 0) return "—";
+  return `${((numerator / denominator) * 100).toFixed(0)}%`;
 }
 
 function earningLabel(type: string): string {

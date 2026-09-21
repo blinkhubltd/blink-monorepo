@@ -10,6 +10,7 @@ import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Label } from "@repo/mobile-ui/components/ui/label";
+import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
 import { ScreenHeader } from "../components/screen-header";
 import { PhoneSection, SectionCard } from "../components/checkout/sections";
@@ -109,9 +110,45 @@ export default function EditProfileScreen() {
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="px-screen gap-space-4 pb-space-10"
+          contentContainerClassName="px-screen gap-space-4 py-space-4 pb-space-10"
           keyboardShouldPersistTaps="handled"
         >
+          {/*
+            Who is being edited, at the top. The profile screen opens this one
+            from an avatar, and arriving at three bare form cards loses that
+            thread — particularly on a shared device, where "whose details am
+            I changing" is a real question.
+
+            Read-only: Clerk owns the image and there is no upload flow here,
+            so this states the identity rather than offering to change it.
+          */}
+          <View className="gap-space-3 flex-row items-center">
+            {user?.imageUrl ? (
+              <OptimizedImage
+                source={{ uri: user.imageUrl }}
+                contentFit="cover"
+                className="size-[52px] rounded-pill"
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <View className="bg-secondary size-[52px] rounded-pill items-center justify-center">
+                <Text size="h4" weight="bold" variant="muted">
+                  {(user?.firstName ?? user?.primaryEmailAddress?.emailAddress ?? "?")
+                    .charAt(0)
+                    .toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View className="flex-1">
+              <Text size="base" weight="semibold" numberOfLines={1}>
+                {user?.fullName ?? user?.firstName ?? "Add your name"}
+              </Text>
+              <Text size="sm" variant="muted" numberOfLines={1}>
+                {user?.primaryEmailAddress?.emailAddress ?? ""}
+              </Text>
+            </View>
+          </View>
+
           <SectionCard title="Name">
             <View className="gap-space-2">
               <Label nativeID="first">First name</Label>

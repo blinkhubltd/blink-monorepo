@@ -214,4 +214,10 @@ export const StorageKeys = {
    * an organic install does not get queried again on every cold start.
    */
   installReferrerChecked: "shop:installReferrerChecked:v1",
+  /**
+   * "light" | "dark" | "system", set from Settings. Read at module scope in
+   * the root layout so the choice applies before the first paint rather than
+   * flashing the default and correcting itself a frame later.
+   */
+  theme: "shop:theme:v1",
 } as const;

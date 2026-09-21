@@ -78,6 +78,8 @@ export function BrandHeader({
   logoRow = false,
   banners = false,
   scrollY,
+  right,
+  children,
 }: {
   /** Omit entirely on a screen using `logoRow` instead. */
   title?: string;
@@ -85,7 +87,7 @@ export function BrandHeader({
   subtitle?: string;
   /** Baseline-aligned beside the title — an item count, never both with `subtitle`. */
   meta?: string;
-  titleSize?: "h1" | "h3";
+  titleSize?: "h1" | "h2" | "h3";
   /** The rounded bottom sweep — Home only, the signature shape. */
   sweep?: boolean;
   showBack?: boolean;
@@ -110,6 +112,17 @@ export function BrandHeader({
    * wordmark and the delivery badge — stays put.
    */
   scrollY?: SharedValue<number>;
+  /**
+   * Replaces the default right-hand cluster (search, cart) on a screen whose
+   * header control is something else — Profile puts Settings there.
+   */
+  right?: React.ReactNode;
+  /**
+   * Extra rows inside the yellow band, below the title. Profile's identity
+   * block and delivery pill ride here so they sit on the brand surface,
+   * rather than reading as the first rows of the page beneath it.
+   */
+  children?: React.ReactNode;
 }) {
   const { label: locationLabel, state: locationState } = useAddressLabel();
 
@@ -166,8 +179,12 @@ export function BrandHeader({
           )}
 
           <View className="gap-space-2 flex-row items-center">
-            {showSearchButton ? <SearchIconButton /> : null}
-            {showCart ? <CartIconButton /> : null}
+            {right ?? (
+              <>
+                {showSearchButton ? <SearchIconButton /> : null}
+                {showCart ? <CartIconButton /> : null}
+              </>
+            )}
           </View>
         </View>
 
@@ -217,6 +234,8 @@ export function BrandHeader({
             </View>
           </View>
         ) : null}
+
+        {children}
       </View>
 
       {banners ? <BannerCarousel scrollY={scrollY} /> : null}

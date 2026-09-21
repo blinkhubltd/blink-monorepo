@@ -9,7 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PortalHost } from "@rn-primitives/portal";
 import { PaystackProvider } from "react-native-paystack-webview";
-import { colorScheme, useColorScheme } from "nativewind";
+import { useColorScheme } from "nativewind";
 import Ionicons from "@expo/vector-icons/Ionicons";
 /**
  * Per-face subpaths, NOT the package barrel.
@@ -50,6 +50,7 @@ import {
   PAYSTACK_PUBLIC_KEY,
 } from "../lib/paystack-config";
 import { useInstallAttribution } from "../lib/use-install-attribution";
+import { applyStoredTheme } from "../lib/theme-preference";
 
 /**
  * Renders nothing. Exists only because `useInstallAttribution` needs
@@ -93,16 +94,21 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 /**
- * Light is the only theme for now — there is no settings screen yet to offer
- * a choice, so following the OS's dark mode would silently opt customers into
- * an experience nobody chose or tested end to end. `colorScheme.set` (not the
- * `useColorScheme` hook) is what both NativeWind's classes and this app's
- * `useTokenColors()` actually read from, so setting it once here, at module
- * scope rather than in an effect, pins the whole app before the first paint —
- * no flash of a system-dark UI on a device that happens to be in dark mode.
- * Revisit this the moment a settings screen exists to let someone choose.
+ * Apply the customer's stored theme before the first paint.
+ *
+ * This used to be a hard `colorScheme.set("light")`, with a note to revisit
+ * it once a settings screen existed to offer a choice. It does now, so light
+ * is the DEFAULT rather than the law — `lib/theme-preference.ts` falls back
+ * to it when nothing has been chosen, which keeps the original reasoning
+ * intact for everyone who never opens Settings.
+ *
+ * Still at module scope, and still `colorScheme.set` rather than the
+ * `useColorScheme` hook, for the original reasons: that store is what both
+ * NativeWind's classes and this app's `useTokenColors()` read, and doing it
+ * in an effect would run after the first frame — a visible flash of the
+ * wrong theme on every cold start.
  */
-colorScheme.set("light");
+applyStoredTheme();
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
@@ -205,6 +211,7 @@ export default function RootLayout() {
                   */}
                   <Stack.Screen name="search" />
                   <Stack.Screen name="cart" />
+                  <Stack.Screen name="settings" />
                   <Stack.Screen name="checkout" />
                   <Stack.Screen name="order/[orderId]" />
                   {/*
