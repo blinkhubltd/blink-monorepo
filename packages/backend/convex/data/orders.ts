@@ -68,6 +68,137 @@ async function getScopedOrder(
   return order;
 }
 
+/**
+ * How the caller may read orders. Exactly three ways, and nobody else:
+ *
+ *   - `owner`    — the customer who placed the order;
+ *   - `assignee` — the rider or picker assigned to it. They hold no
+ *                  permissions, so this is decided by the order's own
+ *                  `rider_id` / `assigned_picker_id`, never by role name;
+ *   - `staff`    — holding `orders:READ`, limited to their vendor scope.
+ */
+type OrderReadAccess =
+  | { kind: "owner" }
+  | { kind: "assignee" }
+  | { kind: "staff"; scope: Id<"vendors">[] | null };
+
+type OrderRelation = "owner" | "assignee" | null;
+
+async function orderReadAccess(
+  ctx: QueryCtx | MutationCtx,
+  relation: (me: AuthedUser["user"]) => OrderRelation,
+): Promise<OrderReadAccess> {
+  const authed = await getAuthUser(ctx);
+  const kind = relation(authed.user);
+  if (kind !== null) return { kind };
+  const staff = await assertPermission(ctx, "orders:READ");
+  return { kind: "staff", scope: await orderVendorScope(ctx, staff) };
+}
+
+/** How `me` relates to one order. */
+function relationTo(
+  order: Doc<"orders"> | null,
+  me: AuthedUser["user"],
+): OrderRelation {
+  if (!order) return null;
+  if (order.user_id === me._id) return "owner";
+  if (order.rider_id === me._id || order.assigned_picker_id === me._id) {
+    return "assignee";
+  }
+  return null;
+}
+
+/**
+ * One order, if the caller may read it; otherwise `null`.
+ *
+ * A caller who is neither the owner nor staff is refused whether or not the id
+ * exists, and an out-of-scope order reads as `null` exactly like a missing one,
+ * so neither answer confirms that someone else's order id is real.
+ */
+async function readableOrder(
+  ctx: QueryCtx,
+  orderId: Id<"orders">,
+): Promise<{ order: Doc<"orders">; access: OrderReadAccess } | null> {
+  const order = await ctx.db.get(orderId);
+  const access = await orderReadAccess(ctx, (me) => relationTo(order, me));
+  if (!order) return null;
+  if (
+    access.kind === "staff" &&
+    access.scope !== null &&
+    !access.scope.includes(order.vendor_id)
+  ) {
+    return null;
+  }
+  return { order, access };
+}
+
+/** Narrow an orders query to a scoped staff caller's vendors. */
+function withinScope<Q>(query: Q, access: OrderReadAccess): Q {
+  if (access.kind !== "staff" || access.scope === null) return query;
+  const scope = access.scope;
+  return (query as any).filter((q: any) =>
+    q.or(...scope.map((id) => q.eq(q.field("vendor_id"), id))),
+  );
+}
+
+/**
+ * The order as this caller may see it.
+ *
+ * Only the customer gets the order whole — the delivery code is theirs to read
+ * to the rider. Nobody else gets the code. Not the rider: the code exists to
+ * prove the customer was there, and a rider who could look it up would not
+ * need them to be. Not the picker, and not staff: nobody administering an
+ * order needs it, and anyone who could read it could close a delivery that
+ * never happened. Same rule as `getOrderDetails`. `idempotency_key` is
+ * plumbing.
+ */
+function viewFor<T extends Doc<"orders">>(
+  access: OrderReadAccess,
+  order: T,
+): T | Omit<T, "delivery_code" | "idempotency_key"> {
+  if (access.kind === "owner") return order;
+  const { delivery_code, idempotency_key, ...rest } = order;
+  return rest;
+}
+
+/**
+ * Orders across the caller's vendors, or the whole table when unscoped.
+ * Scoped callers read per vendor on the index rather than filtering the table.
+ */
+async function ordersInScope(
+  ctx: QueryCtx | MutationCtx,
+  scope: Id<"vendors">[] | null,
+): Promise<Doc<"orders">[]> {
+  if (scope === null) return await ctx.db.query("orders").collect();
+  const perVendor = await Promise.all(
+    scope.map((vendorId) =>
+      ctx.db
+        .query("orders")
+        .withIndex("by_vendor", (q) => q.eq("vendor_id", vendorId))
+        .collect(),
+    ),
+  );
+  return perVendor.flat();
+}
+
+/**
+ * Authorise a write by someone taking part in the order — its customer, rider
+ * or picker, as `isParticipant` decides — or by staff with `orders:UPDATE`
+ * within their vendor scope.
+ */
+async function assertCanActOnOrder(
+  ctx: MutationCtx,
+  orderId: Id<"orders">,
+  isParticipant: (order: Doc<"orders">, me: AuthedUser["user"]) => boolean,
+): Promise<Doc<"orders">> {
+  const authed = await getAuthUser(ctx);
+  const order = await ctx.db.get(orderId);
+  if (order && isParticipant(order, authed.user)) return order;
+  const staff = await assertPermission(ctx, "orders:UPDATE");
+  const scope = await orderVendorScope(ctx, staff);
+  return await getScopedOrder(ctx, scope, orderId);
+}
+
 const computeOrderSearchText = (order: {
   reference?: string;
   payment_reference?: string;
@@ -108,8 +239,15 @@ export const paginateOrders = query({
     is_clearance: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const authed = await assertPermission(ctx, "orders:READ");
-    const scope = await orderVendorScope(ctx, authed);
+    // A picker may page through the orders assigned to them; anything else
+    // needs orders:READ, within the caller's vendor scope.
+    const access = await orderReadAccess(ctx, (me) =>
+      args.assigned_picker_id !== undefined &&
+      me._id === args.assigned_picker_id
+        ? "assignee"
+        : null,
+    );
+    const scope = access.kind === "staff" ? access.scope : null;
 
     const PageLimit = Math.max(1, Math.min(200, args.limit));
     const normalizedSearch = (args.search ?? "").trim();
@@ -152,6 +290,12 @@ export const paginateOrders = query({
     // manager passing `assigned_picker_id` saw every vendor.
     const scopeFilter = (q: any) =>
       q.or(...allowedVendorIds!.map((id) => q.eq(q.field("vendor_id"), id)));
+
+    // Pins an assignee to their own orders. The search branch below does not
+    // use the picker index, so without this a picker who also searched would
+    // page through everyone's orders.
+    const pickerFilter = (q: any) =>
+      q.eq(q.field("assigned_picker_id"), args.assigned_picker_id);
 
     const baseQuery = ctx.db.query("orders");
 
@@ -217,6 +361,9 @@ export const paginateOrders = query({
     if (allowedVendorIds) {
       ordersQuery = ordersQuery.filter(scopeFilter);
     }
+    if (access.kind === "assignee") {
+      ordersQuery = ordersQuery.filter(pickerFilter);
+    }
 
     // Filter by clearance orders
     if (args.is_clearance !== undefined) {
@@ -278,6 +425,9 @@ export const paginateOrders = query({
       if (allowedVendorIds) {
         countQuery = countQuery.filter(scopeFilter);
       }
+      if (access.kind === "assignee") {
+        countQuery = countQuery.filter(pickerFilter);
+      }
       return countQuery.collect();
     })();
 
@@ -307,7 +457,8 @@ export const paginateOrders = query({
         }
 
         return {
-          ...order,
+          // Staff view: no delivery code (see `viewFor`).
+          ...viewFor(access, order),
           customer_name:
             customer?.name || customer?.first_name
               ? `${customer.first_name || ""} ${customer.last_name || ""}`.trim()
@@ -343,7 +494,11 @@ export const paginateOrders = query({
 export const backfillOrdersSearchText = mutation({
   args: {},
   handler: async (ctx) => {
-    const orders = await ctx.db.query("orders").collect();
+    // Rewrites order documents, so an UPDATE; a scoped manager's page triggers
+    // it too, and only their own vendors' orders are touched.
+    const authed = await assertPermission(ctx, "orders:UPDATE");
+    const scope = await orderVendorScope(ctx, authed);
+    const orders = await ordersInScope(ctx, scope);
     let updatedCount = 0;
 
     for (const order of orders) {
@@ -378,14 +533,34 @@ export const backfillOrdersSearchText = mutation({
   },
 });
 
+/**
+ * One order, for its customer or for staff holding `orders:READ` within their
+ * vendor scope. Server code reads through `getOrderByIdInternal` instead: a
+ * scheduled action has no identity to authorise.
+ */
 export const getOrderById = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const readable = await readableOrder(ctx, args.orderId);
+    if (!readable) return null;
+    return viewFor(readable.access, readable.order);
+  },
+});
+
+/** `getOrderById` for server-side callers (notifications, payments). */
+export const getOrderByIdInternal = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.orderId);
   },
 });
 
-export const createOrder = mutation({
+/**
+ * Internal: it has no callers, and as a public mutation it let anyone insert an
+ * order for any `user_id` at prices of their choosing. Real orders are built
+ * server-side by `checkout.placeMyOrder` / `checkout.settlePaidCheckout`.
+ */
+export const createOrder = internalMutation({
   args: { order: OrdersValidator },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -441,30 +616,29 @@ export const listOrders = query({
   },
   handler: async (ctx, args) => {
     const { userId, limit = 10, cursor } = args;
+    // A customer may list their own orders; anything else needs orders:READ.
+    const access = await orderReadAccess(
+      ctx,
+      (me) => (userId !== undefined && me._id === userId ? "owner" : null),
+    );
 
     const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const paginationOpts = { numItems: safeLimit, cursor: cursor || null };
 
-    if (userId !== undefined) {
-      const result = await ctx.db
-        .query("orders")
-        .withIndex("by_user", (q) => q.eq("user_id", userId))
-        .paginate({
-          numItems: safeLimit,
-          cursor: cursor || null,
-        });
+    const result =
+      userId !== undefined
+        ? await withinScope(
+            ctx.db
+              .query("orders")
+              .withIndex("by_user", (q) => q.eq("user_id", userId)),
+            access,
+          ).paginate(paginationOpts)
+        : await withinScope(
+            ctx.db.query("orders").order("desc"),
+            access,
+          ).paginate(paginationOpts);
 
-      return result;
-    }
-
-    const result = await ctx.db
-      .query("orders")
-      .order("desc")
-      .paginate({
-        numItems: safeLimit,
-        cursor: cursor || null,
-      });
-
-    return result;
+    return { ...result, page: result.page.map((o) => viewFor(access, o)) };
   },
 });
 
@@ -477,43 +651,72 @@ export const listOrdersFiltered = query({
   },
   handler: async (ctx, args) => {
     const { userId, status, limit = 10, cursor } = args;
+    const access = await orderReadAccess(
+      ctx,
+      (me) => (userId !== undefined && me._id === userId ? "owner" : null),
+    );
 
-    const safeLimit = Math.min(Math.max(limit, 1), 100);
-    const paginationOpts = {
-      numItems: safeLimit,
-      cursor: cursor || null,
-    };
-
-    if (userId !== undefined && status !== undefined) {
-      return await ctx.db
-        .query("orders")
-        .withIndex("by_user_status", (q) =>
-          q.eq("user_id", userId).eq("order_status", status),
-        )
-        .paginate(paginationOpts);
-    }
-
-    if (userId !== undefined) {
-      return await ctx.db
-        .query("orders")
-        .withIndex("by_user", (q) => q.eq("user_id", userId))
-        .paginate(paginationOpts);
-    }
-
-    if (status !== undefined) {
-      return await ctx.db
-        .query("orders")
-        .withIndex("by_status", (q) => q.eq("order_status", status))
-        .paginate(paginationOpts);
-    }
-
-    return await ctx.db.query("orders").paginate(paginationOpts);
+    const result = await filteredOrdersPage(ctx, access, {
+      userId,
+      status,
+      limit,
+      cursor,
+    });
+    return { ...result, page: result.page.map((o) => viewFor(access, o)) };
   },
 });
+
+/** The shared filter logic of `listOrdersFiltered` and `listOrdersWithDetails`. */
+async function filteredOrdersPage(
+  ctx: QueryCtx,
+  access: OrderReadAccess,
+  args: {
+    userId?: Id<"users">;
+    status?: Doc<"orders">["order_status"];
+    limit: number;
+    cursor?: string;
+  },
+) {
+  const { userId, status } = args;
+  const safeLimit = Math.min(Math.max(args.limit, 1), 100);
+  const paginationOpts = { numItems: safeLimit, cursor: args.cursor || null };
+  const orders = ctx.db.query("orders");
+
+  if (userId !== undefined && status !== undefined) {
+    return await withinScope(
+      orders.withIndex("by_user_status", (q) =>
+        q.eq("user_id", userId).eq("order_status", status),
+      ),
+      access,
+    ).paginate(paginationOpts);
+  }
+  if (userId !== undefined) {
+    return await withinScope(
+      orders.withIndex("by_user", (q) => q.eq("user_id", userId)),
+      access,
+    ).paginate(paginationOpts);
+  }
+  if (status !== undefined) {
+    return await withinScope(
+      orders.withIndex("by_status", (q) => q.eq("order_status", status)),
+      access,
+    ).paginate(paginationOpts);
+  }
+  return await withinScope(orders, access).paginate(paginationOpts);
+}
 
 export const updateOrder = mutation({
   args: { id: v.id("orders"), OrderItemUpdateValidator },
   handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:UPDATE");
+    const scope = await orderVendorScope(ctx, authed);
+    await getScopedOrder(ctx, scope, args.id);
+    // Nor may a scoped manager move an order to a vendor outside their scope.
+    const newVendor = args.OrderItemUpdateValidator.vendor_id;
+    if (newVendor && scope !== null && !scope.includes(newVendor)) {
+      throw new ConvexError("Vendor not found");
+    }
+
     await ctx.db.patch(args.id, args.OrderItemUpdateValidator);
     return await ctx.db.get(args.id);
   },
@@ -706,8 +909,12 @@ export const finalizePicking = mutation({
     orderId: v.id("orders"),
   },
   handler: async (ctx, args) => {
-    const order = await ctx.db.get(args.orderId);
-    if (!order) throw new Error("Order not found");
+    // The picker assigned to this order, or staff within their vendor scope.
+    const order = await assertCanActOnOrder(
+      ctx,
+      args.orderId,
+      (o, me) => o.assigned_picker_id === me._id,
+    );
 
     // Only advance if current status is one of pre-delivery states
     const preDeliveryStates = new Set([
@@ -927,10 +1134,13 @@ export const verifyDeliveryCode = mutation({
 export const resendDeliveryCode = mutation({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
-    const order = await ctx.db.get(args.orderId);
-    if (!order) {
-      throw new Error("Order not found");
-    }
+    // The customer waiting for it, the rider carrying the order, or staff
+    // within their vendor scope. Anyone else could use this to spam a customer.
+    const order = await assertCanActOnOrder(
+      ctx,
+      args.orderId,
+      (o, me) => o.user_id === me._id || o.rider_id === me._id,
+    );
 
     if (order.payment_mode !== "pay_now" || !order.delivery_code) {
       throw new ConvexError("No delivery code to resend");
@@ -964,13 +1174,21 @@ export const getOrdersAwaitingVerification = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // The rider asking for their own deliveries, or staff (in scope). The
+    // codes themselves are never returned — see `viewFor`.
+    const access = await orderReadAccess(ctx, (me) =>
+      args.riderId !== undefined && me._id === args.riderId ? "assignee" : null,
+    );
     const limit = Math.min(args.limit || 50, 100);
 
-    let ordersQuery = ctx.db
-      .query("orders")
-      .withIndex("by_delivery_code_verified", (q) =>
-        q.eq("delivery_code_verified", false),
-      );
+    const ordersQuery = withinScope(
+      ctx.db
+        .query("orders")
+        .withIndex("by_delivery_code_verified", (q) =>
+          q.eq("delivery_code_verified", false),
+        ),
+      access,
+    );
 
     if (args.riderId) {
       // Filter by rider if specified
@@ -978,10 +1196,10 @@ export const getOrdersAwaitingVerification = query({
       const riderOrders = allOrders.filter(
         (order) => order.rider_id === args.riderId,
       );
-      return riderOrders.slice(0, limit);
+      return riderOrders.slice(0, limit).map((o) => viewFor(access, o));
     }
 
-    return await ordersQuery.take(limit);
+    return (await ordersQuery.take(limit)).map((o) => viewFor(access, o));
   },
 });
 
@@ -1091,36 +1309,17 @@ export const listOrdersWithDetails = query({
   },
   handler: async (ctx, args) => {
     const { userId, status, limit = 10, cursor } = args;
+    const access = await orderReadAccess(
+      ctx,
+      (me) => (userId !== undefined && me._id === userId ? "owner" : null),
+    );
 
-    const safeLimit = Math.min(Math.max(limit, 1), 100);
-    const paginationOpts = {
-      numItems: safeLimit,
-      cursor: cursor || null,
-    };
-
-    let ordersResult;
-
-    // Get orders based on filters (same logic as listOrdersFiltered)
-    if (userId !== undefined && status !== undefined) {
-      ordersResult = await ctx.db
-        .query("orders")
-        .withIndex("by_user_status", (q) =>
-          q.eq("user_id", userId).eq("order_status", status),
-        )
-        .paginate(paginationOpts);
-    } else if (userId !== undefined) {
-      ordersResult = await ctx.db
-        .query("orders")
-        .withIndex("by_user", (q) => q.eq("user_id", userId))
-        .paginate(paginationOpts);
-    } else if (status !== undefined) {
-      ordersResult = await ctx.db
-        .query("orders")
-        .withIndex("by_status", (q) => q.eq("order_status", status))
-        .paginate(paginationOpts);
-    } else {
-      ordersResult = await ctx.db.query("orders").paginate(paginationOpts);
-    }
+    const ordersResult = await filteredOrdersPage(ctx, access, {
+      userId,
+      status,
+      limit,
+      cursor,
+    });
 
     // Enrich orders with customer data and order items
     const enrichedOrders = await Promise.all(
@@ -1142,7 +1341,7 @@ export const listOrdersWithDetails = query({
         const name = `${customer?.first_name} ${customer?.last_name}`;
 
         return {
-          ...order,
+          ...viewFor(access, order),
           customer_name: name || "Unknown Customer",
           vendor_name: vendorName,
           order_items: orderItems,
@@ -1161,7 +1360,12 @@ export const listOrdersWithDetails = query({
 export const getOrders = query({
   args: {},
   handler: async (ctx) => {
-    const orders = await ctx.db.query("orders").collect();
+    const authed = await assertPermission(ctx, "orders:READ");
+    const access: OrderReadAccess = {
+      kind: "staff",
+      scope: await orderVendorScope(ctx, authed),
+    };
+    const orders = await ordersInScope(ctx, access.scope);
 
     // Enrich with customer data and order items
     const enrichedOrders = await Promise.all(
@@ -1189,7 +1393,7 @@ export const getOrders = query({
         const name = `${customer?.first_name} ${customer?.last_name}`;
 
         return {
-          ...order,
+          ...viewFor(access, order),
           customer_name: name,
           customer_email: customer?.email || "No email",
           customer_phone: customer?.phone || "No phone",
@@ -1208,6 +1412,9 @@ export const getOrders = query({
 export const getOrderItems = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
+    // Same rule as the order itself: its customer, or staff in scope.
+    const readable = await readableOrder(ctx, args.orderId);
+    if (!readable) return [];
     return await ctx.db
       .query("order_items")
       .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
@@ -1362,8 +1569,11 @@ export const getOrderDetails = query({
 export const validateOrderExists = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
-    const order = await ctx.db.get(args.orderId);
-    return { exists: order !== null, order };
+    const readable = await readableOrder(ctx, args.orderId);
+    return {
+      exists: readable !== null,
+      order: readable ? viewFor(readable.access, readable.order) : null,
+    };
   },
 });
 
@@ -1371,7 +1581,11 @@ export const validateOrderExists = query({
 export const getOrderStats = query({
   args: {},
   handler: async (ctx) => {
-    const orders = await ctx.db.query("orders").collect();
+    const authed = await assertPermission(ctx, "orders:READ");
+    const orders = await ordersInScope(
+      ctx,
+      await orderVendorScope(ctx, authed),
+    );
 
     const stats = {
       total: orders.length,
@@ -1480,14 +1694,23 @@ export const assignRider = mutation({
 export const getUserOrders = query({
   args: { clerkId: v.string() },
   handler: async (ctx, args) => {
+    // `clerkId` is only a filter: the caller must BE that customer, or be staff
+    // with orders:READ (whose view is then limited to their vendor scope).
+    const access = await orderReadAccess(
+      ctx,
+      (me) => (me.clerkId === args.clerkId ? "owner" : null),
+    );
     // First find the user by clerkId
     try {
       const user = await getUserByClerkId(ctx, args.clerkId);
 
-      const orders = await ctx.db
-        .query("orders")
-        .withIndex("by_user", (q) => q.eq("user_id", user._id))
-        .order("desc")
+      const orders = await withinScope(
+        ctx.db
+          .query("orders")
+          .withIndex("by_user", (q) => q.eq("user_id", user._id))
+          .order("desc"),
+        access,
+      )
         .collect();
 
       // Enrich with vendor data and order items (same as getOrders function)
@@ -1526,7 +1749,7 @@ export const getUserOrders = query({
           const customerName = `${user.first_name} ${user.last_name}`;
 
           return {
-            ...order,
+            ...viewFor(access, order),
             customer_name: customerName,
             customer_email: user.email || "No email",
             customer_phone: user.phone || "No phone",
@@ -1553,14 +1776,23 @@ export const getUserOrdersPaginated = query({
     cursor: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    // `clerkId` is only a filter: the caller must BE that customer, or be staff
+    // with orders:READ (whose view is then limited to their vendor scope).
+    const access = await orderReadAccess(
+      ctx,
+      (me) => (me.clerkId === args.clerkId ? "owner" : null),
+    );
     try {
       const user = await getUserByClerkId(ctx, args.clerkId);
       const limit = Math.max(1, Math.min(50, args.limit));
 
-      const pageResult = await ctx.db
-        .query("orders")
-        .withIndex("by_user", (q) => q.eq("user_id", user._id))
-        .order("desc")
+      const pageResult = await withinScope(
+        ctx.db
+          .query("orders")
+          .withIndex("by_user", (q) => q.eq("user_id", user._id))
+          .order("desc"),
+        access,
+      )
         .paginate({
           cursor: args.cursor ?? null,
           numItems: limit,
@@ -1568,10 +1800,12 @@ export const getUserOrdersPaginated = query({
 
       const currentPageOrders = pageResult.page;
       const total = (
-        await ctx.db
-          .query("orders")
-          .withIndex("by_user", (q) => q.eq("user_id", user._id))
-          .collect()
+        await withinScope(
+          ctx.db
+            .query("orders")
+            .withIndex("by_user", (q) => q.eq("user_id", user._id)),
+          access,
+        ).collect()
       ).length;
 
       // Enrich with vendor data and order items
@@ -1614,8 +1848,12 @@ export const getUserOrdersPaginated = query({
           );
 
           return {
-            ...order,
-            vendor,
+            ...viewFor(access, order),
+            // Not the whole vendor document: it carries bank details and the
+            // Paystack subaccount (`business_details`).
+            vendor: vendor
+              ? { _id: vendor._id, name: vendor.name, contact: vendor.contact }
+              : null,
             order_items: enrichedOrderItems,
             items_count: enrichedOrderItems.length,
             customer_name: user.name,

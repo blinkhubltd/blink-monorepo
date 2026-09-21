@@ -65,7 +65,6 @@ function body(src: string, name: string): string {
 }
 
 const GATED: [name: string, permission: string][] = [
-  ["paginateOrders", "orders:READ"],
   ["updateOrderStatus", "orders:UPDATE"],
   ["updatePaymentStatus", "orders:UPDATE"],
   ["bulkUpdateOrderStatus", "orders:UPDATE"],
@@ -115,7 +114,7 @@ describe("hub-manager vendor scope is enforced on the server", () => {
   });
 
   it("every mutation loads its order through the scope check", () => {
-    for (const [name] of GATED.filter(([n]) => n !== "paginateOrders")) {
+    for (const [name] of GATED) {
       expect(body(orders, name), name).toMatch(/getScopedOrder\(ctx, scope,/);
     }
   });
@@ -127,6 +126,22 @@ describe("hub-manager vendor scope is enforced on the server", () => {
       /!order \|\| \(scope !== null && !scope\.includes\(order\.vendor_id\)\)/,
     );
     expect(helper!).toMatch(/throw new ConvexError\("Order not found"\)/);
+  });
+
+  it("paginateOrders is for staff with orders:READ, or a picker's own orders", () => {
+    const b = body(orders, "paginateOrders");
+    // Resolved before any read: the picker path only when the caller IS the
+    // picker being filtered on; everyone else falls through to orders:READ.
+    const gate = b.indexOf("orderReadAccess(ctx,");
+    expect(gate).toBeGreaterThan(-1);
+    expect(gate).toBeLessThan(b.indexOf("ctx.db.query("));
+    expect(b).toMatch(/me\._id === args\.assigned_picker_id\s*\?\s*"assignee"/);
+    // The scope only ever comes from the staff branch.
+    expect(b).toMatch(/const scope = access\.kind === "staff" \? access\.scope : null;/);
+    // A picker is pinned to their own orders on every branch — the search
+    // branch ignores the picker index — page and count alike.
+    expect(b).toMatch(/ordersQuery = ordersQuery\.filter\(pickerFilter\)/);
+    expect(b).toMatch(/countQuery = countQuery\.filter\(pickerFilter\)/);
   });
 
   it("paginateOrders intersects the requested vendors with the caller's own", () => {

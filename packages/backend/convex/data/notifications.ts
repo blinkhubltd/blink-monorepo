@@ -275,7 +275,7 @@ export const notifyRiderAssignment = action({
     }
 
     // Get order details
-    const orderDetails = await ctx.runQuery(api.data.orders.getOrderById, {
+    const orderDetails = await ctx.runQuery(internal.data.orders.getOrderByIdInternal, {
       orderId: args.orderId,
     });
     if (!orderDetails) {
@@ -356,7 +356,7 @@ export const notifyRiderOrderReady = action({
     reason?: string;
     result?: any;
   }> => {
-    const order: any = await ctx.runQuery(api.data.orders.getOrderById, {
+    const order: any = await ctx.runQuery(internal.data.orders.getOrderByIdInternal, {
       orderId: args.orderId,
     });
 
@@ -726,12 +726,9 @@ export const triggerOrderStatusNotification = action({
           });
 
           try {
-            const freshOrder = await ctx.runQuery(
-              api.data.orders.getOrderById,
-              {
-                orderId: args.orderId,
-              },
-            );
+            const freshOrder = await ctx.runQuery(internal.data.orders.getOrderByIdInternal, {
+              orderId: args.orderId,
+            });
             if (freshOrder && freshOrder.payment_mode === "pay_now") {
               const needsCode =
                 !freshOrder.delivery_code ||
@@ -752,12 +749,9 @@ export const triggerOrderStatusNotification = action({
                   console.warn("Delivery code generation skipped", genErr);
                 }
               }
-              const codedOrder = await ctx.runQuery(
-                api.data.orders.getOrderById,
-                {
-                  orderId: args.orderId,
-                },
-              );
+              const codedOrder = await ctx.runQuery(internal.data.orders.getOrderByIdInternal, {
+                orderId: args.orderId,
+              });
               if (
                 codedOrder?.delivery_code &&
                 !codedOrder.delivery_code_verified
@@ -905,7 +899,7 @@ export const sendDeliveryCode = action({
     error?: string;
   }> => {
     try {
-      const order = await ctx.runQuery(api.data.orders.getOrderById, {
+      const order = await ctx.runQuery(internal.data.orders.getOrderByIdInternal, {
         orderId: args.orderId,
       });
       if (!order) return { success: false, reason: "order_not_found" };
