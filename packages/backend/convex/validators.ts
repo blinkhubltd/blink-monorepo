@@ -623,7 +623,14 @@ export const ProductsValidator = v.object({
   sku: v.string(),
   searchText: v.optional(v.string()),
   upc: v.optional(v.number()),
+  /**
+   * Superseded by `brand_id`. Retained ONLY so documents written before the
+   * brands table existed still validate; nothing writes it any more. Remove
+   * this field once `data/brands.ts:migrateBrandStringsToBrands` has run on
+   * every deployment — at which point no document carries it.
+   */
   brand: v.optional(v.string()),
+  brand_id: v.optional(v.id("brands")),
   category_id: v.id("categories"),
   description: v.optional(v.string()),
   status: v.union(...productStatus.map((e) => v.literal(e))),
@@ -657,7 +664,9 @@ export const ProductsUpdateValidator = v.object({
   sku: v.optional(v.string()),
   searchText: v.optional(v.string()),
   upc: v.optional(v.number()),
+  /** Legacy; see the note on `ProductsValidator.brand`. */
   brand: v.optional(v.string()),
+  brand_id: v.optional(v.id("brands")),
   category_id: v.optional(v.id("categories")),
   description: v.optional(v.string()),
   status: v.optional(
@@ -696,6 +705,41 @@ export const CategoriesValidator = v.object({
   status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
   sort_order: v.number(),
   created_at: v.optional(v.number()),
+  updated_at: v.optional(v.number()),
+});
+
+/**
+ * A product brand — the manufacturer or marque a product carries, as distinct
+ * from the `vendor` that stocks and sells it. Two vendors can both stock the
+ * same brand; a brand is not a seller and has no coverage of its own.
+ *
+ * Brands were free-text strings on `products.brand` and `banners.brand` until
+ * brand banners needed somewhere to link TO. A string carries no logo, no
+ * status and no identity across a rename, and "Coca Cola" against "Coca-Cola"
+ * silently became two brands that no query could reconcile. So: a table,
+ * referenced by id, with both string fields retired in the same change.
+ */
+export const BrandsValidator = v.object({
+  name: v.string(),
+  slug: v.string(),
+  searchText: v.optional(v.string()),
+  description: v.optional(v.string()),
+  logo: v.optional(v.id("_storage")),
+  status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
+  created_at: v.optional(v.number()),
+  updated_at: v.optional(v.number()),
+});
+
+export const BrandsUpdateValidator = v.object({
+  id: v.id("brands"),
+  name: v.optional(v.string()),
+  slug: v.optional(v.string()),
+  searchText: v.optional(v.string()),
+  description: v.optional(v.string()),
+  logo: v.optional(v.id("_storage")),
+  status: v.optional(
+    v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
+  ),
   updated_at: v.optional(v.number()),
 });
 
@@ -1096,7 +1140,9 @@ export const BannersValidator = v.object({
     v.union(...bannerPromoTypes.map((e) => v.literal(e))),
   ),
   product_id: v.optional(v.id("products")),
+  /** Legacy; see the note on `ProductsValidator.brand`. */
   brand: v.optional(v.string()),
+  brand_id: v.optional(v.id("brands")),
   categoryId: v.optional(v.id("categories")),
   status: v.union(...lowercaseRecordStatus.map((e) => v.literal(e))),
   start_date: v.number(),
@@ -1118,7 +1164,9 @@ export const BannersUpdateValidator = v.object({
     v.union(...bannerPromoTypes.map((e) => v.literal(e))),
   ),
   product_id: v.optional(v.id("products")),
+  /** Legacy; see the note on `ProductsValidator.brand`. */
   brand: v.optional(v.string()),
+  brand_id: v.optional(v.id("brands")),
   categoryId: v.optional(v.id("categories")),
   status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   start_date: v.optional(v.number()),

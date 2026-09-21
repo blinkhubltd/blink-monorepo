@@ -5,6 +5,7 @@ import {
   UsersValidator,
   ProductsValidator,
   CategoriesValidator,
+  BrandsValidator,
   VendorsValidator,
   AddressValidator,
   ShipmentValidator,
@@ -53,6 +54,15 @@ export default defineSchema({
       filterFields: ["status", "industry"],
     }),
 
+  brands: defineTable(BrandsValidator)
+    .index("by_slug", ["slug"])
+    .index("by_status", ["status"])
+    .index("by_name", ["name"])
+    .searchIndex("search_text", {
+      searchField: "searchText",
+      filterFields: ["status"],
+    }),
+
   products: defineTable(ProductsValidator)
     .index("by_slug", ["slug"])
     .index("by_sku", ["sku"])
@@ -72,7 +82,14 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_vendor", ["vendor_id"])
     .index("by_barcode", ["barcode"])
+    // Legacy, over the free-text `brand` string. Dropped together with that
+    // field once the brands migration has run everywhere.
     .index("by_brand", ["brand"])
+    .index("by_brand_id", ["brand_id"])
+    // The shop's brand page reads exactly this pair, and for the same reason
+    // `by_category_status` exists: without the composite, "active products of
+    // this brand" walks every Active product on the platform.
+    .index("by_brand_id_status", ["brand_id", "status"])
     .searchIndex("search_text", {
       searchField: "searchText",
       filterFields: ["status", "category_id", "vendor_id"],
@@ -230,7 +247,10 @@ export default defineSchema({
     .index("by_category_status", ["categoryId", "status"])
     .index("by_promo_type", ["promo_type"])
     .index("by_product", ["product_id"])
-    .index("by_brand", ["brand"]),
+    // Legacy, over the free-text `brand` string. Dropped together with that
+    // field once the brands migration has run everywhere.
+    .index("by_brand", ["brand"])
+    .index("by_brand_id", ["brand_id"]),
 
   push_tokens: defineTable(PushTokensValidator)
     .index("by_user", ["user_id"])

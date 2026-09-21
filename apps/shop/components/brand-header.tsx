@@ -1,6 +1,7 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import type { SharedValue } from "react-native-reanimated";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Icon } from "./icon";
@@ -8,6 +9,7 @@ import { CartIconButton } from "./cart-icon-button";
 import { SearchIconButton } from "./search-icon-button";
 import { Logo } from "./logo";
 import { DeliveryBadge } from "./delivery-badge";
+import { BannerCarousel } from "./banner-carousel";
 import { useAddressLabel } from "../lib/use-address-label";
 
 /**
@@ -74,6 +76,8 @@ export function BrandHeader({
   showSearchButton = false,
   showCart = true,
   logoRow = false,
+  banners = false,
+  scrollY,
 }: {
   /** Omit entirely on a screen using `logoRow` instead. */
   title?: string;
@@ -92,106 +96,130 @@ export function BrandHeader({
   showCart?: boolean;
   /** The wordmark + delivery-time badge row, in place of the title block. Home only. */
   logoRow?: boolean;
+  /**
+   * The promo carousel, as the last row inside the yellow band. Home only.
+   *
+   * Inside the band rather than under it because the band is what gives the
+   * artwork a surface to sit on — on the page background the slides would
+   * read as the first row of content rather than as the header's own.
+   */
+  banners?: boolean;
+  /**
+   * The list's scroll offset, when the screen wants the carousel to collapse
+   * as the customer scrolls. Everything above it — the location pill, the
+   * wordmark and the delivery badge — stays put.
+   */
+  scrollY?: SharedValue<number>;
 }) {
   const { label: locationLabel, state: locationState } = useAddressLabel();
 
   return (
     <View
-      className={`bg-brand-surface px-screen pt-[14px] gap-space-5 ${
+      className={`bg-brand-surface px-screen pt-[14px] ${
         sweep ? "rounded-b-2xl pb-[18px]" : "pb-space-4"
       }`}
     >
       <StatusBar style="dark" />
 
-      <View
-        className={`flex-row items-center ${showLocation ? "h-control-sm" : "h-control justify-between"}`}
-      >
-        {showLocation ? (
-          <Pressable
-            onPress={() => router.push("/addresses")}
-            accessibilityRole="button"
-            accessibilityLabel={`Delivery location: ${locationLabel}. Tap to change.`}
-            className="h-control-sm gap-space-2 rounded-pill bg-card shadow-xs flex-1 shrink flex-row items-center pl-[10px] pr-[6px] mr-space-4 active:opacity-90"
-          >
-            <Icon
-              name={locationState === "denied" ? "alert-circle" : "location"}
-              size={locationState === "denied" ? 16 : 14}
-              tone={locationState === "denied" ? "destructive" : "price"}
-            />
-            <Text size="sm" numberOfLines={1} className="shrink">
-              {locationLabel}
-            </Text>
-            <View className="size-[20px] bg-gray-200 rounded-pill items-center justify-center">
-              <Icon name="chevron-down" size={12} tone="neutralIcon" />
-            </View>
-          </Pressable>
-        ) : showBack ? (
-          <Pressable
-            onPress={() => router.back()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            className="size-control rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
-          >
-            <Icon name="chevron-back" size={22} tone="onBrandPill" />
-          </Pressable>
-        ) : (
-          // A spacer, so `justify-between` still pins the right cluster to the
-          // edge rather than pulling it across to the left.
-          <View />
-        )}
+      {/*
+        The rows that always stay. `gap` lives here rather than on the outer
+        band so that the collapsing carousel below is not a gap sibling: a
+        gap applies to a zero-height child too, which would leave a strip of
+        empty yellow once the carousel has scrolled away.
+      */}
+      <View className="gap-space-5">
+        <View
+          className={`flex-row items-center ${showLocation ? "h-control-sm" : "h-control justify-between"}`}
+        >
+          {showLocation ? (
+            <Pressable
+              onPress={() => router.push("/addresses")}
+              accessibilityRole="button"
+              accessibilityLabel={`Delivery location: ${locationLabel}. Tap to change.`}
+              className="h-control-sm gap-space-2 rounded-pill bg-card mr-space-4 flex-1 shrink flex-row items-center pr-[6px] pl-[10px] shadow-xs active:opacity-90"
+            >
+              <Icon
+                name={locationState === "denied" ? "alert-circle" : "location"}
+                size={locationState === "denied" ? 16 : 14}
+                tone={locationState === "denied" ? "destructive" : "price"}
+              />
+              <Text size="sm" numberOfLines={1} className="shrink">
+                {locationLabel}
+              </Text>
+              <View className="rounded-pill size-[20px] items-center justify-center bg-gray-200">
+                <Icon name="chevron-down" size={12} tone="neutralIcon" />
+              </View>
+            </Pressable>
+          ) : showBack ? (
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              className="size-control rounded-pill bg-on-brand-pill items-center justify-center active:opacity-90"
+            >
+              <Icon name="chevron-back" size={22} tone="onBrandPill" />
+            </Pressable>
+          ) : (
+            // A spacer, so `justify-between` still pins the right cluster to the
+            // edge rather than pulling it across to the left.
+            <View />
+          )}
 
-        <View className="gap-space-2 flex-row items-center">
-          {showSearchButton ? <SearchIconButton /> : null}
-          {showCart ? <CartIconButton /> : null}
+          <View className="gap-space-2 flex-row items-center">
+            {showSearchButton ? <SearchIconButton /> : null}
+            {showCart ? <CartIconButton /> : null}
+          </View>
         </View>
-      </View>
 
-      {title ? (
-        <View className="gap-space-1">
-          {eyebrow ? (
-            <Text
-              variant="onBrand"
-              size="caption"
-              weight="semibold"
-              className="uppercase tracking-label opacity-70"
-            >
-              {eyebrow}
-            </Text>
-          ) : null}
-          <View className="gap-space-3 flex-row items-baseline justify-between">
-            <Text
-              variant="onBrand"
-              size={titleSize}
-              weight="bold"
-              numberOfLines={1}
-              className="shrink"
-            >
-              {title}
-            </Text>
-            {meta ? (
-              <Text variant="onBrand" size="caption" className="opacity-70">
-                {meta}
+        {title ? (
+          <View className="gap-space-1">
+            {eyebrow ? (
+              <Text
+                variant="onBrand"
+                size="caption"
+                weight="semibold"
+                className="tracking-label uppercase opacity-70"
+              >
+                {eyebrow}
+              </Text>
+            ) : null}
+            <View className="gap-space-3 flex-row items-baseline justify-between">
+              <Text
+                variant="onBrand"
+                size={titleSize}
+                weight="bold"
+                numberOfLines={1}
+                className="shrink"
+              >
+                {title}
+              </Text>
+              {meta ? (
+                <Text variant="onBrand" size="caption" className="opacity-70">
+                  {meta}
+                </Text>
+              ) : null}
+            </View>
+            {subtitle ? (
+              <Text variant="onBrand" size="sm" className="opacity-80">
+                {subtitle}
               </Text>
             ) : null}
           </View>
-          {subtitle ? (
-            <Text variant="onBrand" size="sm" className="opacity-80">
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
+        ) : null}
 
-      {logoRow ? (
-        <View className="flex-row items-center justify-between px-[2px] pb-[2px] pt-[4px]">
-          <View className="shrink">
-            <Logo />
+        {logoRow ? (
+          <View className="flex-row items-center justify-between px-[2px] pt-[4px] pb-[2px]">
+            <View className="shrink">
+              <Logo />
+            </View>
+            <View className="shrink">
+              <DeliveryBadge />
+            </View>
           </View>
-          <View className="shrink">
-            <DeliveryBadge />
-          </View>
-        </View>
-      ) : null}
+        ) : null}
+      </View>
+
+      {banners ? <BannerCarousel scrollY={scrollY} /> : null}
     </View>
   );
 }

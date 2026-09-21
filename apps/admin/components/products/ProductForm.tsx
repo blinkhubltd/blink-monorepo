@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/searchable-select";
 import { ProductCategoryPicker } from "@/components/categories/CategoryPickers";
 import { Checkbox } from "@repo/ui/components/ui/checkbox";
+import { useQuery } from "convex/react";
+import { api } from "@repo/backend";
 import { useCascadingCategories } from "@/lib/hooks/useCascadingCategories";
 import { toast } from "sonner";
 import { getConvexErrorMessage } from "@/lib/utils";
@@ -71,7 +73,7 @@ interface ValidationErrors {
   name?: string;
   slug?: string;
   sku?: string;
-  brand?: string;
+  brand_id?: string;
   category_id?: string;
   vendor_id?: string;
   price?: string;
@@ -93,7 +95,7 @@ interface FormData {
   name: string;
   slug: string;
   sku: string;
-  brand?: string;
+  brand_id?: string;
   category_id: string;
   vendor_id: string;
   price: string;
@@ -124,11 +126,15 @@ export function ProductForm({
 }: ProductFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPrescriptionField, setShowPrescriptionField] = useState(false);
+  // Queried here rather than threaded through as a prop like `vendors`: three
+  // call sites render this form, and none of them needs brands for anything
+  // else.
+  const brands = useQuery(api.data.brands.getAllBrands);
   const [formData, setFormData] = useState<FormData>({
     name: initialValues?.name || "",
     slug: initialValues?.slug || "",
     sku: initialValues?.sku || "",
-    brand: initialValues?.brand || "",
+    brand_id: initialValues?.brand_id || "",
     category_id: initialValues?.category_id || "",
     vendor_id: initialValues?.vendor_id || "",
     price: initialValues?.price || "",
@@ -298,12 +304,6 @@ export function ProductForm({
           fieldErrors.sku = "SKU must be at least 3 characters";
         } else if (typeof value === "string" && value.trim().length > 50) {
           fieldErrors.sku = "SKU must be less than 50 characters";
-        }
-        break;
-
-      case "brand":
-        if (typeof value === "string" && value.trim().length > 100) {
-          fieldErrors.brand = "Brand name must be less than 100 characters";
         }
         break;
 
@@ -500,7 +500,7 @@ export function ProductForm({
 
       const submitData = {
         ...formData,
-        brand: formData.brand?.trim() || undefined,
+        brand_id: formData.brand_id || undefined,
         price: Number.parseFloat(formData.price),
         quantity: Number.parseInt(formData.quantity),
         unit_value:
@@ -544,7 +544,7 @@ export function ProductForm({
           name: "",
           slug: "",
           sku: "",
-          brand: "",
+          brand_id: "",
           category_id: "",
           vendor_id: "",
           price: "",
@@ -861,20 +861,25 @@ export function ProductForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="brand">Brand</Label>
-          <Input
-            id="brand"
-            value={formData.brand || ""}
-            onChange={(e) => handleInputChange("brand", e.target.value)}
-            onBlur={() => handleBlur("brand")}
-            placeholder="Enter product brand"
-            className={getInputClasses("brand")}
-            maxLength={100}
+          <Label htmlFor="brand_id">Brand</Label>
+          <SearchableSelect
+            options={(brands ?? []).map((brand) => ({
+              value: brand._id,
+              label: brand.name,
+            }))}
+            value={formData.brand_id}
+            onValueChange={(value) => handleInputChange("brand_id", value)}
+            placeholder="Select brand"
+            searchPlaceholder="Search brands..."
           />
           <p className="text-sm text-muted-foreground">
-            Optional brand information for the product.
+            {/*
+              Chosen from a list rather than typed: this is what a brand
+              banner links to and what the shop's brand page lists, so a typo
+              used to create a second brand that nothing could find.
+            */}
+            Optional. Manage the list under Catalog &rarr; Brands.
           </p>
-          <ErrorMessage error={touched.brand ? errors.brand : undefined} />
         </div>
       </div>
 

@@ -83,10 +83,10 @@ export const createBanner = mutation({
         "Product ID is required when promo type is product",
       );
     }
-    if (args.promo_type === "brand" && !args.brand) {
-      throw new ConvexError("Brand name is required when promo type is brand");
+    if (args.promo_type === "brand" && !args.brand_id) {
+      throw new ConvexError("A brand is required when promo type is brand");
     }
-    if (args.promo_type === "product" && args.brand) {
+    if (args.promo_type === "product" && args.brand_id) {
       throw new ConvexError(
         "Only product ID should be set when promo type is product",
       );
@@ -95,6 +95,14 @@ export const createBanner = mutation({
       throw new ConvexError(
         "Only brand should be set when promo type is brand",
       );
+    }
+    // A banner whose target no longer exists is a tap that goes nowhere, and
+    // the customer has no way to tell that from a broken app.
+    if (args.brand_id && !(await ctx.db.get(args.brand_id))) {
+      throw new ConvexError("Selected brand does not exist");
+    }
+    if (args.product_id && !(await ctx.db.get(args.product_id))) {
+      throw new ConvexError("Selected product does not exist");
     }
 
     if (args.categoryId) {
@@ -508,19 +516,87 @@ export const toggleBannerStatus = mutation({
 
 export const getBannersByBrand = query({
   args: {
-    brand: v.string(),
+    brand_id: v.id("brands"),
     status: v.optional(v.union(...lowercaseRecordStatus.map((e) => v.literal(e)))),
   },
   handler: async (ctx, args) => {
-    let query = ctx.db
+    const banners = await ctx.db
       .query("banners")
-      .withIndex("by_brand", (q) => q.eq("brand", args.brand));
+      .withIndex("by_brand_id", (q) => q.eq("brand_id", args.brand_id))
+      .collect();
 
     if (args.status) {
-      const banners = await query.collect();
       return banners.filter((banner) => banner.status === args.status);
     }
+    return banners;
+  },
+});
 
-    return await query.collect();
+/**
+ * The shop's home carousel, resolved in one round trip.
+ *
+ * The apps cannot compose this themselves without a query per banner for the
+ * image URL and another per banner for its link target — on a carousel that
+ * is the first thing rendered on the home screen. So the join happens here:
+ * image URL, and just enough of the target to render and route to it.
+ *
+ * Only LIVE banners: active, and inside their scheduled window. A banner
+ * whose window has passed is not a banner, and the client should never have
+ * to know the scheduling rules to work that out.
+ *
+ * Banners whose target has been deleted since are dropped rather than
+ * returned as untappable — the caller cannot do anything useful with one.
+ */
+export const getHomeCarouselBanners = query({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    const active = await ctx.db
+      .query("banners")
+      .withIndex("by_status", (q) => q.eq("status", "active"))
+      .collect();
+
+    const live = active
+      .filter((banner) => isLive(banner, now))
+      // Oldest first, so the order is stable between renders and a new banner
+      // appears at the end rather than shuffling the deck under a swipe.
+      .sort((a, b) => a._creationTime - b._creationTime);
+
+    const resolved = await Promise.all(
+      live.map(async (banner) => {
+        const imageUrl = await ctx.storage.getUrl(banner.image);
+        if (!imageUrl) return null;
+
+        const brand = banner.brand_id ? await ctx.db.get(banner.brand_id) : null;
+        const product = banner.product_id
+          ? await ctx.db.get(banner.product_id)
+          : null;
+
+        // A brand/product banner that has lost its target is not renderable
+        // as a link, and a dead tap is worse than one fewer slide.
+        if (banner.promo_type === "brand" && !brand) return null;
+        if (banner.promo_type === "product" && !product) return null;
+
+        return {
+          _id: banner._id,
+          imageUrl,
+          header: banner.header,
+          sub_header: banner.sub_header,
+          cta_text: banner.cta_text,
+          textOverlayPos: banner.textOverlayPos,
+          promo_type: banner.promo_type,
+          brand: brand
+            ? { _id: brand._id, name: brand.name, slug: brand.slug }
+            : null,
+          product: product
+            ? { _id: product._id, name: product.name, slug: product.slug }
+            : null,
+          categoryId: banner.categoryId,
+        };
+      }),
+    );
+
+    return resolved.filter((b): b is NonNullable<typeof b> => b !== null);
   },
 });

@@ -530,6 +530,13 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         },
         "optional": true,
       },
+      "brand_id": {
+        "fieldType": {
+          "tableName": "brands",
+          "type": "id",
+        },
+        "optional": true,
+      },
       "categoryId": {
         "fieldType": {
           "tableName": "categories",
@@ -658,6 +665,13 @@ exports[`table shapes > matches the committed snapshot 1`] = `
       "brand": {
         "fieldType": {
           "type": "string",
+        },
+        "optional": true,
+      },
+      "brand_id": {
+        "fieldType": {
+          "tableName": "brands",
+          "type": "id",
         },
         "optional": true,
       },
@@ -830,6 +844,135 @@ exports[`table shapes > matches the committed snapshot 1`] = `
           "type": "number",
         },
         "optional": false,
+      },
+    },
+  },
+  "BrandsUpdateValidator": {
+    "type": "object",
+    "value": {
+      "description": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "id": {
+        "fieldType": {
+          "tableName": "brands",
+          "type": "id",
+        },
+        "optional": false,
+      },
+      "logo": {
+        "fieldType": {
+          "tableName": "_storage",
+          "type": "id",
+        },
+        "optional": true,
+      },
+      "name": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "searchText": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "slug": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "status": {
+        "fieldType": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "active",
+            },
+            {
+              "type": "literal",
+              "value": "inactive",
+            },
+          ],
+        },
+        "optional": true,
+      },
+      "updated_at": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": true,
+      },
+    },
+  },
+  "BrandsValidator": {
+    "type": "object",
+    "value": {
+      "created_at": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": true,
+      },
+      "description": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "logo": {
+        "fieldType": {
+          "tableName": "_storage",
+          "type": "id",
+        },
+        "optional": true,
+      },
+      "name": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": false,
+      },
+      "searchText": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": true,
+      },
+      "slug": {
+        "fieldType": {
+          "type": "string",
+        },
+        "optional": false,
+      },
+      "status": {
+        "fieldType": {
+          "type": "union",
+          "value": [
+            {
+              "type": "literal",
+              "value": "active",
+            },
+            {
+              "type": "literal",
+              "value": "inactive",
+            },
+          ],
+        },
+        "optional": false,
+      },
+      "updated_at": {
+        "fieldType": {
+          "type": "number",
+        },
+        "optional": true,
       },
     },
   },
@@ -3606,6 +3749,13 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         },
         "optional": true,
       },
+      "brand_id": {
+        "fieldType": {
+          "tableName": "brands",
+          "type": "id",
+        },
+        "optional": true,
+      },
       "category_id": {
         "fieldType": {
           "tableName": "categories",
@@ -3816,6 +3966,13 @@ exports[`table shapes > matches the committed snapshot 1`] = `
       "brand": {
         "fieldType": {
           "type": "string",
+        },
+        "optional": true,
+      },
+      "brand_id": {
+        "fieldType": {
+          "tableName": "brands",
+          "type": "id",
         },
         "optional": true,
       },

@@ -91,6 +91,11 @@ export const navigation: NavGroup[] = [
     links: [
       { icon: Package, title: "Products", url: "/products", resource: "products" },
       { icon: FolderTree, title: "Categories", url: "/categories", resource: "categories" },
+      // Gated on `categories` rather than a `brands` resource of its own: see
+      // the note in convex/data/brands.ts. Brands are catalogue taxonomy, and
+      // adding a resource no live role holds would lock everyone out of the
+      // module on the first deploy.
+      { icon: Store, title: "Brands", url: "/brands", resource: "categories" },
       { icon: Briefcase, title: "Industries", url: "/industries", resource: "industries" },
       { icon: Tag, title: "Clearance", url: "/clearance", resource: "clearance" },
     ],

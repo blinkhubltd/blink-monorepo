@@ -2,6 +2,10 @@ import { Pressable, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, {
+  useAnimatedScrollHandler,
+  useSharedValue,
+} from "react-native-reanimated";
 import { Icon } from "../../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -39,17 +43,43 @@ import { BrandHeader } from "../../../components/brand-header";
  * cart (`showSearchButton`); there is no header bell any more; notifications
  * stay reachable from Profile.
  */
+/**
+ * The list, wrapped so its scroll offset can drive the header's collapsing
+ * banner rail on the UI thread. A plain `onScroll` callback would hand every
+ * frame to JS first, which is visible as the banners lagging behind the
+ * finger.
+ */
+// Cast back to `typeof FlashList`: `createAnimatedComponent` erases the
+// generic, which would silently degrade every `item` in this file to
+// `unknown` — the props are otherwise identical.
+const AnimatedFlashList = Animated.createAnimatedComponent(
+  FlashList,
+) as unknown as typeof FlashList;
+
 export default function CategoriesScreen() {
   const tree = useCategoryTree();
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader showLocation showSearchButton sweep logoRow />
+      <BrandHeader
+        showLocation
+        showSearchButton
+        sweep
+        logoRow
+        banners
+        scrollY={scrollY}
+      />
 
       {tree.loading ? (
         <CategoryListSkeleton />
       ) : (
-        <FlashList
+        <AnimatedFlashList
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           data={tree.level1}
           keyExtractor={(item) => item._id}
           contentContainerClassName="px-screen pb-space-8"
