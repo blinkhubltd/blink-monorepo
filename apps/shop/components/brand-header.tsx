@@ -80,6 +80,7 @@ export function BrandHeader({
   scrollY,
   right,
   children,
+  inlineTitle = false,
 }: {
   /** Omit entirely on a screen using `logoRow` instead. */
   title?: string;
@@ -123,8 +124,22 @@ export function BrandHeader({
    * rather than reading as the first rows of the page beneath it.
    */
   children?: React.ReactNode;
+  /**
+   * Put the title in the top row, beside the right-hand control, instead of
+   * on its own line beneath it.
+   *
+   * Profile's design does this: "Profile" and the Settings pill share a
+   * baseline. It only makes sense on a screen with nothing in the left slot
+   * — with a back button or a location pill there, the title would be a
+   * third thing competing for the same row — so it is ignored unless both
+   * are off.
+   */
+  inlineTitle?: boolean;
 }) {
   const { label: locationLabel, state: locationState } = useAddressLabel();
+
+  // Only when the left slot is genuinely empty; see the prop's own note.
+  const titleInRow = inlineTitle && !!title && !showBack && !showLocation;
 
   return (
     <View
@@ -172,6 +187,16 @@ export function BrandHeader({
             >
               <Icon name="chevron-back" size={22} tone="onBrandPill" />
             </Pressable>
+          ) : titleInRow ? (
+            <Text
+              variant="onBrand"
+              size={titleSize}
+              weight="bold"
+              numberOfLines={1}
+              className="shrink"
+            >
+              {title}
+            </Text>
           ) : (
             // A spacer, so `justify-between` still pins the right cluster to the
             // edge rather than pulling it across to the left.
@@ -188,7 +213,7 @@ export function BrandHeader({
           </View>
         </View>
 
-        {title ? (
+        {title && !titleInRow ? (
           <View className="gap-space-1">
             {eyebrow ? (
               <Text

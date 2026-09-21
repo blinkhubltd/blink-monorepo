@@ -149,6 +149,7 @@ export default function ProfileScreen() {
       <BrandHeader
         title="Profile"
         titleSize="h2"
+        inlineTitle
         sweep
         showBack={false}
         right={
@@ -281,19 +282,24 @@ export default function ProfileScreen() {
             meta="Appearance, location, about"
             onPress={() => router.push("/settings")}
           />
-          {agent ? (
-            <MenuRow
-              icon="briefcase-outline"
-              label="Agent dashboard"
-              meta={`Code ${agent.code}`}
-              onPress={() => router.push("/agent")}
-            />
-          ) : null}
+          {/*
+            Always shown, where the old row was hidden from non-agents.
+            Hiding it meant the one place that explains what an agent even
+            is could only be found by someone who already was one — and the
+            screen itself gates properly, so a curious tap lands on an
+            explanation rather than a broken page.
+          */}
           <MenuRow
-            icon="gift-outline"
-            label="Referral code"
-            meta="Credit whoever signed you up"
-            onPress={() => router.push("/referral")}
+            icon="briefcase-outline"
+            label="Agent dashboard"
+            meta={
+              agent === undefined
+                ? undefined
+                : agent
+                  ? `Code ${agent.code}`
+                  : "For Blink referral agents"
+            }
+            onPress={() => router.push("/agent")}
           />
         </MenuSection>
 

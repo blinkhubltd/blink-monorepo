@@ -19,10 +19,15 @@ import { ScreenHeader } from "../../components/screen-header";
 import { SectionCard } from "../../components/checkout/sections";
 import { formatKES } from "../../lib/format";
 import {
+  describeEarningRange,
   describePayoutStatus,
+  EARNING_RANGES,
+  filterEarningsByRange,
+  payoutDayProblem,
   payoutRequestProblem,
   playStoreInstallLink,
   referralDeepLink,
+  type EarningRange,
 } from "../../lib/agent";
 
 /**
@@ -58,7 +63,7 @@ export default function AgentDashboardScreen() {
   );
   const earnings = useQuery(
     api.data.marketing.getMyAgentEarnings,
-    isSignedIn ? { limit: 20 } : "skip",
+    isSignedIn ? { limit: 50 } : "skip",
   );
   const requests = useQuery(
     api.data.agent_payment_requests.getMyPayoutRequests,
@@ -67,11 +72,17 @@ export default function AgentDashboardScreen() {
   const requestPayout = useMutation(
     api.data.agent_payment_requests.requestMyPayout,
   );
+  // The same row `requestMyPayout` reads before it refuses. Public, and not
+  // agent-specific, so it is safe to read here and costs one cached query.
+  const payoutDays = useQuery(api.data.platform_settings.get, {
+    key: "agent_payout_days",
+  });
 
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [range, setRange] = useState<EarningRange>("all");
 
   if (isLoaded && !isSignedIn) {
     return (
@@ -123,6 +134,10 @@ export default function AgentDashboardScreen() {
     hasPendingRequest: summary.hasPendingRequest,
   });
   const amountValid = problem === null;
+  // `undefined` while the setting loads: treated as no restriction, so the
+  // form does not flash a refusal before the answer arrives.
+  const dayProblem = payoutDayProblem(payoutDays?.value);
+  const visibleEarnings = filterEarningsByRange(earnings ?? [], range);
 
   async function submit() {
     setBusy(true);
@@ -320,6 +335,33 @@ export default function AgentDashboardScreen() {
         {/* How this agent is paid, from the zone. */}
         {summary.zone ? (
           <SectionCard title="How you earn">
+            {/*
+              The rates as a list before the sentence, which is how the old
+              dashboard showed them: an agent checking what a sign-up is
+              worth should not have to parse a paragraph. The sentence stays
+              underneath because it carries the part a list cannot — that a
+              fixed amount covers a threshold and per-unit rates only start
+              above it.
+            */}
+            {summary.zone.registrationRate ? (
+              <Rate
+                label="Per sign-up"
+                value={formatKES(summary.zone.registrationRate)}
+              />
+            ) : null}
+            {summary.zone.installRate ? (
+              <Rate
+                label="Per install"
+                value={formatKES(summary.zone.installRate)}
+              />
+            ) : null}
+            {summary.zone.fixedAmount ? (
+              <Rate
+                label="Fixed"
+                value={formatKES(summary.zone.fixedAmount)}
+              />
+            ) : null}
+
             <Text size="sm" variant="muted">
               {describeZone(summary.zone)}
             </Text>
@@ -341,6 +383,12 @@ export default function AgentDashboardScreen() {
             <Text size="sm" variant="muted">
               Nothing available to withdraw yet.
             </Text>
+          ) : dayProblem ? (
+            // Said up front, on the day, rather than after an amount has been
+            // typed and the request bounced. Same setting the server reads.
+            <Text size="sm" variant="muted">
+              {dayProblem}
+            </Text>
           ) : (
             <>
               <Input
@@ -361,10 +409,11 @@ export default function AgentDashboardScreen() {
                 disabled={!amountValid || busy}
                 onPress={() => void submit()}
               />
-              <Text size="caption" variant="subtle">
-                Payouts can only be requested on the days your zone allows, and
-                the server checks that — not this screen.
-              </Text>
+              {payoutDays?.value ? (
+                <Text size="caption" variant="subtle">
+                  Payout days: {payoutDays.value}.
+                </Text>
+              ) : null}
             </>
           )}
 
@@ -423,15 +472,53 @@ export default function AgentDashboardScreen() {
         </SectionCard>
 
         <SectionCard title="Recent earnings">
+          {/*
+            The date chips from the old dashboard. They filter what has been
+            fetched rather than re-querying: the list is capped, so a narrow
+            range is exact while "all" is "the most recent 50" — which the
+            footer below says outright rather than implying a complete
+            history.
+          */}
+          {earnings && earnings.length > 0 ? (
+            <View className="gap-space-2 flex-row">
+              {EARNING_RANGES.map((option) => {
+                const active = option === range;
+                return (
+                  <Pressable
+                    key={option}
+                    onPress={() => setRange(option)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    className={`h-control-sm px-space-3 rounded-pill items-center justify-center ${
+                      active ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <Text
+                      size="label"
+                      weight="semibold"
+                      variant={active ? "onBrand" : "muted"}
+                    >
+                      {describeEarningRange(option)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
           {earnings === undefined ? (
             <Skeleton className="h-[40px] w-full rounded-sm" />
           ) : earnings.length === 0 ? (
             <Text size="sm" variant="muted">
               Nothing credited yet.
             </Text>
+          ) : visibleEarnings.length === 0 ? (
+            <Text size="sm" variant="muted">
+              Nothing credited in that period.
+            </Text>
           ) : (
             <>
-              {earnings.map((earning, index) => (
+              {visibleEarnings.map((earning, index) => (
                 <View key={earning._id} className="gap-space-2">
                   {index > 0 ? <Separator /> : null}
                   <View className="flex-row items-baseline justify-between">
@@ -450,9 +537,10 @@ export default function AgentDashboardScreen() {
                   </View>
                 </View>
               ))}
-              {!summary.earningsCountIsExact ? (
+              {range === "all" && !summary.earningsCountIsExact ? (
                 <Text size="caption" variant="subtle">
-                  {summary.earningsCount}+ credits in total.
+                  Showing the most recent {visibleEarnings.length} of{" "}
+                  {summary.earningsCount}+ credits.
                 </Text>
               ) : null}
             </>
@@ -460,6 +548,18 @@ export default function AgentDashboardScreen() {
         </SectionCard>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/** One line of a zone's rate card: what it is, and what it pays. */
+function Rate({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-row items-baseline justify-between">
+      <Text size="sm">{label}</Text>
+      <Text size="sm" weight="semibold">
+        {value}
+      </Text>
+    </View>
   );
 }
 

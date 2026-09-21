@@ -67,8 +67,11 @@ export function availableBalance(
  * Whether an amount can be requested.
  *
  * Mirrors the server's rules so the button can be disabled with a reason instead
- * of the request failing. The server remains the authority — in particular for
- * the payout-day rule, which depends on a setting this screen does not read.
+ * of the request failing. The server remains the authority throughout; this is
+ * only ever an explanation offered earlier.
+ *
+ * The payout-DAY rule is not checked here — it needs the platform setting, so
+ * it lives in `payoutDayProblem` below and the screen asks both.
  */
 export function payoutRequestProblem(input: {
   amount: number;
@@ -89,6 +92,52 @@ export function payoutRequestProblem(input: {
     return "That is more than your available balance.";
   }
   return null;
+}
+
+/**
+ * Which weekdays payouts may be requested on, from the platform setting the
+ * SERVER enforces (`agent_payout_days`).
+ *
+ * ── Why the rule is mirrored on the client after all ─────────────────────
+ *
+ * This screen used to say only that the server checks the day, on the
+ * reasoning that a client copy of the rule would be the one that goes
+ * stale. That holds for a *copy* — a hardcoded list of days here — but not
+ * for reading the same row the server reads. Nothing is bypassable either
+ * way: `requestMyPayout` re-checks. What it buys is that Wednesday says so
+ * on Wednesday, instead of the form taking an amount and the request
+ * bouncing back.
+ */
+export function parsePayoutDays(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((day) => day.trim().toLowerCase())
+    .filter((day) => day.length > 0);
+}
+
+/**
+ * `null` when today is allowed — or when nothing is configured.
+ *
+ * An empty or whitespace-only setting means "no restriction", matching the
+ * server exactly. Reading it as "no day is allowed" would silently block
+ * every payout on the platform.
+ */
+export function payoutDayProblem(
+  value: string | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  const allowed = parsePayoutDays(value);
+  if (allowed.length === 0) return null;
+
+  const today = now
+    .toLocaleDateString("en-US", { weekday: "long" })
+    .toLowerCase();
+  if (allowed.includes(today)) return null;
+
+  // Quotes the setting's own text rather than a re-formatted list: it is
+  // what the admin typed and what the server quotes back on refusal, so the
+  // two messages match word for word.
+  return `Payouts can only be requested on ${value}.`;
 }
 
 /**
@@ -127,4 +176,56 @@ export function referralDeepLink(code: string): string {
 export function playStoreInstallLink(agentCode: string): string {
   const referrer = encodeURIComponent(`blink_ref=${agentCode.trim()}`);
   return `https://play.google.com/store/apps/details?id=com.blink.app&referrer=${referrer}`;
+}
+
+/**
+ * The date filters on the earnings list, ported from the old dashboard.
+ *
+ * Boundaries are local-midnight based rather than rolling 24/7/30-hour
+ * windows: an agent asking "what did I earn today" means since midnight,
+ * and a rolling window would quietly include yesterday evening.
+ */
+export const EARNING_RANGES = ["all", "today", "week", "month"] as const;
+export type EarningRange = (typeof EARNING_RANGES)[number];
+
+export function describeEarningRange(range: EarningRange): string {
+  if (range === "today") return "Today";
+  if (range === "week") return "This week";
+  if (range === "month") return "This month";
+  return "All";
+}
+
+/** The inclusive lower bound for a range, or null for "all". */
+export function earningRangeStart(
+  range: EarningRange,
+  now: Date = new Date(),
+): number | null {
+  if (range === "all") return null;
+
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (range === "today") return start.getTime();
+
+  if (range === "week") {
+    // Monday, matching how a payout week is talked about here. JS makes
+    // Sunday 0, so Sunday counts as the END of the week just gone rather
+    // than the start of the one beginning tomorrow.
+    const weekday = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - weekday);
+    return start.getTime();
+  }
+
+  start.setDate(1);
+  return start.getTime();
+}
+
+export function filterEarningsByRange<T extends { created_at: number }>(
+  earnings: readonly T[],
+  range: EarningRange,
+  now: Date = new Date(),
+): T[] {
+  const start = earningRangeStart(range, now);
+  if (start === null) return [...earnings];
+  return earnings.filter((earning) => earning.created_at >= start);
 }

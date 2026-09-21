@@ -122,6 +122,20 @@ export default function SettingsScreen() {
               meta="Name, phone and email"
               onPress={() => router.push("/edit-profile")}
             />
+            {/*
+              Moved here from Profile, where the Agent dashboard row took its
+              place. It is not decoration: `attributeMyRegistration` credits
+              an agent at most once per account and needs a real customer to
+              type the code, so this screen is the only way to credit an
+              agent who handed their code over in person. Scanning their QR
+              still deep-links straight to it.
+            */}
+            <MenuRow
+              icon="gift-outline"
+              label="Referral code"
+              meta="Credit whoever signed you up"
+              onPress={() => router.push("/referral")}
+            />
           </MenuSection>
         ) : null}
 
