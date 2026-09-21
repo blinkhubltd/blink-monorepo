@@ -1,8 +1,4 @@
-import {
-  internalQuery,
-  mutation,
-  query,
-} from "../_generated/server";
+import { internalQuery, mutation, query } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUser } from "../auth.helpers";
 import { Id } from "../_generated/dataModel";
@@ -560,6 +556,17 @@ export const getMyOrderTracking = query({
           ? rider.rider_details.coordinates
           : null,
       vehicleType: rider?.rider_details?.vehicle_type ?? null,
+      /*
+        What the customer needs to recognise the person at the door: a face,
+        and while the parcel is moving, the plate. The plate follows the phone's
+        rule — before collection it identifies a vehicle, not a delivery. The
+        rider's ID and licence images are never read here.
+      */
+      riderImage: rider?.image ?? null,
+      riderRating: rider?.rider_details?.rating ?? null,
+      vehiclePlate: isEnRoute
+        ? (rider?.rider_details?.vehicle_plate ?? null)
+        : null,
       /** Set when the order needs a code read out at the door. */
       deliveryCodeRequired:
         order.payment_mode === "pay_now" && !order.delivery_code_verified,

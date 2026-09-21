@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, Text as RNText, View } from "react-native";
 import { router } from "expo-router";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -23,6 +23,7 @@ import { Icon } from "./icon";
 export function ScreenHeader({
   title,
   eyebrow,
+  code,
   subtitle,
   meta,
   showBack = true,
@@ -30,6 +31,12 @@ export function ScreenHeader({
 }: {
   title: string;
   eyebrow?: string;
+  /**
+   * An identifier shown between the eyebrow and the title — an order
+   * reference. Monospace and truncated in the middle, because both ends of a
+   * reference are what a customer reads out to support.
+   */
+  code?: string;
   subtitle?: string;
   /** Baseline-aligned beside the title — an item count, never both with `subtitle`. */
   meta?: string;
@@ -37,13 +44,21 @@ export function ScreenHeader({
   right?: React.ReactNode;
 }) {
   return (
-    <View className="bg-card border-b-hairline border-hairline-soft px-screen h-control-lg flex-row items-center gap-space-3">
+    <View
+      className={`bg-card border-b-hairline border-hairline-soft px-screen gap-space-3 flex-row ${
+        // Three lines do not fit the fixed 52px, so a header carrying a code
+        // grows to its content. Every other header keeps its exact height.
+        code
+          ? "min-h-control-lg py-space-4 items-start"
+          : "h-control-lg items-center"
+      }`}
+    >
       {showBack ? (
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Back"
-          className="size-control-sm rounded-pill bg-gray-200 items-center justify-center active:opacity-90"
+          className="size-control-sm rounded-pill items-center justify-center bg-gray-200 active:opacity-90"
         >
           <Icon name="chevron-back" size={18} tone="neutralIcon" />
         </Pressable>
@@ -59,17 +74,34 @@ export function ScreenHeader({
             size="caption"
             variant="muted"
             weight="semibold"
-            className="uppercase tracking-label"
+            className="tracking-label uppercase"
           >
             {eyebrow}
           </Text>
+        ) : null}
+        {code ? (
+          <RNText
+            numberOfLines={1}
+            ellipsizeMode="middle"
+            selectable
+            className="text-muted-foreground text-[13px] leading-[18px] font-bold"
+            style={{
+              fontFamily: Platform.select({
+                ios: "Menlo",
+                android: "monospace",
+                default: "monospace",
+              }),
+            }}
+          >
+            {code}
+          </RNText>
         ) : null}
         <View className="gap-space-3 flex-row items-baseline justify-between">
           <Text
             size="h3"
             weight="bold"
             numberOfLines={1}
-            className="shrink text-strong"
+            className="text-strong shrink"
           >
             {title}
           </Text>

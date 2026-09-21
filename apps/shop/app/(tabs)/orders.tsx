@@ -1,4 +1,5 @@
-import { Pressable, View } from "react-native";
+import { useState } from "react";
+import { Pressable, ScrollView, Text as RNText, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,28 +10,35 @@ import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
-import { Badge } from "@repo/mobile-ui/components/ui/badge";
-import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 
 import { ScreenHeader } from "../../components/screen-header";
 import { formatKES } from "../../lib/format";
-import { isLive, presentStatus } from "../../lib/order-status";
+import {
+  ORDER_STAGE_FILTERS,
+  STAGE_PILL,
+  isLive,
+  matchesStageFilter,
+  orderStage,
+  type OrderStageFilter,
+} from "../../lib/order-status";
 
 /**
  * Order history.
  *
- * ── Grouped by basket ────────────────────────────────────────────────────
+ * ── One card per order ───────────────────────────────────────────────────
  *
- * A basket spanning several shops becomes several orders sharing one payment
- * reference. Listed flat, that reads as three separate purchases the customer
- * does not remember making. Grouped, it reads as what actually happened.
+ * Per the design: a card per delivery, filtered by the stage a customer thinks
+ * in (see `orderStage`). This used to group a multi-shop basket into one card;
+ * each order's own screen now says when it was one of several deliveries, which
+ * is where the customer is when the question comes up.
  *
  * Live orders come first regardless of date, because someone opening this screen
  * is almost always asking "where is my delivery" rather than browsing history.
  */
 export default function OrdersScreen() {
   const { isSignedIn } = useAuth();
+  const [filter, setFilter] = useState<OrderStageFilter>("All");
   const orders = useQuery(
     api.data.orders.getMyOrders,
     isSignedIn ? {} : "skip",
@@ -73,105 +81,158 @@ export default function OrdersScreen() {
     );
   }
 
-  // Group by the basket they came from. Orders with no reference stand alone.
-  const groups = new Map<string, typeof orders>();
-  for (const order of orders) {
-    const key = order.paymentReference ?? order._id;
-    const existing = groups.get(key);
-    if (existing) existing.push(order);
-    else groups.set(key, [order]);
-  }
-
-  const baskets = [...groups.entries()]
-    .map(([key, group]) => ({
-      key,
-      orders: group,
-      // A basket is live while ANY of its deliveries still is.
-      live: group.some((o) => isLive(o.orderStatus)),
-      date: Math.max(...group.map((o) => o.orderDate)),
-      total: group.reduce((sum, o) => sum + o.total, 0),
-    }))
-    .sort((a, b) => {
-      // Live first, then newest. Someone opening this screen usually wants the
-      // delivery that has not arrived, not the one from last month.
-      if (a.live !== b.live) return a.live ? -1 : 1;
-      return b.date - a.date;
-    });
+  // Live first, then newest: someone opening this screen is almost always
+  // asking where a delivery is, not browsing last month.
+  const sorted = [...orders].sort((a, b) => {
+    const aLive = isLive(a.orderStatus);
+    const bLive = isLive(b.orderStatus);
+    if (aLive !== bLive) return aLive ? -1 : 1;
+    return b.orderDate - a.orderDate;
+  });
+  const visible = sorted.filter((o) =>
+    matchesStageFilter(o.orderStatus, filter),
+  );
 
   return (
-    <SafeAreaView edges={["top"]} className="bg-background flex-1">
+    <SafeAreaView edges={["top"]} className="bg-card flex-1">
       <ScreenHeader title="Your orders" showBack={false} />
 
-      <FlashList
-        data={baskets}
-        keyExtractor={(item) => item.key}
-        contentContainerClassName="px-screen pb-space-8"
-        ItemSeparatorComponent={() => <View className="h-space-4" />}
-        renderItem={({ item }) => (
-          <View className="border-hairline border-border bg-card gap-space-3 p-space-4 rounded-lg">
-            <View className="gap-space-2 flex-row items-baseline justify-between">
-              <Text size="caption" variant="subtle">
-                {new Date(item.date).toLocaleDateString("en-GB", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </Text>
-              <Text size="sm" weight="semibold">
-                {formatKES(item.total)}
-              </Text>
-            </View>
+      <View className="border-b-hairline border-border bg-card">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName="gap-[8px] px-screen py-[14px]"
+        >
+          {ORDER_STAGE_FILTERS.map((option) => (
+            <FilterChip
+              key={option}
+              label={option}
+              active={filter === option}
+              onPress={() => setFilter(option)}
+            />
+          ))}
+        </ScrollView>
+      </View>
 
-            {item.orders.length > 1 ? (
-              <Text size="caption" variant="eyebrow">
-                {item.orders.length} deliveries
-              </Text>
-            ) : null}
-
-            {item.orders.map((order, index) => {
-              const status = presentStatus(order.orderStatus);
-              return (
-                <View key={order._id} className="gap-space-2">
-                  {index > 0 ? <Separator /> : null}
-                  <Pressable
-                    onPress={() => router.push(`/order/${order._id}`)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${order.vendorName ?? "Order"}, ${status.label}`}
-                    className="gap-space-3 flex-row items-center active:opacity-70"
-                  >
-                    <View className="gap-space-1 flex-1">
-                      <Text size="sm" weight="medium" numberOfLines={1}>
-                        {order.vendorName ?? "Order"}
-                      </Text>
-                      <Text size="caption" variant="subtle" numberOfLines={1}>
-                        {order.previewNames.join(", ")}
-                        {order.itemCount > order.previewNames.length
-                          ? ` +${order.itemCount - order.previewNames.length} more`
-                          : ""}
-                      </Text>
-                      <Badge variant={status.variant} label={status.label} />
-                    </View>
-                    <Icon name="chevron-forward" size={18} tone="subtle" />
-                  </Pressable>
-                </View>
-              );
-            })}
-
-            {/* Only offered while there is something to track. */}
-            {item.live ? (
-              <Button
-                variant="outline"
-                size="sm"
-                label="Track"
-                onPress={() =>
-                  router.push(`/order/${item.orders[0]!._id}/track`)
-                }
-              />
-            ) : null}
-          </View>
-        )}
-      />
+      <View className="bg-muted flex-1">
+        <FlashList
+          data={visible}
+          keyExtractor={(item) => item._id}
+          contentContainerClassName="px-screen pb-space-8 pt-space-5"
+          ItemSeparatorComponent={() => <View className="h-[12px]" />}
+          ListEmptyComponent={
+            <RNText className="text-muted-foreground px-space-6 py-[60px] text-center font-sans text-[15px] leading-[22px]">
+              No orders with this status.
+            </RNText>
+          }
+          renderItem={({ item }) => <OrderCard order={item} />}
+        />
+      </View>
     </SafeAreaView>
+  );
+}
+
+type OrderRow = NonNullable<
+  ReturnType<typeof useQuery<typeof api.data.orders.getMyOrders>>
+>[number];
+
+/**
+ * One order. The body opens the order; Track opens tracking, and is offered
+ * only while there is something to track — on a delivered order it would lead
+ * to a finished progress bar and nothing else.
+ */
+function OrderCard({ order }: { order: OrderRow }) {
+  const stage = orderStage(order.orderStatus);
+  const pill = STAGE_PILL[stage];
+  const extra = order.itemCount - order.previewNames.length;
+
+  return (
+    <View className="bg-card gap-[10px] rounded-[20px] p-[16px]">
+      <View className="flex-row items-start justify-between">
+        <RNText className="text-muted-foreground font-sans text-[13px] leading-[19px]">
+          {new Date(order.orderDate).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
+        </RNText>
+        <RNText className="text-foreground text-[16px] leading-[23px] font-semibold">
+          {formatKES(order.total)}
+        </RNText>
+      </View>
+
+      <Pressable
+        onPress={() => router.push(`/order/${order._id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={`${order.vendorName ?? "Order"}, ${stage}. Open order`}
+        className="flex-row items-center gap-[8px] active:opacity-70"
+      >
+        <View className="min-w-0 flex-1 gap-[2px]">
+          <RNText
+            className="text-foreground text-[15px] leading-[22px] font-semibold"
+            numberOfLines={1}
+          >
+            {order.vendorName ?? "Order"}
+          </RNText>
+          <RNText
+            className="text-muted-foreground font-sans text-[13px] leading-[19px]"
+            numberOfLines={1}
+          >
+            {order.previewNames.join(", ")}
+            {extra > 0 ? ` +${extra} more` : ""}
+          </RNText>
+        </View>
+        <Icon name="chevron-forward" size={18} tone="body" />
+      </Pressable>
+
+      <View className="flex-row items-center justify-between">
+        <View className={`${pill.bg} rounded-[999px] px-[14px] py-[6px]`}>
+          <RNText
+            className={`${pill.fg} text-[13px] leading-[17px] font-semibold`}
+          >
+            {stage}
+          </RNText>
+        </View>
+        {isLive(order.orderStatus) ? (
+          <Button
+            variant="outline"
+            size="ctaSm"
+            label="Track"
+            onPress={() => router.push(`/order/${order._id}/track`)}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** A filter pill: ink when selected, outlined when not. */
+function FilterChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: active }}
+      className={`rounded-[999px] border-[1.5px] px-[16px] py-[8px] active:opacity-80 ${
+        active ? "border-inverse bg-inverse" : "border-border bg-transparent"
+      }`}
+    >
+      <RNText
+        className={`text-[13px] leading-[17px] font-semibold ${
+          active ? "text-inverse-foreground" : "text-foreground"
+        }`}
+      >
+        {label}
+      </RNText>
+    </Pressable>
   );
 }
 

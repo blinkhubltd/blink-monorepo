@@ -5,6 +5,9 @@ import {
   isLive,
   presentStatus,
   type OrderStatus,
+  STAGE_PILL,
+  matchesStageFilter,
+  orderStage,
 } from "../lib/order-status";
 
 /**
@@ -147,5 +150,52 @@ describe("presentStatus and inherited keys", () => {
       expect(presentation.variant, key).toBe("secondary");
       expect(presentation.step, key).toBeNull();
     }
+  });
+});
+
+describe("orderStage — the list's four stages", () => {
+  it("folds picking and packing into Preparing", () => {
+    expect(orderStage("Processing")).toBe("Preparing");
+    expect(orderStage("Pickup")).toBe("Preparing");
+  });
+
+  it("keeps awaiting-payment with Confirmed", () => {
+    expect(orderStage("Pending")).toBe("Confirmed");
+  });
+
+  it("maps the rider leg and the end states", () => {
+    expect(orderStage("Delivery")).toBe("On the way");
+    expect(orderStage("Delivered")).toBe("Delivered");
+    expect(orderStage("Cancelled")).toBe("Cancelled");
+  });
+
+  it("does not trip over prototype keys or unknown values", () => {
+    expect(orderStage("constructor")).toBe("Confirmed");
+    expect(orderStage("Teleported")).toBe("Confirmed");
+  });
+
+  it("has a pill for every stage", () => {
+    for (const stage of Object.values({
+      a: orderStage("Pending"),
+      b: orderStage("Processing"),
+      c: orderStage("Delivery"),
+      d: orderStage("Delivered"),
+      e: orderStage("Cancelled"),
+      f: orderStage("Refunded"),
+    })) {
+      expect(STAGE_PILL[stage].bg).toMatch(/^bg-/);
+    }
+  });
+});
+
+describe("matchesStageFilter", () => {
+  it("All shows everything, including orders that left the track", () => {
+    expect(matchesStageFilter("Cancelled", "All")).toBe(true);
+  });
+
+  it("a stage filter shows only that stage", () => {
+    expect(matchesStageFilter("Pickup", "Preparing")).toBe(true);
+    expect(matchesStageFilter("Pickup", "On the way")).toBe(false);
+    expect(matchesStageFilter("Cancelled", "Delivered")).toBe(false);
   });
 });
