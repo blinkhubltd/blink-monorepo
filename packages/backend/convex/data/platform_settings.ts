@@ -1,6 +1,10 @@
 import { query, mutation, internalMutation } from "../_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { assertSuperAdmin } from "../auth.helpers";
+import {
+  describeSupportLinkProblem,
+  normalizeSupportLink,
+} from "@repo/lib/utils";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import {
   DEFAULT_DELIVERY_FEE_KES,
@@ -33,6 +37,13 @@ export const DELIVERY_FEE_KEY = "delivery_fee";
 export const CLEARANCE_DELIVERY_FEE_KEY = "clearance_delivery_fee";
 export const EXTRA_VENDOR_FEE_KEY = "clearance_extra_vendor_fee";
 export const FREE_DELIVERY_THRESHOLD_KEY = "free_delivery_threshold";
+
+/**
+ * Where the shop's "Contact support" button goes — a tel:, mailto:, https: or
+ * WhatsApp link. Empty means no button. See `@repo/lib`'s `support-link.ts`
+ * for what is accepted and why.
+ */
+export const SUPPORT_URL_KEY = "support_url";
 
 export const get = query({
   args: { key: v.string() },
@@ -70,6 +81,16 @@ export const upsert = mutation({
   },
   handler: async (ctx, args) => {
     await assertSuperAdmin(ctx);
+
+    // The support link is shown to every customer as a button, so it is
+    // checked here as well as in the form: a value that got past the form
+    // (an old client, a direct call) must not reach a customer's phone. Empty
+    // is allowed and clears it.
+    if (args.key === SUPPORT_URL_KEY) {
+      const problem = describeSupportLinkProblem(args.value);
+      if (problem) throw new ConvexError(`Support link: ${problem}`);
+      args = { ...args, value: args.value.trim() };
+    }
 
     const existing = await ctx.db
       .query("platform_settings")
@@ -252,6 +273,25 @@ export async function readLegalVersions(
   };
 }
 
+/**
+ * The customer support link, or null when none is set.
+ *
+ * Public on purpose: the shop reads it for every signed-in or signed-out
+ * customer, and it is a contact point meant to be given out. Re-normalised on
+ * the way out, so a row written before validation existed still cannot hand
+ * the app something it would refuse to open.
+ */
+export const getSupportLink = query({
+  args: {},
+  handler: async (ctx) => {
+    const row = await ctx.db
+      .query("platform_settings")
+      .withIndex("by_key", (q) => q.eq("key", SUPPORT_URL_KEY))
+      .first();
+    return normalizeSupportLink(row?.value);
+  },
+});
+
 /** Returns version string and last-updated timestamp for each legal document. */
 export const getLegalSettings = query({
   args: {},
@@ -390,7 +430,10 @@ export async function readDeliveryPricing(
   ]);
 
   const base = resolveFeeSetting(baseRow?.value, DEFAULT_DELIVERY_FEE_KES);
-  const extra = resolveFeeSetting(extraRow?.value, DEFAULT_EXTRA_VENDOR_FEE_KES);
+  const extra = resolveFeeSetting(
+    extraRow?.value,
+    DEFAULT_EXTRA_VENDOR_FEE_KES,
+  );
   const threshold = resolveNumericSetting(
     thresholdRow?.value,
     DEFAULT_FREE_DELIVERY_THRESHOLD_KES,
@@ -441,8 +484,10 @@ export async function readClearanceDeliveryPricing(
 
   return {
     baseFee: resolveFeeSetting(baseRow?.value, 150).value,
-    extraVendorFee: resolveFeeSetting(extraRow?.value, DEFAULT_EXTRA_VENDOR_FEE_KES)
-      .value,
+    extraVendorFee: resolveFeeSetting(
+      extraRow?.value,
+      DEFAULT_EXTRA_VENDOR_FEE_KES,
+    ).value,
   };
 }
 

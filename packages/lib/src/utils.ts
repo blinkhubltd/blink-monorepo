@@ -38,3 +38,10 @@ export type {
   OrderLifecycleStatus,
   TransitionCheck,
 } from "./utils/order-transitions";
+
+export {
+  SUPPORT_LINK_SCHEMES,
+  normalizeSupportLink,
+  describeSupportLinkProblem,
+  supportLinkForOrder,
+} from "./utils/support-link";
