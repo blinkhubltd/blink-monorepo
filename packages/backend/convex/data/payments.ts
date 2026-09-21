@@ -491,7 +491,7 @@ export const applyVerificationResult = internalMutation({
         if (linkedOrder && linkedOrder.order_status === "Pending") {
           await ctx.scheduler.runAfter(
             0,
-            api.data.notifications.updateOrderStatusWithNotifications,
+            internal.data.notifications.updateOrderStatusWithNotifications,
             {
               orderId: payment.order_id,
               newStatus: "Confirmed",

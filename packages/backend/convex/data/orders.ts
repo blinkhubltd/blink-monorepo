@@ -13,11 +13,59 @@ import {
   orderPaymentStatus,
   orderStatus,
 } from "../validators";
-import { getAuthUser, getUserByClerkId } from "../auth.helpers";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
+import {
+  assertPermission,
+  getAuthUser,
+  getUserByClerkId,
+  type AuthedUser,
+} from "../auth.helpers";
+import { isSuperAdminPermissions } from "../lib/role_presets";
 import { syncShipmentStatusForOrder } from "./shipments";
 import { generateDeliveryCode as createDeliveryCode } from "../lib/delivery_code";
 import { priceClearanceDelivery } from "../lib/delivery_fee";
 import { readClearanceDeliveryPricing } from "./platform_settings";
+
+/**
+ * The vendors an admin caller's order access is limited to, or `null` for the
+ * whole platform.
+ *
+ * A non-empty `manager_details.vendor_id` makes someone a vendor-scoped hub
+ * manager; a super admin (holding `"*"`) is never scoped, whatever that field
+ * says. This is the server-side half of the scope the orders page used to
+ * enforce only by sending `vendor_ids` — a filter the browser chose, and so one
+ * a manager could simply leave off.
+ */
+async function orderVendorScope(
+  ctx: QueryCtx | MutationCtx,
+  authed: AuthedUser,
+): Promise<Id<"vendors">[] | null> {
+  if (isSuperAdminPermissions(authed.permissions)) return null;
+  // Re-read as a typed document: `AuthedUser.user` is an index-signature
+  // shape, and a scope check is the wrong place to trust a cast.
+  const me = await ctx.db.get(authed.user._id);
+  const scopedVendorIds = me?.manager_details?.vendor_id ?? [];
+  return scopedVendorIds.length > 0 ? scopedVendorIds : null;
+}
+
+/**
+ * Load an order an admin caller may act on, or throw.
+ *
+ * Out of scope throws the same error as a missing id, so a scoped manager
+ * cannot use a mutation to probe which order ids exist at other vendors.
+ */
+async function getScopedOrder(
+  ctx: MutationCtx,
+  scope: Id<"vendors">[] | null,
+  orderId: Id<"orders">,
+): Promise<Doc<"orders">> {
+  const order = await ctx.db.get(orderId);
+  if (!order || (scope !== null && !scope.includes(order.vendor_id))) {
+    throw new ConvexError("Order not found");
+  }
+  return order;
+}
 
 const computeOrderSearchText = (order: {
   reference?: string;
@@ -61,18 +109,50 @@ export const paginateOrders = query({
     is_clearance: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:READ");
+    const scope = await orderVendorScope(ctx, authed);
+
     const PageLimit = Math.max(1, Math.min(200, args.limit));
     const normalizedSearch = (args.search ?? "").trim();
     const isSearching = normalizedSearch.length > 0;
 
-    // If vendor_ids is provided with a single ID and no vendor_id, use it as vendor_id
-    const effectiveVendorId =
-      args.vendor_id ??
-      (args.vendor_ids?.length === 1 ? args.vendor_ids[0] : undefined);
-    const vendorIdsFilter =
-      !effectiveVendorId && args.vendor_ids && args.vendor_ids.length > 1
+    // The vendors asked for. `vendor_id` wins over `vendor_ids`, as before.
+    const requestedVendorIds: Id<"vendors">[] | undefined = args.vendor_id
+      ? [args.vendor_id]
+      : args.vendor_ids && args.vendor_ids.length > 0
         ? args.vendor_ids
         : undefined;
+
+    // A scoped manager gets the intersection of what they asked for and what
+    // they are assigned — never more. Asking for nothing means "all of mine".
+    const allowedVendorIds =
+      scope === null
+        ? requestedVendorIds
+        : (requestedVendorIds ?? scope).filter((id) => scope.includes(id));
+
+    if (allowedVendorIds !== undefined && allowedVendorIds.length === 0) {
+      return {
+        data: [],
+        pagination: {
+          PageLimit,
+          total: 0,
+          totalPages: 1,
+          hasNext: false,
+          cursor: null,
+        },
+      };
+    }
+
+    // A single vendor can use the vendor index (or narrow the search index).
+    const effectiveVendorId =
+      allowedVendorIds?.length === 1 ? allowedVendorIds[0] : undefined;
+
+    // Applied whenever a vendor restriction exists, regardless of which index
+    // was chosen. Several branches below (the picker indexes, payment status
+    // alone) never applied `effectiveVendorId`, so without this a scoped
+    // manager passing `assigned_picker_id` saw every vendor.
+    const scopeFilter = (q: any) =>
+      q.or(...allowedVendorIds!.map((id) => q.eq(q.field("vendor_id"), id)));
 
     const baseQuery = ctx.db.query("orders");
 
@@ -133,14 +213,10 @@ export const paginateOrders = query({
       ordersQuery = baseQuery.order("desc");
     }
 
-    // Apply multi-vendor filter when vendor_ids has multiple IDs
-    if (vendorIdsFilter) {
-      const vendorSet = new Set(vendorIdsFilter);
-      ordersQuery = ordersQuery.filter((q: any) =>
-        q.or(
-          ...vendorIdsFilter.map((id: any) => q.eq(q.field("vendor_id"), id)),
-        ),
-      );
+    // Vendor restriction — the requested vendors, or a scoped manager's own.
+    // Covers the multi-vendor case and any index branch that ignored the vendor.
+    if (allowedVendorIds) {
+      ordersQuery = ordersQuery.filter(scopeFilter);
     }
 
     // Filter by clearance orders
@@ -198,12 +274,10 @@ export const paginateOrders = query({
       } else {
         countQuery = baseQuery;
       }
-      if (vendorIdsFilter) {
-        countQuery = countQuery.filter((q: any) =>
-          q.or(
-            ...vendorIdsFilter.map((id: any) => q.eq(q.field("vendor_id"), id)),
-          ),
-        );
+      // Same restriction as the page. Previously only the multi-vendor case was
+      // applied here, so `order_status` + one vendor counted every vendor.
+      if (allowedVendorIds) {
+        countQuery = countQuery.filter(scopeFilter);
       }
       return countQuery.collect();
     })();
@@ -451,6 +525,10 @@ export const updateOrder = mutation({
 export const deleteOrder = mutation({
   args: { id: v.id("orders") },
   handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:DELETE");
+    const scope = await orderVendorScope(ctx, authed);
+    await getScopedOrder(ctx, scope, args.id);
+
     await ctx.db.delete(args.id);
     return {
       success: true,
@@ -458,36 +536,47 @@ export const deleteOrder = mutation({
   },
 });
 
-export const updateOrderStatus = mutation({
-  args: {
-    orderId: v.id("orders"),
-    status: v.union(...orderStatus.map((e) => v.literal(e))),
-  },
-  handler: async (ctx, args) => {
-    const order = await ctx.db.get(args.orderId);
-    if (!order) {
-      throw new Error("Order not found");
-    }
+/**
+ * Move an order to `status`, with every side effect a status change carries:
+ * timestamps, the Delivery/Delivered notification, the shipment sync, and the
+ * stock fulfil/release.
+ *
+ * A plain function rather than a mutation so each entry point can authorise in
+ * its own terms and then share one implementation:
+ *
+ *   - `updateOrderStatus` — admin, `orders:UPDATE` within the vendor scope.
+ *   - `verifyDeliveryCode` — the order's assigned rider, who holds no
+ *     permissions at all. It used to `runMutation(api...updateOrderStatus)`,
+ *     which would now reject the rider mid-handover.
+ *   - `setOrderStatus` — internal, for the scheduled payment confirmation,
+ *     which runs with no identity.
+ */
+async function applyOrderStatus(
+  ctx: MutationCtx,
+  order: Doc<"orders">,
+  status: Doc<"orders">["order_status"],
+): Promise<void> {
+  const orderId = order._id;
 
     // Update order status
-    await ctx.db.patch(args.orderId, {
-      order_status: args.status,
+    await ctx.db.patch(orderId, {
+      order_status: status,
       updated_at: Date.now(),
       // Capture timestamps for pickup duration tracking
-      ...(args.status === "Confirmed" && !order.confirmed_at
+      ...(status === "Confirmed" && !order.confirmed_at
         ? { confirmed_at: Date.now() }
         : {}),
-      ...(args.status === "Pickup" ? { picked_up_at: Date.now() } : {}),
+      ...(status === "Pickup" ? { picked_up_at: Date.now() } : {}),
     });
 
     // For Delivery / Delivered trigger notification pipeline if called directly via admin panel
-    if (args.status === "Delivery" || args.status === "Delivered") {
+    if (status === "Delivery" || status === "Delivered") {
       try {
         console.log(
           "[updateOrderStatus] scheduling triggerOrderStatusNotification",
           {
-            orderId: args.orderId,
-            status: args.status,
+            orderId: orderId,
+            status: status,
             previousStatus: order.order_status,
             invokedFrom: "orders.updateOrderStatus",
           },
@@ -496,8 +585,8 @@ export const updateOrderStatus = mutation({
           0,
           api.data.notifications.triggerOrderStatusNotification,
           {
-            orderId: args.orderId,
-            newStatus: args.status,
+            orderId: orderId,
+            newStatus: status,
             previousStatus: order.order_status,
           },
         );
@@ -510,17 +599,17 @@ export const updateOrderStatus = mutation({
     }
 
     try {
-      await syncShipmentStatusForOrder(ctx, args.orderId, args.status);
+      await syncShipmentStatusForOrder(ctx, orderId, status);
     } catch (syncError) {
       console.error(
-        `Shipment status sync failed for order ${args.orderId}:`,
+        `Shipment status sync failed for order ${orderId}:`,
         syncError,
       );
     }
 
     // Handle stock fulfillment when order is delivered or in transit
     if (
-      (args.status === "Delivered" || args.status === "Delivery") &&
+      (status === "Delivered" || status === "Delivery") &&
       order.payment_reference
     ) {
       try {
@@ -529,11 +618,11 @@ export const updateOrderStatus = mutation({
           orderReference: order.payment_reference,
         });
         console.log(
-          `Stock reservation marked as fulfilled for order ${args.orderId} - inventory managed by external API`,
+          `Stock reservation marked as fulfilled for order ${orderId} - inventory managed by external API`,
         );
       } catch (stockError) {
         console.error(
-          `Stock fulfillment failed for order ${args.orderId}:`,
+          `Stock fulfillment failed for order ${orderId}:`,
           stockError,
         );
       }
@@ -541,7 +630,7 @@ export const updateOrderStatus = mutation({
 
     // Handle stock release when order is cancelled or refunded
     if (
-      (args.status === "Cancelled" || args.status === "Refunded") &&
+      (status === "Cancelled" || status === "Refunded") &&
       order.payment_reference
     ) {
       try {
@@ -550,18 +639,56 @@ export const updateOrderStatus = mutation({
           orderReference: order.payment_reference,
         });
         console.log(
-          `Stock released for cancelled/refunded order ${args.orderId} with reference ${order.payment_reference}`,
+          `Stock released for cancelled/refunded order ${orderId} with reference ${order.payment_reference}`,
         );
       } catch (stockError) {
         console.error(
-          `Stock release failed for order ${args.orderId}:`,
+          `Stock release failed for order ${orderId}:`,
           stockError,
         );
         // Don't throw error - order status update should still succeed
       }
     }
 
+}
+
+export const updateOrderStatus = mutation({
+  args: {
+    orderId: v.id("orders"),
+    status: v.union(...orderStatus.map((e) => v.literal(e))),
+  },
+  handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:UPDATE");
+    const scope = await orderVendorScope(ctx, authed);
+    const order = await getScopedOrder(ctx, scope, args.orderId);
+
+    await applyOrderStatus(ctx, order, args.status);
+
     return await ctx.db.get(args.orderId);
+  },
+});
+
+/**
+ * `updateOrderStatus` for server-side callers with no user identity — the
+ * payment-confirmation path schedules `updateOrderStatusWithNotifications`,
+ * and a scheduled function carries no auth.
+ *
+ * Returns the previous status so that action need not read the order through
+ * the public `getOrderById`. A no-op when the status is unchanged.
+ */
+export const setOrderStatus = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    status: v.union(...orderStatus.map((e) => v.literal(e))),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Order not found");
+    const previousStatus = order.order_status;
+    if (previousStatus !== args.status) {
+      await applyOrderStatus(ctx, order, args.status);
+    }
+    return { previousStatus, changed: previousStatus !== args.status };
   },
 });
 
@@ -625,6 +752,10 @@ export const updatePaymentStatus = mutation({
     status: v.union(...orderPaymentStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:UPDATE");
+    const scope = await orderVendorScope(ctx, authed);
+    await getScopedOrder(ctx, scope, args.orderId);
+
     await ctx.db.patch(args.orderId, {
       payment_status: args.status,
       updated_at: Date.now(),
@@ -768,11 +899,11 @@ export const verifyDeliveryCode = mutation({
     });
 
     // Update order status to delivered if not already
+    // Directly, not through the public `updateOrderStatus`: that is gated on
+    // `orders:UPDATE`, which a rider does not hold. The rider check above is
+    // this path's authorisation.
     if (order.order_status !== "Delivered") {
-      await ctx.runMutation(api.data.orders.updateOrderStatus, {
-        orderId: args.orderId,
-        status: "Delivered",
-      });
+      await applyOrderStatus(ctx, order, "Delivered");
     }
 
     return { verified: true, reason: "success" };
@@ -891,15 +1022,22 @@ export const bulkUpdateOrderStatus = mutation({
     status: v.union(...orderStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:UPDATE");
+    const scope = await orderVendorScope(ctx, authed);
     const { orderIds, status } = args;
 
+    // All or nothing: resolve every order (and its scope) before writing any,
+    // so one out-of-scope id rejects the batch rather than half-applying it.
+    const orders = await Promise.all(
+      orderIds.map((orderId) => getScopedOrder(ctx, scope, orderId)),
+    );
+
     // Update all orders with timestamps
-    const updatePromises = orderIds.map(async (orderId) => {
-      const order = await ctx.db.get(orderId);
-      await ctx.db.patch(orderId, {
+    const updatePromises = orders.map(async (order) => {
+      await ctx.db.patch(order._id, {
         order_status: status,
         updated_at: Date.now(),
-        ...(status === "Confirmed" && !order?.confirmed_at
+        ...(status === "Confirmed" && !order.confirmed_at
           ? { confirmed_at: Date.now() }
           : {}),
         ...(status === "Pickup" ? { picked_up_at: Date.now() } : {}),
@@ -1154,6 +1292,10 @@ export const assignRider = mutation({
     riderId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:UPDATE");
+    const scope = await orderVendorScope(ctx, authed);
+    await getScopedOrder(ctx, scope, args.orderId);
+
     await ctx.db.patch(args.orderId, {
       rider_id: args.riderId,
       updated_at: Date.now(),
