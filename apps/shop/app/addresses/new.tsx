@@ -230,7 +230,8 @@ export default function EditAddressScreen() {
 
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className="self-center"
               label={requesting ? "Locating…" : "Use my current location"}
               icon={<Icon name="locate-outline" size={16} tone="strong" />}
               loading={requesting}
@@ -265,7 +266,7 @@ export default function EditAddressScreen() {
                 {covered === null
                   ? "Checking which shops reach this spot…"
                   : covered
-                    ? `${covering!.length} ${covering!.length === 1 ? "shop delivers" : "shops deliver"} here`
+                    ? "We deliver here"
                     : "No shop delivers to this spot yet"}
               </Text>
             </View>

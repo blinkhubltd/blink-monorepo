@@ -3,7 +3,7 @@ import { useAction, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import { useAuth } from "@clerk/clerk-expo";
 
-import { isUsablePoint, summariseAddress, type Point } from "./address";
+import { isUsablePoint, type Point } from "./address";
 import { pickAddressLabel, type AddressLabelState } from "./address-label";
 import { useLocation } from "../providers/LocationProvider";
 
@@ -73,9 +73,7 @@ export function useAddressLabel(): {
   const defaultAddress = addresses?.find((a) => a.is_default);
 
   return pickAddressLabel({
-    defaultAddressLine: defaultAddress
-      ? summariseAddress(defaultAddress.address)
-      : null,
+    defaultAddressLabel: defaultAddress ? defaultAddress.label : null,
     geocoded,
     denied,
     loading: requesting || geocoding,

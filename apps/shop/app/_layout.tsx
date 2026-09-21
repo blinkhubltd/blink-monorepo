@@ -31,6 +31,7 @@ import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import { ConvexClerkProvider } from "../providers/ConvexClerkProvider";
 import { LocationProvider } from "../providers/LocationProvider";
 import { CartProvider } from "../providers/CartProvider";
+import { ToastProvider } from "../providers/ToastProvider";
 import {
   PAYSTACK_CHANNELS,
   PAYSTACK_CURRENCY,
@@ -121,6 +122,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
+        {/*
+          Outside everything else so its overlay paints above the Stack AND
+          above anything rendered through PortalHost (dialogs, sheets) — a
+          success toast after confirming a destructive dialog needs to be
+          visible once that dialog has closed, not underneath it.
+        */}
+        <ToastProvider>
         <ConvexClerkProvider>
           <LocationProvider>
             <CartProvider>
@@ -208,6 +216,7 @@ export default function RootLayout() {
             </CartProvider>
           </LocationProvider>
         </ConvexClerkProvider>
+        </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -191,7 +191,7 @@ export function DeliveryInstructionsSection({
         multiline
         numberOfLines={4}
         textAlignVertical="top"
-        className="border-hairline border-input bg-background p-space-4 text-body text-foreground min-h-[96px] rounded-md font-sans"
+        className="border border-input bg-background p-space-4 text-body text-foreground min-h-[96px] rounded-md font-sans"
       />
     </SectionCard>
   );
