@@ -82,8 +82,9 @@ export default function SettingsPage() {
       <header className="space-y-1.5">
         <h1 className="text-2xl font-bold tracking-tight">Platform settings</h1>
         <p className="text-muted-foreground text-sm">
-          Fees, clearance behaviour, vendor limits and legal document versions.
-          Changes take effect immediately and apply to new activity only.
+          Fees, clearance behaviour, vendor limits, customer support and legal
+          document versions. Changes take effect immediately and apply to new
+          activity only.
         </p>
       </header>
 

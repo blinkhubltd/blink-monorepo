@@ -28,6 +28,8 @@
  * accident.
  */
 
+import { describeSupportLinkProblem } from "@repo/lib/utils";
+
 export type SettingKind = "integer" | "money" | "text";
 
 export interface SettingField {
@@ -37,6 +39,8 @@ export interface SettingField {
   kind: SettingKind;
   /** Shown after the input. */
   unit?: string;
+  /** Shown in the empty input — an example of the expected shape. */
+  placeholder?: string;
   /** Stored value → what the input shows. */
   fromStored: (raw: string) => string;
   /** What the input shows → stored value. */
@@ -204,6 +208,27 @@ export const settingGroups: SettingGroup[] = [
     ],
   },
   {
+    id: "support",
+    title: "Customer support",
+    blurb:
+      "Where the shop's Contact support button sends a customer. Leave it empty to hide the button — one that opens nothing is worse than none.",
+    fields: [
+      {
+        key: "support_url",
+        label: "Support link",
+        help: "A phone number (tel:+2547…), WhatsApp (https://wa.me/2547…), email (mailto:…) or a help page (https://…). WhatsApp and email open with the order reference already filled in.",
+        kind: "text",
+        placeholder: "https://wa.me/2547XXXXXXXX",
+        // Trimmed on the way in; the server checks the same rules again.
+        fromStored: identity,
+        toStored: (shown) => shown.trim(),
+        validate: describeSupportLinkProblem,
+        description:
+          "Customer support link for the shop's Contact support button: tel:, mailto:, https:// or a wa.me WhatsApp link. Empty hides the button.",
+      },
+    ],
+  },
+  {
     id: "legal",
     title: "Legal document versions",
     blurb:
@@ -216,8 +241,7 @@ export const settingGroups: SettingGroup[] = [
         kind: "text",
         fromStored: identity,
         toStored: identity,
-        validate: (shown) =>
-          shown.trim() === "" ? "Required." : null,
+        validate: (shown) => (shown.trim() === "" ? "Required." : null),
         description:
           "Current Terms & Conditions version. Bump to force re-acceptance for all users.",
       },

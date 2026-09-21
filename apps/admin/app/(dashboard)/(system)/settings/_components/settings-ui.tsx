@@ -95,6 +95,7 @@ export function SettingRow({
             type="text"
             inputMode={field.kind === "text" ? "text" : "decimal"}
             value={value}
+            placeholder={field.placeholder}
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
             aria-invalid={error ? true : undefined}
