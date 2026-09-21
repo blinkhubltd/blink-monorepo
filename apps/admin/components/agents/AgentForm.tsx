@@ -8,6 +8,7 @@ import { api } from "@repo/backend";
 import { Id } from "@repo/backend/dataModel";
 import { toast } from "sonner";
 import { getConvexErrorMessage } from "@/lib/utils";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   Dialog,
@@ -67,14 +68,29 @@ export function AgentForm({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const users = useQuery(api.user.users.getAllCustomers);
+  // Server-side search, bounded and already excluding people who are
+  // already agents. This used `users.getAllCustomers`, which collects every
+  // customer on the platform and filtered them in the browser — at any real
+  // customer count the picker simply never populated, which is what "there
+  // is no way to make a customer an agent" looked like from here.
+  const [userSearch, setUserSearch] = useState("");
+  const debouncedUserSearch = useDebouncedValue(userSearch, 250);
+  const users = useQuery(
+    api.data.marketing.searchAgentCandidates,
+    mode === "create"
+      ? { search: debouncedUserSearch || undefined, limit: 20 }
+      : "skip",
+  );
   const zones = useQuery(api.data.agent_zones.getAllZones);
 
   useEffect(() => {
     if (open) {
       setZoneId(initialValues?.zone_id ?? "none");
       setMpesaNumber(initialValues?.mpesa_number ?? initialUserPhone ?? "");
-      if (mode === "create") setSelectedUserId("");
+      if (mode === "create") {
+        setSelectedUserId("");
+        setUserSearch("");
+      }
     }
   }, [open, initialValues, initialUserPhone, mode]);
 
@@ -88,7 +104,7 @@ export function AgentForm({
   const userOptions =
     users?.map((user) => ({
       value: user._id,
-      label: `${user.name || `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim()} (${user.email ?? ""})`,
+      label: `${user.name} (${user.email})`,
     })) ?? [];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -135,21 +151,19 @@ export function AgentForm({
           {mode === "create" && (
             <div className="space-y-2">
               <Label htmlFor="user-select">User</Label>
-              {!users ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <HugeiconsIcon icon={Loader2} className="h-4 w-4 animate-spin" />
-                  Loading users...
-                </div>
-              ) : (
-                <SearchableSelect
-                  options={userOptions}
-                  value={selectedUserId}
-                  onValueChange={setSelectedUserId}
-                  placeholder="Select a user..."
-                  searchPlaceholder="Search by name or email..."
-                  emptyText="No users found."
-                />
-              )}
+              <SearchableSelect
+                options={userOptions}
+                value={selectedUserId}
+                onValueChange={setSelectedUserId}
+                onSearchChange={setUserSearch}
+                loading={users === undefined}
+                placeholder="Select a customer..."
+                searchPlaceholder="Search by name, email or phone..."
+                emptyText="No matching customer who isn't already an agent."
+              />
+              <p className="text-xs text-muted-foreground">
+                Showing the most recent customers. Type to search all of them.
+              </p>
             </div>
           )}
 

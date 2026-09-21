@@ -78,6 +78,9 @@ export function BrandHeader({
   logoRow = false,
   banners = false,
   scrollY,
+  right,
+  children,
+  inlineTitle = false,
 }: {
   /** Omit entirely on a screen using `logoRow` instead. */
   title?: string;
@@ -85,7 +88,7 @@ export function BrandHeader({
   subtitle?: string;
   /** Baseline-aligned beside the title — an item count, never both with `subtitle`. */
   meta?: string;
-  titleSize?: "h1" | "h3";
+  titleSize?: "h1" | "h2" | "h3";
   /** The rounded bottom sweep — Home only, the signature shape. */
   sweep?: boolean;
   showBack?: boolean;
@@ -110,8 +113,33 @@ export function BrandHeader({
    * wordmark and the delivery badge — stays put.
    */
   scrollY?: SharedValue<number>;
+  /**
+   * Replaces the default right-hand cluster (search, cart) on a screen whose
+   * header control is something else — Profile puts Settings there.
+   */
+  right?: React.ReactNode;
+  /**
+   * Extra rows inside the yellow band, below the title. Profile's identity
+   * block and delivery pill ride here so they sit on the brand surface,
+   * rather than reading as the first rows of the page beneath it.
+   */
+  children?: React.ReactNode;
+  /**
+   * Put the title in the top row, beside the right-hand control, instead of
+   * on its own line beneath it.
+   *
+   * Profile's design does this: "Profile" and the Settings pill share a
+   * baseline. It only makes sense on a screen with nothing in the left slot
+   * — with a back button or a location pill there, the title would be a
+   * third thing competing for the same row — so it is ignored unless both
+   * are off.
+   */
+  inlineTitle?: boolean;
 }) {
   const { label: locationLabel, state: locationState } = useAddressLabel();
+
+  // Only when the left slot is genuinely empty; see the prop's own note.
+  const titleInRow = inlineTitle && !!title && !showBack && !showLocation;
 
   return (
     <View
@@ -159,6 +187,16 @@ export function BrandHeader({
             >
               <Icon name="chevron-back" size={22} tone="onBrandPill" />
             </Pressable>
+          ) : titleInRow ? (
+            <Text
+              variant="onBrand"
+              size={titleSize}
+              weight="bold"
+              numberOfLines={1}
+              className="shrink"
+            >
+              {title}
+            </Text>
           ) : (
             // A spacer, so `justify-between` still pins the right cluster to the
             // edge rather than pulling it across to the left.
@@ -166,12 +204,16 @@ export function BrandHeader({
           )}
 
           <View className="gap-space-2 flex-row items-center">
-            {showSearchButton ? <SearchIconButton /> : null}
-            {showCart ? <CartIconButton /> : null}
+            {right ?? (
+              <>
+                {showSearchButton ? <SearchIconButton /> : null}
+                {showCart ? <CartIconButton /> : null}
+              </>
+            )}
           </View>
         </View>
 
-        {title ? (
+        {title && !titleInRow ? (
           <View className="gap-space-1">
             {eyebrow ? (
               <Text
@@ -217,6 +259,8 @@ export function BrandHeader({
             </View>
           </View>
         ) : null}
+
+        {children}
       </View>
 
       {banners ? <BannerCarousel scrollY={scrollY} /> : null}

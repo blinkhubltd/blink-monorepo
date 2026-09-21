@@ -6,6 +6,10 @@ import {
   PAYOUT_STATUSES,
   availableBalance,
   describePayoutStatus,
+  earningRangeStart,
+  filterEarningsByRange,
+  parsePayoutDays,
+  payoutDayProblem,
   payoutRequestProblem,
   referralDeepLink,
 } from "../lib/agent";
@@ -138,5 +142,114 @@ describe("referralDeepLink", () => {
     const query = link.split("?")[1]!;
     const params = new URLSearchParams(query);
     expect(params.get("code")).toBe("BLK-9999");
+  });
+});
+
+describe("payoutDayProblem", () => {
+  // A Wednesday.
+  const wednesday = new Date("2026-03-04T10:00:00");
+
+  it("allows every day when nothing is configured", () => {
+    // Matches the server: an unset or blank setting is "no restriction".
+    // Reading it as "no day is allowed" would block every payout platform-wide.
+    expect(payoutDayProblem(null, wednesday)).toBeNull();
+    expect(payoutDayProblem(undefined, wednesday)).toBeNull();
+    expect(payoutDayProblem("", wednesday)).toBeNull();
+    expect(payoutDayProblem("   ,  ", wednesday)).toBeNull();
+  });
+
+  it("allows today when today is listed", () => {
+    expect(payoutDayProblem("Monday,Wednesday", wednesday)).toBeNull();
+  });
+
+  it("is case- and space-insensitive, because an admin typed it", () => {
+    expect(payoutDayProblem("  monday , WEDNESDAY ", wednesday)).toBeNull();
+  });
+
+  it("refuses on a day that is not listed, quoting the setting verbatim", () => {
+    // Verbatim so this message and the server's refusal read identically.
+    expect(payoutDayProblem("Monday,Thursday", wednesday)).toBe(
+      "Payouts can only be requested on Monday,Thursday.",
+    );
+  });
+});
+
+describe("parsePayoutDays", () => {
+  it("drops empty entries rather than producing blank days", () => {
+    expect(parsePayoutDays("Monday,,Thursday,")).toEqual([
+      "monday",
+      "thursday",
+    ]);
+  });
+});
+
+describe("earningRangeStart", () => {
+  it("has no lower bound for all", () => {
+    expect(earningRangeStart("all")).toBeNull();
+  });
+
+  it("starts today at local midnight, not 24 hours ago", () => {
+    const now = new Date("2026-03-04T15:30:00");
+    const start = new Date(earningRangeStart("today", now)!);
+    expect(start.getHours()).toBe(0);
+    expect(start.getDate()).toBe(4);
+  });
+
+  it("starts the week on Monday", () => {
+    // Wednesday 4 March 2026 -> Monday 2 March.
+    const start = new Date(
+      earningRangeStart("week", new Date("2026-03-04T15:30:00"))!,
+    );
+    expect(start.getDate()).toBe(2);
+    expect(start.getDay()).toBe(1);
+  });
+
+  it("treats Sunday as the end of the week just gone, not the start of the next", () => {
+    // JS makes Sunday 0, which is the trap: a naive `getDay()` subtraction
+    // would move the boundary forward a day and hide the whole week.
+    const start = new Date(
+      earningRangeStart("week", new Date("2026-03-08T12:00:00"))!,
+    );
+    expect(start.getDate()).toBe(2);
+    expect(start.getDay()).toBe(1);
+  });
+
+  it("starts the month on the first", () => {
+    const start = new Date(
+      earningRangeStart("month", new Date("2026-03-04T15:30:00"))!,
+    );
+    expect(start.getDate()).toBe(1);
+    expect(start.getMonth()).toBe(2);
+  });
+});
+
+describe("filterEarningsByRange", () => {
+  const now = new Date("2026-03-04T15:30:00");
+  const earnings = [
+    { created_at: new Date("2026-03-04T09:00:00").getTime() },
+    { created_at: new Date("2026-03-03T09:00:00").getTime() },
+    { created_at: new Date("2026-02-20T09:00:00").getTime() },
+  ];
+
+  it("returns everything for all", () => {
+    expect(filterEarningsByRange(earnings, "all", now)).toHaveLength(3);
+  });
+
+  it("keeps only today", () => {
+    expect(filterEarningsByRange(earnings, "today", now)).toHaveLength(1);
+  });
+
+  it("keeps this week", () => {
+    expect(filterEarningsByRange(earnings, "week", now)).toHaveLength(2);
+  });
+
+  it("keeps this month", () => {
+    expect(filterEarningsByRange(earnings, "month", now)).toHaveLength(2);
+  });
+
+  it("does not mutate the input", () => {
+    const copy = [...earnings];
+    filterEarningsByRange(earnings, "today", now);
+    expect(earnings).toEqual(copy);
   });
 });

@@ -37,6 +37,21 @@ interface SearchableSelectProps {
   emptyText?: string;
   className?: string;
   disabled?: boolean;
+  /**
+   * Called as the search box is typed in.
+   *
+   * Supplying it means the CALLER is doing the searching — against a server,
+   * typically — so this component stops filtering `options` itself and
+   * renders whatever it is given. Without it the behaviour is unchanged:
+   * local filtering over a fixed list.
+   *
+   * The distinction matters for a list that cannot be fully downloaded. A
+   * locally-filtered picker silently searches only the rows it happens to
+   * hold, which looks identical to "no such customer".
+   */
+  onSearchChange?: (search: string) => void;
+  /** Shown in place of the empty state while a server search is in flight. */
+  loading?: boolean;
 }
 
 export function SearchableSelect({
@@ -48,6 +63,8 @@ export function SearchableSelect({
   emptyText = "No option found.",
   className,
   disabled = false,
+  onSearchChange,
+  loading = false,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
@@ -55,11 +72,14 @@ export function SearchableSelect({
   const selectedOption = options.find((option) => option.value === value);
 
   const filteredOptions = React.useMemo(() => {
-    if (!searchValue) return options;
+    // The caller owns the search when `onSearchChange` is given; filtering
+    // again here would hide server results that do not literally contain
+    // the typed string (a phone-number match on a name search, say).
+    if (onSearchChange || !searchValue) return options;
     return options.filter((option) =>
       option.label.toLowerCase().includes(searchValue.toLowerCase())
     );
-  }, [options, searchValue]);
+  }, [options, searchValue, onSearchChange]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -84,10 +104,15 @@ export function SearchableSelect({
           <CommandInput
             placeholder={searchPlaceholder}
             value={searchValue}
-            onValueChange={setSearchValue}
+            onValueChange={(next: string) => {
+              setSearchValue(next);
+              onSearchChange?.(next);
+            }}
           />
           <CommandList>
-            {filteredOptions.length === 0 ? (
+            {loading ? (
+              <CommandEmpty>Searching…</CommandEmpty>
+            ) : filteredOptions.length === 0 ? (
               <CommandEmpty>{emptyText}</CommandEmpty>
             ) : (
               <CommandGroup>
@@ -101,6 +126,7 @@ export function SearchableSelect({
                       onValueChange?.(newValue);
                       setOpen(false);
                       setSearchValue("");
+                      onSearchChange?.("");
                     }}
                   >
                     <HugeiconsIcon icon={Check}
