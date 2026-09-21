@@ -1,6 +1,6 @@
-import { action } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { Id } from "../_generated/dataModel";
+import { Doc, Id } from "../_generated/dataModel";
 import { api } from "../_generated/api";
 import { internal } from "../_generated/api";
 import {
@@ -800,24 +800,42 @@ export const triggerOrderStatusNotification = action({
   },
 });
 
-export const updateOrderStatusWithNotifications = action({
+/**
+ * Server-side status change plus notifications, for the payment-confirmation
+ * path (`payments.ts`, `payment_finalization.ts`), which schedules it.
+ *
+ * Internal because it was a public, unauthenticated wrapper around
+ * `orders.updateOrderStatus`: gating that mutation on `orders:UPDATE` would
+ * have meant nothing while this let anyone set any order's status. A scheduled
+ * function carries no identity, so it writes through the internal
+ * `orders.setOrderStatus` rather than the gated public mutation.
+ */
+export const updateOrderStatusWithNotifications = internalAction({
   args: {
     orderId: v.id("orders"),
     newStatus: v.union(...orderStatus.map((e) => v.literal(e))),
   },
-  handler: async (ctx, args) => {
-    const order: any = await ctx.runQuery(api.data.orders.getOrderById, {
-      orderId: args.orderId,
-    });
-    if (!order) throw new Error("Order not found");
-    const previousStatus = order.order_status;
-    if (previousStatus === args.newStatus) {
-      return { success: true, previousStatus, newStatus: args.newStatus };
-    }
-    await ctx.runMutation(api.data.orders.updateOrderStatus, {
+  // Annotated: this module and orders.ts reference each other through
+  // `internal`, and inference cannot close that loop on its own.
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    success: boolean;
+    previousStatus: Doc<"orders">["order_status"];
+    newStatus: Doc<"orders">["order_status"];
+  }> => {
+    const result: {
+      previousStatus: Doc<"orders">["order_status"];
+      changed: boolean;
+    } = await ctx.runMutation(internal.data.orders.setOrderStatus, {
       orderId: args.orderId,
       status: args.newStatus,
     });
+    const { previousStatus, changed } = result;
+    if (!changed) {
+      return { success: true, previousStatus, newStatus: args.newStatus };
+    }
     try {
       await ctx.scheduler.runAfter(
         0,
