@@ -8,6 +8,12 @@ import {
   type NativeSyntheticEvent,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  type SharedValue,
+} from "react-native-reanimated";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 
@@ -62,11 +68,16 @@ function useHomeBanners() {
  * With fewer than two banners there is nothing to loop, so the clones, the
  * timer and the dots are all skipped rather than special-cased downstream.
  */
-export function BannerCarousel() {
+export function BannerCarousel({ scrollY }: { scrollY?: SharedValue<number> }) {
   const banners = useHomeBanners();
   const scrollRef = useRef<ScrollView>(null);
   const [width, setWidth] = useState(0);
   const [index, setIndex] = useState(0);
+  // The block's natural height, measured once from the content inside the
+  // collapsing container. Measured rather than computed so the dots row and
+  // the spacing above are included without having to keep three numbers in
+  // agreement with the stylesheet.
+  const [blockHeight, setBlockHeight] = useState(0);
 
   const count = banners?.length ?? 0;
   const looping = count > 1;
@@ -152,6 +163,45 @@ export function BannerCarousel() {
     }, [scheduleNext, clearTimer]),
   );
 
+  /**
+   * The carousel scrolls away with the page; the wordmark and delivery badge
+   * above it do not.
+   *
+   * Driven straight off the list's scroll offset on the UI thread, so it
+   * tracks the finger exactly rather than chasing it a frame later. Three
+   * things move at once, which is what stops it reading as a box being
+   * clipped:
+   *
+   *   - height shrinks 1:1 with the scroll, so the yellow band closes up
+   *     behind it and the list never floats over a gap;
+   *   - the artwork drifts up faster than the band closes (the 0.3 factor),
+   *     the usual parallax that makes a collapse feel like depth rather than
+   *     a crop;
+   *   - it fades and eases down to 96% well before the height reaches zero,
+   *     so the last thing to happen is empty space closing, not content
+   *     disappearing at full opacity.
+   *
+   * Reversed exactly on the way back up — every interpolation is clamped and
+   * stateless, so there is no "expanded/collapsed" flag to get stuck.
+   */
+  const collapse = useAnimatedStyle(() => {
+    if (!scrollY || blockHeight === 0) return {};
+    const t = interpolate(
+      scrollY.value,
+      [0, blockHeight],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    return {
+      height: blockHeight * (1 - t),
+      opacity: interpolate(t, [0, 0.7], [1, 0], Extrapolation.CLAMP),
+      transform: [
+        { translateY: -t * blockHeight * 0.3 },
+        { scale: 1 - t * 0.04 },
+      ],
+    };
+  }, [blockHeight]);
+
   const handleLayout = (event: LayoutChangeEvent) => {
     const next = Math.round(event.nativeEvent.layout.width);
     if (next > 0 && next !== width) setWidth(next);
@@ -184,53 +234,61 @@ export function BannerCarousel() {
   if (!banners || banners.length === 0) return null;
 
   return (
-    <View className="gap-space-3">
-      <View onLayout={handleLayout} className="overflow-hidden rounded-lg">
-        {width > 0 ? (
-          <ScrollView
-            ref={scrollRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onTouchStart={handleTouchStart}
-            onMomentumScrollEnd={settle}
-            // A slow drag that never gains momentum ends here instead, and
-            // would otherwise leave the timer parked forever.
-            onScrollEndDrag={settle}
-            scrollEventThrottle={16}
-            style={{ width, height: width / ASPECT }}
-          >
-            {slides.map((banner, position) => (
-              <BannerSlide
-                key={`${banner._id}-${position}`}
-                banner={banner}
-                width={width}
-                height={width / ASPECT}
+    <Animated.View style={[{ overflow: "hidden" }, collapse]}>
+      <View
+        onLayout={(event) => {
+          const next = Math.round(event.nativeEvent.layout.height);
+          if (next > 0 && next !== blockHeight) setBlockHeight(next);
+        }}
+        className="pt-space-5 gap-space-3"
+      >
+        <View onLayout={handleLayout} className="overflow-hidden rounded-lg">
+          {width > 0 ? (
+            <ScrollView
+              ref={scrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onTouchStart={handleTouchStart}
+              onMomentumScrollEnd={settle}
+              // A slow drag that never gains momentum ends here instead, and
+              // would otherwise leave the timer parked forever.
+              onScrollEndDrag={settle}
+              scrollEventThrottle={16}
+              style={{ width, height: width / ASPECT }}
+            >
+              {slides.map((banner, position) => (
+                <BannerSlide
+                  key={`${banner._id}-${position}`}
+                  banner={banner}
+                  width={width}
+                  height={width / ASPECT}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            // Reserves the height on the first frame, so the header does not
+            // visibly grow once the width is measured.
+            <View style={{ width: "100%", aspectRatio: ASPECT }} />
+          )}
+        </View>
+
+        {looping ? (
+          <View className="gap-space-1 flex-row items-center justify-center">
+            {banners.map((banner, i) => (
+              <View
+                key={banner._id}
+                className={
+                  i === index
+                    ? "bg-on-brand-pill h-[6px] w-[16px] rounded-pill"
+                    : "bg-on-brand-pill h-[6px] w-[6px] rounded-pill opacity-30"
+                }
               />
             ))}
-          </ScrollView>
-        ) : (
-          // Reserves the height on the first frame, so the header does not
-          // visibly grow once the width is measured.
-          <View style={{ width: "100%", aspectRatio: ASPECT }} />
-        )}
+          </View>
+        ) : null}
       </View>
-
-      {looping ? (
-        <View className="gap-space-1 flex-row items-center justify-center">
-          {banners.map((banner, i) => (
-            <View
-              key={banner._id}
-              className={
-                i === index
-                  ? "bg-on-brand-pill h-[6px] w-[16px] rounded-pill"
-                  : "bg-on-brand-pill h-[6px] w-[6px] rounded-pill opacity-30"
-              }
-            />
-          ))}
-        </View>
-      ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
