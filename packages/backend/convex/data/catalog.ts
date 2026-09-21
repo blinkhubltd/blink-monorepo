@@ -157,6 +157,53 @@ export const categoryTreeForShop = query({
 /** A covering vendor and how far it is from the customer. */
 type Covering = { vendor: Doc<"vendors">; distanceMeters: number };
 
+/** What a product card needs to show a brand: a name and a logo. */
+type BrandForCard = { _id: Id<"brands">; name: string; logoUrl: string | null };
+
+/**
+ * Resolve the brands referenced by one page of products.
+ *
+ * Deduplicated by id before anything is read, which is what keeps this cheap
+ * in the two cases that matter: a category page where a handful of brands
+ * repeat across twenty products, and a brand page where all twenty share one
+ * brand and this costs exactly one document read and one `getUrl`.
+ *
+ * An inactive brand still resolves. Hiding it would strip the mark from
+ * products that are themselves still listed and orderable, which reads as a
+ * rendering fault rather than as a deliberate merchandising state.
+ */
+async function resolveBrands(
+  ctx: QueryCtx,
+  products: ReadonlyArray<{ brand_id?: Id<"brands"> }>,
+): Promise<Map<string, BrandForCard>> {
+  const ids = [
+    ...new Set(
+      products
+        .map((p) => p.brand_id)
+        .filter((id): id is Id<"brands"> => id !== undefined),
+    ),
+  ];
+
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      const brand = await ctx.db.get(id);
+      if (!brand) return null;
+      return [
+        id as string,
+        {
+          _id: brand._id,
+          name: brand.name,
+          logoUrl: brand.logo ? await ctx.storage.getUrl(brand.logo) : null,
+        },
+      ] as const;
+    }),
+  );
+
+  return new Map(
+    entries.filter((e): e is NonNullable<typeof e> => e !== null),
+  );
+}
+
 /**
  * Active vendors whose service radius covers a point, nearest first, capped.
  *
@@ -313,7 +360,8 @@ export const productsInCategoryTreeByCoverage = query({
     const page = matched.slice(offset, offset + limit);
     const hasMore = matched.length > offset + limit || truncated;
 
-    // ── 5. Images for the returned page only. ──
+    // ── 5. Images and brands for the returned page only. ──
+    const brands = await resolveBrands(ctx, page);
     const products = await Promise.all(
       page.map(async (product) => {
         const vendor = vendorById.get(product.vendor_id!)!;
@@ -334,6 +382,9 @@ export const productsInCategoryTreeByCoverage = query({
           imageUrl: images.find((u): u is string => !!u) ?? null,
           category: category
             ? { _id: category._id, name: category.name, slug: category.slug }
+            : null,
+          brand: product.brand_id
+            ? (brands.get(product.brand_id) ?? null)
             : null,
           vendor: {
             _id: vendor._id,
@@ -441,6 +492,7 @@ export const productsByBrandInCoverage = query({
 
     const categories = await ctx.db.query("categories").collect();
     const byId = indexById(categories);
+    const brands = await resolveBrands(ctx, page);
 
     const products = await Promise.all(
       page.map(async (product) => {
@@ -457,6 +509,9 @@ export const productsByBrandInCoverage = query({
           imageUrl: images.find((u): u is string => !!u) ?? null,
           category: category
             ? { _id: category._id, name: category.name, slug: category.slug }
+            : null,
+          brand: product.brand_id
+            ? (brands.get(product.brand_id) ?? null)
             : null,
           vendor: {
             _id: vendor._id,

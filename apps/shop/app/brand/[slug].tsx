@@ -133,6 +133,8 @@ export default function BrandScreen() {
             >
               <ProductCard
                 product={item}
+                // Every card here is this brand; the mark would be wallpaper.
+                showBrand={false}
                 quantityInCart={cart.quantityOf(item._id as Id<"products">)}
                 saved={wishlist.isSaved(item._id)}
                 onToggleSave={() =>

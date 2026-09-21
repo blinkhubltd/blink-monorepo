@@ -16,8 +16,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
  *
  * `@expo-google-fonts/inter`'s index re-exports all 18 faces with a top-level
  * `require` of each `.ttf`, so Metro follows every one and a barrel import ships
- * ~6.2MB of fonts to use four of them. Verified with `expo export`: the barrel
- * bundled all 18, these four subpaths bundle exactly four (~1.34MB).
+ * ~6.2MB of fonts to use five of them. Verified with `expo export`: the barrel
+ * bundled all 18, these subpaths bundle exactly what is listed (~1.68MB).
  *
  * Rubik had the same problem before this change, shipping all 14 of its faces
  * (~2.9MB), so the switch is a net reduction of roughly 1.5MB rather than the
@@ -27,6 +27,18 @@ import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
 import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
 import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
 import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
+/**
+ * The one italic, for the delivery badge's forward lean.
+ *
+ * Carried as a real face rather than a `skewX` transform (which is what the
+ * badge used first) because a synthesised slant shears the glyphs — Inter's
+ * true italic redraws them, and at 11px bold caps the difference between the
+ * two is the difference between a typeface and a squashed one.
+ *
+ * It is the fifth face and the only italic, so it is imported by subpath for
+ * the same reason as the four above.
+ */
+import { Inter_700Bold_Italic } from "@expo-google-fonts/inter/700Bold_Italic";
 
 import { ConvexClerkProvider } from "../providers/ConvexClerkProvider";
 import { LocationProvider } from "../providers/LocationProvider";
@@ -94,15 +106,17 @@ colorScheme.set("light");
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
-  // Four faces, matching the four fontFamily slots in tailwind.config.js —
-  // `font-black` resolves to Bold and there is no italic slot. Adding a face
-  // here that no slot names, or naming a slot with no face loaded here, both
-  // fail silently: the text renders in the system font.
+  // Five faces. Four are named by fontFamily slots in tailwind.config.js
+  // (`font-black` resolves to Bold); the italic deliberately has no slot and
+  // is referenced by name in a style prop — see the note in that config.
+  // Naming a slot with no face loaded here fails silently: the text renders
+  // in the system font.
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Inter_700Bold_Italic,
     // The glyph font behind every `components/icon.tsx`. @expo/vector-icons
     // loads its own fonts lazily, which would otherwise leave a window after
     // the splash hides where every icon in the app is a blank box. Gating the
