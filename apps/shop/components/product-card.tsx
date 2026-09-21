@@ -58,6 +58,13 @@ export type ProductForCard = {
   imageUrl: string | null;
   /** Every resolved image, for the auto-scrolling gallery. Falls back to `imageUrl` when absent. */
   images?: string[];
+  /**
+   * The product's brand, when the listing query resolved one. The screens
+   * that read products through other queries (search, wishlist) do not send
+   * it, so the card treats its absence as "nothing to draw" rather than as a
+   * missing-data case worth reporting.
+   */
+  brand?: { _id: string; name: string; logoUrl: string | null } | null;
 };
 
 /** At or below this, the card says how few are left. */
@@ -77,6 +84,7 @@ export function ProductCard({
   onDecrement,
   saved,
   onToggleSave,
+  showBrand = true,
 }: {
   product: ProductForCard;
   quantityInCart: number;
@@ -93,6 +101,11 @@ export function ProductCard({
   saved?: boolean;
   /** Omit to hide the heart entirely — the related rail on detail does. */
   onToggleSave?: () => void;
+  /**
+   * False on a listing that is already scoped to one brand, where repeating
+   * that brand's mark on every card says nothing the screen has not said.
+   */
+  showBrand?: boolean;
 }) {
   const outOfStock = product.quantity <= 0;
   const lowStock = !outOfStock && product.quantity <= LOW_STOCK_THRESHOLD;
@@ -272,6 +285,37 @@ export function ProductCard({
             />
           ) : null}
         </View>
+
+        {/*
+          The brand's mark, bottom-LEFT — the one corner of the image not
+          already spoken for (stock badge top-left, save top-right, add
+          bottom-right), so it collides with nothing and costs no vertical
+          space in the card body.
+
+          Rendered only when the brand actually has a logo. A brand with none
+          gets nothing rather than an empty circle or its initials: an empty
+          plate on every card would read as a loading state that never
+          resolves, and the card already names the product.
+
+          `pointerEvents="none"` so it cannot swallow a tap meant for the
+          card. It is a mark, not a link — the way to a brand's page is the
+          home banner, and putting a second tap target inside a card whose
+          whole surface is already a button is how you get mis-taps.
+        */}
+        {showBrand && product.brand?.logoUrl ? (
+          <View
+            pointerEvents="none"
+            className="bottom-space-2 left-space-2 bg-card size-[28px] rounded-pill shadow-xs absolute items-center justify-center overflow-hidden opacity-95"
+          >
+            <OptimizedImage
+              source={{ uri: product.brand.logoUrl }}
+              contentFit="contain"
+              className="size-[22px] rounded-none bg-transparent"
+              accessibilityLabel={product.brand.name}
+              accessibilityIgnoresInvertColors
+            />
+          </View>
+        ) : null}
 
         {/*
           The add control lives HERE — over the image, never in the price row.

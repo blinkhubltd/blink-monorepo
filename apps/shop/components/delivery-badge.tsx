@@ -14,25 +14,20 @@ import { BlinkRiderMark } from "./icons/blink-rider";
  * regardless of scheme" and this is the one place that specific fixed colour
  * is wanted.
  *
- * ── The mark is 16px, where the Ionicon it replaced was 12px ──────────────
+ * ── Why the type is set in a style prop, not by className ────────────────
  *
- * This used Ionicons' `bicycle` at 12px, a stand-in from when the real rider
- * mark had no asset in this app. The real mark carries far more detail — a
- * rider, a scooter, and motion lines behind it — and at 12px that detail
- * collapses into a blob. 16px is where it resolves, and it still clears the
- * 20px pill it sits in, so the header's geometry is unchanged.
+ * The lean is a real face — Inter Bold Italic, loaded in app/_layout.tsx —
+ * rather than the `skewX` transform this badge first used or NativeWind's
+ * `italic` utility. A synthesised slant shears the upright glyphs; the true
+ * italic redraws them, and at this size that is the difference between a
+ * typeface and a squashed one.
  *
- * ── Why the label is skewed rather than `italic` ──────────────────────────
- *
- * The lean is the point: it is what makes the badge read as fast. It is a
- * `skewX` transform rather than `fontStyle: "italic"` because this app loads
- * exactly four Inter faces (see app/_layout.tsx, where the per-face imports
- * are deliberate — the package barrel ships 6.2MB of fonts to use four of
- * them) and none of them is an italic. Asking for `italic` against a family
- * with no italic face is not a no-op with a predictable fallback: iOS
- * generally leaves it upright while Android fakes an oblique, so the badge
- * would lean on one platform and not the other. A transform leans by the
- * same nine degrees on both, and adds nothing to the bundle.
+ * It is named here instead of through a `font-*` class because every font
+ * slot in tailwind.config.js compiles to a `fontFamily`, `bold` included —
+ * so a class would put two competing family declarations on one element and
+ * let stylesheet order pick the winner. A style prop simply wins. The size
+ * is set alongside it for the same reason the cart badge does: the type
+ * scale stops at 11px (`caption`) and this label wants 10.
  *
  * No explicit font family: blink-ecommerce never actually applies its
  * configured fonts to any text (`font-body` resolves to `fontFamily.body:
@@ -46,15 +41,16 @@ import { BlinkRiderMark } from "./icons/blink-rider";
  */
 export function DeliveryBadge({ minutes = 10 }: { minutes?: number }) {
   return (
-    <View className="h-[20px] gap-space-1 bg-on-brand-pill rounded-pill flex-row items-center px-[7px]">
-      <BlinkRiderMark height={16} />
+    <View className="h-[18px] bg-on-brand-pill rounded-pill flex-row items-center gap-[3px] px-[6px]">
+      <BlinkRiderMark height={13} />
       <Text
-        size="caption"
-        weight="bold"
         numberOfLines={1}
         className="uppercase tracking-label text-[#FFFFFF]"
-        // Leans right, the way the rider is travelling.
-        style={{ transform: [{ skewX: "-9deg" }] }}
+        style={{
+          fontFamily: "Inter_700Bold_Italic",
+          fontSize: 10,
+          lineHeight: 12,
+        }}
       >
         {minutes} minutes delivery
       </Text>

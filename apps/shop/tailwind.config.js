@@ -174,6 +174,22 @@ module.exports = {
         semibold: ["Inter_600SemiBold"],
         bold: ["Inter_700Bold"],
         black: ["Inter_700Bold"],
+        /*
+         * There is deliberately NO slot for Inter_700Bold_Italic, even though
+         * app/_layout.tsx loads that face.
+         *
+         * Every name in this block compiles to a `fontFamily`, including
+         * `bold` — so `font-bold font-italic` would be two competing family
+         * declarations on one element rather than a weight plus a style, and
+         * which one won would come down to stylesheet order. The one place
+         * that needs the italic (components/delivery-badge.tsx) sets
+         * `fontFamily` in a style prop instead, where it simply wins.
+         *
+         * Note also that NativeWind's `italic` utility is a different thing
+         * again: it sets `fontStyle`, asking the platform to synthesise a
+         * slant for a family with no italic registered against it, which iOS
+         * and Android disagree about.
+         */
       },
       fontSize: {
         // DS type scale. [size, lineHeight] in px, as NativeWind expects.
