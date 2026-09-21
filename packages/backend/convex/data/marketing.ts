@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import {
   mutation,
   query,
@@ -8,9 +8,95 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "../_generated/server";
-import { getAuthUser, getAuthUserOrNull } from "../auth.helpers";
+import {
+  assertPermission,
+  getAuthUser,
+  getAuthUserOrNull,
+} from "../auth.helpers";
 import { internal } from "../_generated/api";
-import { AgentsValidator, AgentsUpdateValidator } from "../validators";
+import { AgentsValidator } from "../validators";
+import { getRoleIdByName } from "../lib/roles";
+import type { Id } from "../_generated/dataModel";
+
+/**
+ * Customers an admin can promote to agent — searchable, bounded, and
+ * already filtered to people who are not agents yet.
+ *
+ * ── Why this exists rather than reusing `users.getAllCustomers` ─────────
+ *
+ * That is what the agent form used, and it is unbounded: it `.collect()`s
+ * every customer on the platform and the form filters them in the browser.
+ * At a real customer count it either blows the read limit or takes long
+ * enough that the picker looks empty — which is what "there is no way to
+ * make a customer an agent" looks like from the admin's side.
+ *
+ * It also returned whole user documents to a page that needs four fields,
+ * and included people who are already agents, whose selection could only
+ * ever end in a refusal.
+ *
+ * Gated on `agents:CREATE` rather than a customer permission: this is the
+ * agent-creation flow, and the roles that can run it are the ones that can
+ * already see the agents module.
+ */
+export const searchAgentCandidates = query({
+  args: {
+    search: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await assertPermission(ctx, "agents:CREATE");
+
+    const limit = Math.max(1, Math.min(50, args.limit ?? 20));
+    const search = args.search?.trim();
+
+    const customerRoleId = await getRoleIdByName(ctx, "Customer");
+    if (!customerRoleId) return [];
+
+    // Over-read, because the already-agent filter below removes rows and a
+    // page of exactly `limit` would come back short.
+    const candidates = search
+      ? await ctx.db
+          .query("users")
+          .withSearchIndex("search_text", (q) =>
+            q.search("searchText", search).eq("role_id", customerRoleId),
+          )
+          .take(limit * 2)
+      : await ctx.db
+          .query("users")
+          .withIndex("by_role_id", (q) => q.eq("role_id", customerRoleId))
+          .order("desc")
+          .take(limit * 2);
+
+    const results: Array<{
+      _id: Id<"users">;
+      name: string;
+      email: string;
+      phone: string | null;
+    }> = [];
+
+    for (const user of candidates) {
+      if (results.length >= limit) break;
+
+      const existing = await ctx.db
+        .query("agents")
+        .withIndex("by_user", (q) => q.eq("user_id", user._id))
+        .first();
+      if (existing) continue;
+
+      results.push({
+        _id: user._id,
+        name:
+          user.name ||
+          `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() ||
+          user.email,
+        email: user.email,
+        phone: user.phone ?? null,
+      });
+    }
+
+    return results;
+  },
+});
 
 export const getAgents = query({
   args: {
@@ -137,6 +223,43 @@ export const getAgentByCode = query({
   },
 });
 
+/**
+ * The next free `AGENT_00N`, checked against the index rather than guessed.
+ *
+ * The previous version read the single newest agent, parsed its code, and
+ * added one. Two ways that produced a duplicate: the newest agent's code
+ * not matching the pattern at all (it reset to `AGENT_001`), and any
+ * deletion or manual rename leaving a lower newest-code than one already
+ * issued. Nothing checked `by_code` afterwards, so the collision landed
+ * silently — and the code is what every scan, install and registration is
+ * attributed through, so two agents sharing one code share each other's
+ * earnings.
+ */
+async function nextAgentCode(ctx: MutationCtx): Promise<string> {
+  const agents = await ctx.db.query("agents").collect();
+
+  let highest = 0;
+  for (const agent of agents) {
+    const match = agent.code.match(/^AGENT_(\d+)$/);
+    if (match) highest = Math.max(highest, parseInt(match[1]!, 10));
+  }
+
+  // Walk forward from the highest seen until the index agrees the code is
+  // free, so a hand-edited code outside the pattern cannot be overwritten.
+  for (let n = highest + 1; n <= highest + 100; n++) {
+    const code = `AGENT_${String(n).padStart(3, "0")}`;
+    const clash = await ctx.db
+      .query("agents")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .first();
+    if (!clash) return code;
+  }
+
+  throw new ConvexError(
+    "Could not allocate an agent code. Check the agents list for duplicates.",
+  );
+}
+
 export const createAgent = mutation({
   args: {
     user_id: v.id("users"),
@@ -144,48 +267,43 @@ export const createAgent = mutation({
     mpesa_number: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const lastAgent = await ctx.db
-      .query("agents")
-      .withIndex("by_creation_time")
-      .order("desc")
-      .first();
+    // Was ungated, like `updateAgent` and `deleteAgent` below. Convex
+    // exports every function publicly, so anyone who could reach the
+    // deployment could make themselves an agent and then — through
+    // `updateAgent`, which accepted `balance` — set their own balance and
+    // request a payout. Same class of hole as the `incrementInstallCount`
+    // one this file's history already records.
+    await assertPermission(ctx, "agents:CREATE");
 
-    let nextNumber = 1;
-
-    if (lastAgent) {
-      const match = lastAgent.code.match(/AGENT_(\d+)/);
-      if (match) {
-        nextNumber = parseInt(match[1], 10) + 1;
-      }
+    const user = await ctx.db.get(args.user_id);
+    if (!user) {
+      throw new ConvexError("That customer no longer exists.");
     }
 
-    const {
-      scans = 0,
-      installs = 0,
-      registerations = 0,
-    } = args as {
-      scans?: number;
-      installs?: number;
-      registerations?: number;
-    };
+    const existing = await ctx.db
+      .query("agents")
+      .withIndex("by_user", (q) => q.eq("user_id", args.user_id))
+      .first();
+    if (existing) {
+      throw new ConvexError(
+        `${user.name ?? user.email ?? "That customer"} is already an agent (${existing.code}).`,
+      );
+    }
 
-    const code = `AGENT_${String(nextNumber).padStart(3, "0")}`;
+    const code = await nextAgentCode(ctx);
 
-    // Compute searchText from user data
-    const user = await ctx.db.get(args.user_id);
-    const userName = user
-      ? user.name || `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim()
-      : "";
-    const searchText = [userName, user?.email ?? "", user?.phone ?? "", code]
+    const userName =
+      user.name || `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
+    const searchText = [userName, user.email ?? "", user.phone ?? "", code]
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
 
     return await ctx.db.insert("agents", {
       user_id: args.user_id,
-      scans,
-      installs,
-      registerations,
+      scans: 0,
+      installs: 0,
+      registerations: 0,
       code,
       searchText,
       ...(args.zone_id ? { zone_id: args.zone_id } : {}),
@@ -194,13 +312,38 @@ export const createAgent = mutation({
   },
 });
 
+/**
+ * Admin edits to an agent — the assignment, not the ledger.
+ *
+ * Deliberately NOT `AgentsUpdateValidator`, which is the whole document and
+ * therefore includes `balance`, `total_earned`, `total_paid` and the three
+ * activity counters. Those are computed by `creditAgentEarning`,
+ * `markRequestPaid` and the attribution mutations; an admin hand-editing a
+ * balance either creates money that no earning backs or silently erases an
+ * agent's credits. With this mutation previously ungated as well, `balance`
+ * was writable by anyone at all.
+ *
+ * `paystack_recipient_code` is set by `createAgentPaystackRecipient`, which
+ * gets it from Paystack, so it is not admin-editable either.
+ */
 export const updateAgent = mutation({
-  args: AgentsUpdateValidator,
+  args: {
+    id: v.id("agents"),
+    zone_id: v.optional(v.id("agent_zones")),
+    mpesa_number: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
-    const { id, ...updateData } = args;
-    await ctx.db.patch(id, {
-      ...updateData,
-    });
+    await assertPermission(ctx, "agents:UPDATE");
+
+    const { id, ...updates } = args;
+    const agent = await ctx.db.get(id);
+    if (!agent) throw new ConvexError("That agent no longer exists.");
+
+    if (updates.zone_id && !(await ctx.db.get(updates.zone_id))) {
+      throw new ConvexError("That zone no longer exists.");
+    }
+
+    await ctx.db.patch(id, updates);
   },
 });
 
@@ -209,6 +352,32 @@ export const deleteAgent = mutation({
     agentId: v.id("agents"),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "agents:DELETE");
+
+    // Refused rather than cascaded. Earnings and payout requests are the
+    // financial record of what this agent was owed and paid; deleting the
+    // agent row underneath them leaves orphans that no screen can resolve
+    // back to a person, and deleting them too would destroy the record.
+    const earning = await ctx.db
+      .query("agent_earnings")
+      .withIndex("by_agent", (q) => q.eq("agent_id", args.agentId))
+      .first();
+    if (earning) {
+      throw new ConvexError(
+        "This agent has earnings on record and cannot be deleted. Remove their zone instead so nothing further accrues.",
+      );
+    }
+
+    const request = await ctx.db
+      .query("agent_payment_requests")
+      .withIndex("by_agent", (q) => q.eq("agent_id", args.agentId))
+      .first();
+    if (request) {
+      throw new ConvexError(
+        "This agent has payout requests on record and cannot be deleted.",
+      );
+    }
+
     await ctx.db.delete(args.agentId);
   },
 });
