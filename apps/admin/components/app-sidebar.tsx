@@ -15,6 +15,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -202,15 +203,39 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                           className="group/collapsible"
                         >
                           <SidebarMenuItem>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuButton
-                                isActive={active}
-                                tooltip={link.title}
-                              >
+                            {/*
+                              The label NAVIGATES and only the chevron
+                              toggles.
+
+                              It used to be one button wrapped in
+                              `CollapsibleTrigger`, which meant a parent with
+                              children could not be opened at all: clicking
+                              "Agents" expanded to Payment requests and Zones,
+                              and /agents — the page with "Add Agent" on it —
+                              was reachable only by typing the URL. Same for
+                              /insights. A section that has its own page and
+                              drill-downs needs two controls, not one.
+                            */}
+                            <SidebarMenuButton
+                              asChild
+                              isActive={active}
+                              tooltip={link.title}
+                              // Room for the chevron, which is positioned
+                              // over this row rather than laid out inside it.
+                              className="pr-8"
+                            >
+                              <Link href={link.url}>
                                 <HugeiconsIcon icon={link.icon} />
                                 <span>{link.title}</span>
-                                <HugeiconsIcon icon={ChevronRight} className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                              </SidebarMenuButton>
+                              </Link>
+                            </SidebarMenuButton>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuAction
+                                aria-label={`${link.title} sections`}
+                                className="data-[state=open]:rotate-90"
+                              >
+                                <HugeiconsIcon icon={ChevronRight} />
+                              </SidebarMenuAction>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
                               <SidebarMenuSub>
