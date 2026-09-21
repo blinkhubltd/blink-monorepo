@@ -1,9 +1,18 @@
-import { Pressable, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  Pressable,
+  Text as RNText,
+  TextInput,
+  View,
+  type TextInputProps,
+} from "react-native";
+import { useMutation } from "convex/react";
+import { api } from "@repo/backend";
+
 import { Icon } from "../icon";
 import { useTokenColors } from "../../lib/token-colors";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
-import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 
 /**
@@ -24,29 +33,345 @@ export function SectionCard({
   children: React.ReactNode;
   action?: React.ReactNode;
 }) {
+  // Sizes are the checkout design's own px values (card 20px radius / 20px
+  // padding / 12px gap; label 12px, 500, 0.06em), not the app's type scale.
   return (
-    <View className="border-hairline border-border bg-card gap-space-3 p-space-5 rounded-lg">
-      <View className="gap-space-3 flex-row items-center justify-between">
-        {/*
-          A card kicker, not a peer-weight heading: small caps at the same
-          size as a field label, so it reads as "here is what this card is
-          about" rather than competing with the fields it introduces for the
-          same visual weight — which is what made a form of several cards
-          feel like a wall of oversized headings.
-        */}
-        <Text
-          size="label"
-          weight="bold"
-          variant="subtle"
-          className="uppercase tracking-label"
-        >
+    <View className="bg-card gap-[12px] rounded-[20px] p-[20px]">
+      <View className="flex-row items-center justify-between">
+        <RNText className="tracking-label text-muted-foreground text-[12px] leading-[17px] font-medium uppercase">
           {title}
-        </Text>
+        </RNText>
         {action}
       </View>
       {children}
     </View>
   );
+}
+
+/**
+ * The checkout design's field: 1.5px border, 14px radius, 13/14px padding. No
+ * fixed height and no wrapper, so the placeholder is the same size as the text.
+ */
+export function FieldInput({
+  multiline,
+  className = "",
+  ...props
+}: TextInputProps & { className?: string }) {
+  const colors = useTokenColors();
+  return (
+    <TextInput
+      placeholderTextColor={colors.subtle}
+      multiline={multiline}
+      textAlignVertical={multiline ? "top" : "center"}
+      className={`border-border bg-card text-foreground rounded-[14px] border-[1.5px] px-[14px] py-[13px] font-sans ${
+        multiline ? "min-h-[96px] text-[14px] leading-[21px]" : "text-[16px]"
+      } ${className}`}
+      {...props}
+    />
+  );
+}
+
+/**
+ * The dialling codes this app actually delivers against, plus the handful a
+ * customer is likely to be reachable on from abroad.
+ *
+ * A list, not a full ISO table: the field's job is to keep the code out of the
+ * number so `+254` is not retyped (and mistyped) on every order, and a 200-row
+ * picker would be a worse version of typing it.
+ */
+const DIAL_CODES = [
+  { code: "+254", flag: "🇰🇪", name: "Kenya" },
+  { code: "+256", flag: "🇺🇬", name: "Uganda" },
+  { code: "+255", flag: "🇹🇿", name: "Tanzania" },
+  { code: "+250", flag: "🇷🇼", name: "Rwanda" },
+  { code: "+251", flag: "🇪🇹", name: "Ethiopia" },
+  { code: "+211", flag: "🇸🇸", name: "South Sudan" },
+  { code: "+252", flag: "🇸🇴", name: "Somalia" },
+  { code: "+44", flag: "🇬🇧", name: "United Kingdom" },
+  { code: "+1", flag: "🇺🇸", name: "United States" },
+] as const;
+
+const DEFAULT_DIAL_CODE = "+254";
+
+/**
+ * Split a stored number into a dialling code and the rest.
+ *
+ * Longest code first, so `+250` is not read as `+25` + `0`. A number with no
+ * recognised prefix keeps the default code and is shown whole, rather than
+ * being silently truncated into a number nobody can call.
+ */
+export function splitPhone(stored: string): { dial: string; national: string } {
+  const cleaned = stored.replace(/[\s-]/g, "");
+  const match = [...DIAL_CODES]
+    .sort((a, b) => b.code.length - a.code.length)
+    .find((entry) => cleaned.startsWith(entry.code));
+  // No code: a local number, most likely `07…` typed into the old single
+  // field. Its trunk `0` is dropped so it reads as the national part.
+  if (!match)
+    return { dial: DEFAULT_DIAL_CODE, national: cleaned.replace(/^0+/, "") };
+  return { dial: match.code, national: cleaned.slice(match.code.length) };
+}
+
+/** The E.164 number the record stores: code and national part, no spaces. */
+export function joinPhone(dial: string, national: string): string {
+  return `${dial}${national.replace(/[\s-]/g, "").replace(/^0+/, "")}`;
+}
+
+/**
+ * A dialling code beside a number, rather than one field holding both.
+ *
+ * The single field asked every customer to retype `+254` — and a number typed
+ * without it, or with a leading `0` left in front of it, is a number the rider
+ * cannot dial. The code is now picked once and the leading zero is stripped on
+ * save, so `0741…` and `741…` store the same thing.
+ */
+export function PhoneField({
+  dial,
+  national,
+  onDialChange,
+  onNationalChange,
+}: {
+  dial: string;
+  national: string;
+  onDialChange: (next: string) => void;
+  onNationalChange: (next: string) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const selected =
+    DIAL_CODES.find((entry) => entry.code === dial) ?? DIAL_CODES[0];
+
+  return (
+    <View className="gap-[8px]">
+      <View className="flex-row gap-[8px]">
+        <Pressable
+          onPress={() => setPicking((open) => !open)}
+          accessibilityRole="button"
+          accessibilityLabel={`Country code, ${selected.name} ${selected.code}`}
+          accessibilityState={{ expanded: picking }}
+          className="border-border bg-card flex-row items-center gap-[6px] rounded-[14px] border-[1.5px] px-[12px] py-[13px] active:opacity-70"
+        >
+          <RNText className="text-[15px]">{selected.flag}</RNText>
+          <RNText className="text-foreground font-sans text-[15px] leading-[20px]">
+            {selected.code}
+          </RNText>
+          <Icon
+            name={picking ? "chevron-up" : "chevron-down"}
+            size={14}
+            tone="body"
+          />
+        </Pressable>
+
+        <FieldInput
+          value={national}
+          onChangeText={onNationalChange}
+          placeholder="741 773 276"
+          keyboardType="phone-pad"
+          textContentType="telephoneNumber"
+          accessibilityLabel="Phone number"
+          className="flex-1"
+        />
+      </View>
+
+      {/*
+        Inline rather than a modal: this sits inside a ScrollView, and a sheet
+        over a nine-row list is more machinery than the choice deserves.
+      */}
+      {picking ? (
+        <View className="border-border overflow-hidden rounded-[14px] border-[1.5px]">
+          {DIAL_CODES.map((entry) => (
+            <Pressable
+              key={entry.code}
+              onPress={() => {
+                onDialChange(entry.code);
+                setPicking(false);
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: entry.code === dial }}
+              className={`flex-row items-center gap-[10px] px-[14px] py-[11px] active:opacity-70 ${
+                entry.code === dial ? "bg-accent" : "bg-card"
+              }`}
+            >
+              <RNText className="text-[15px]">{entry.flag}</RNText>
+              <RNText className="text-foreground flex-1 font-sans text-[14px] leading-[20px]">
+                {entry.name}
+              </RNText>
+              <RNText className="text-muted-foreground font-sans text-[14px] leading-[20px]">
+                {entry.code}
+              </RNText>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * The caller's phone number: shown when saved, edited in place, written to the
+ * user record.
+ *
+ * One component for checkout and edit-profile, because the two had drifted —
+ * different fields, different save handling, and both reading the number off a
+ * query that never returned it.
+ *
+ * `stored` is the raw `users.getMyPhone` result: `undefined` while loading,
+ * `null` when nothing is on file. Loading renders no form at all, so a customer
+ * with a saved number never sees the empty field flash up first.
+ *
+ * A saved number is a line of text with an Edit action, not a live input: it
+ * is a fact about the account, and a field invites an accidental edit of the
+ * one number a rider will call.
+ */
+export function PhoneSection({
+  stored,
+  title = "A number we can reach you on",
+  helper = "The rider will call this number if they cannot find you.",
+  missingHelper = "Save a number before placing this order — the rider will call it if they cannot find you.",
+}: {
+  stored: string | null | undefined;
+  title?: string;
+  helper?: string;
+  /** Shown in red when nothing is saved. */
+  missingHelper?: string;
+}) {
+  const setMyPhone = useMutation(api.user.users.setMyPhone);
+
+  const loading = stored === undefined;
+  const saved = stored ?? "";
+  const hasPhone = saved.length > 0;
+
+  const [editing, setEditing] = useState(false);
+  const [dial, setDial] = useState(DEFAULT_DIAL_CODE);
+  const [national, setNational] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /*
+    Seeded from the record, so Edit starts from the saved number rather than an
+    empty field. Keyed on the stored value: it re-seeds when a save lands and
+    does not fight the customer while they are typing.
+  */
+  useEffect(() => {
+    if (!saved) return;
+    const split = splitPhone(saved);
+    setDial(split.dial);
+    setNational(split.national);
+  }, [saved]);
+
+  const next = joinPhone(dial, national);
+  const showForm = !loading && (!hasPhone || editing);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      // Auth-derived and revalidated server-side, so this is the number every
+      // later order and every rider call reads. The query above updates on its
+      // own once the write lands.
+      await setMyPhone({ phone: next });
+      setEditing(false);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not save that number.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancel() {
+    const split = splitPhone(saved);
+    setDial(split.dial);
+    setNational(split.national);
+    setError(null);
+    setEditing(false);
+  }
+
+  return (
+    <SectionCard
+      title={title}
+      action={
+        hasPhone && !editing ? (
+          <Pressable
+            onPress={() => setEditing(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Edit your phone number"
+            hitSlop={8}
+            className="gap-space-1 flex-row items-center active:opacity-70"
+          >
+            <Icon name="pencil" size={14} tone="brand" />
+            <RNText className="text-primary text-[13px] leading-[19px] font-semibold">
+              Edit
+            </RNText>
+          </Pressable>
+        ) : null
+      }
+    >
+      <RNText
+        className={`font-sans text-[13px] leading-[19px] ${
+          loading || hasPhone ? "text-muted-foreground" : "text-destructive"
+        }`}
+      >
+        {loading || hasPhone ? helper : missingHelper}
+      </RNText>
+
+      {hasPhone && !editing ? (
+        <RNText className="text-foreground font-sans text-[15px] leading-[22px]">
+          {formatPhone(saved)}
+        </RNText>
+      ) : null}
+
+      {showForm ? (
+        <>
+          <PhoneField
+            dial={dial}
+            national={national}
+            onDialChange={setDial}
+            onNationalChange={setNational}
+          />
+          {error ? (
+            <RNText className="text-destructive font-sans text-[13px] leading-[19px]">
+              {error}
+            </RNText>
+          ) : null}
+          <View className="gap-space-3 flex-row">
+            <Button
+              label="Save number"
+              variant="outline"
+              size="ctaSm"
+              loading={saving}
+              disabled={national.trim().length === 0 || next === saved}
+              onPress={() => void save()}
+            />
+            {hasPhone ? (
+              <Button
+                label="Cancel"
+                variant="ghost"
+                size="ctaSm"
+                onPress={cancel}
+              />
+            ) : null}
+          </View>
+        </>
+      ) : null}
+    </SectionCard>
+  );
+}
+
+/**
+ * `+254741773276` → `+254 741 773 276`, for reading only; the record keeps the
+ * unspaced form. Only a 9-digit national part — the East African shape this
+ * app mostly holds — is grouped; anything else is shown as stored rather than
+ * split at the wrong places.
+ */
+export function formatPhone(stored: string): string {
+  const { dial, national } = splitPhone(stored);
+  const grouped = /^\d{9}$/.test(national)
+    ? national.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")
+    : national;
+  return `${dial} ${grouped}`.trim();
 }
 
 export interface AddressForDisplay {
@@ -78,23 +403,23 @@ export function DeliveryAddressSection({
           hitSlop={8}
           className="gap-space-1 flex-row items-center active:opacity-70"
         >
-          <Text size="sm" weight="semibold">
+          <RNText className="text-foreground text-[13px] leading-[19px] font-semibold">
             Change
-          </Text>
+          </RNText>
           <Icon name="chevron-forward" size={16} tone="strong" />
         </Pressable>
       }
     >
       {address ? (
-        <View className="gap-space-2 flex-row items-start">
+        <View className="flex-row items-start gap-[10px]">
           <Icon name="location-outline" size={18} tone="body" />
-          <View className="gap-space-1 flex-1">
-            <Text size="sm" weight="medium">
+          <View className="flex-1 gap-[2px]">
+            <RNText className="text-foreground text-[15px] leading-[22px] font-semibold">
               {address.label}
-            </Text>
-            <Text size="sm" variant="muted">
+            </RNText>
+            <RNText className="text-muted-foreground font-sans text-[13px] leading-[19px]">
               {address.address?.address_1 ?? "Address details not available"}
-            </Text>
+            </RNText>
             {/*
               City and country, kept from the old screen. It defaulted these to
               "Nairobi" and "KE" on the order while AddAddressModal wrote
@@ -102,10 +427,10 @@ export function DeliveryAddressSection({
               showing a default the customer never chose.
             */}
             {address.address?.city ? (
-              <Text size="caption" variant="subtle">
+              <RNText className="text-muted-foreground font-sans text-[13px] leading-[19px]">
                 {address.address.city}
                 {address.address.country ? `, ${address.address.country}` : ""}
-              </Text>
+              </RNText>
             ) : null}
           </View>
         </View>
@@ -163,7 +488,9 @@ export function AddressPicker({
                 {address.address?.address_1 ?? "No street details"}
               </Text>
             </View>
-            {selected ? <Icon name="checkmark" size={18} tone="strong" /> : null}
+            {selected ? (
+              <Icon name="checkmark" size={18} tone="strong" />
+            ) : null}
           </Pressable>
         );
       })}
@@ -178,20 +505,14 @@ export function DeliveryInstructionsSection({
   value: string;
   onChange: (next: string) => void;
 }) {
-  // `placeholderTextColor` is a prop, not a class, so it cannot theme on its
-  // own — it held a light-mode literal and stayed that way in dark.
-  const colors = useTokenColors();
   return (
     <SectionCard title="Delivery instructions">
-      <TextInput
+      <FieldInput
         value={value}
         onChangeText={onChange}
         placeholder="Anything the rider should know — a gate code, a landmark, who to ask for."
-        placeholderTextColor={colors.subtle}
         multiline
-        numberOfLines={4}
-        textAlignVertical="top"
-        className="border border-input bg-background p-space-4 text-body text-foreground min-h-[96px] rounded-md font-sans"
+        numberOfLines={3}
       />
     </SectionCard>
   );
@@ -247,7 +568,7 @@ export function ReceiverSection({
             : "Add a contact if someone else will take delivery."}
       </Text>
 
-      <Input
+      <FieldInput
         value={name}
         onChangeText={onNameChange}
         placeholder="Receiver name"
@@ -260,7 +581,7 @@ export function ReceiverSection({
         </Text>
       ) : null}
 
-      <Input
+      <FieldInput
         value={phone}
         onChangeText={onPhoneChange}
         placeholder="Receiver phone (+254…)"
@@ -308,7 +629,7 @@ export function PaymentModeSection({
 
   return (
     <SectionCard title="Payment">
-      <View className="gap-space-2">
+      <View className="gap-[10px]">
         <ModeOption
           label="Pay now"
           helper="Card, M-Pesa or bank. Your order is confirmed immediately."
@@ -342,26 +663,26 @@ function ModeOption({
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      className={`border-hairline gap-space-3 p-space-4 flex-row items-start rounded-md active:opacity-80 ${
-        selected ? "border-primary bg-accent" : "border-border bg-background"
+      className={`flex-row items-start gap-[12px] rounded-[14px] border-[1.5px] p-[14px] active:opacity-80 ${
+        selected ? "border-primary bg-accent" : "border-border bg-transparent"
       }`}
     >
       <View
-        className={`rounded-pill mt-[2px] size-[18px] items-center justify-center border-2 ${
-          selected ? "border-primary" : "border-border"
+        className={`mt-[2px] size-[20px] items-center justify-center rounded-[999px] border-2 ${
+          selected ? "border-primary" : "border-input"
         }`}
       >
         {selected ? (
-          <View className="bg-primary rounded-pill size-[10px]" />
+          <View className="bg-primary size-[10px] rounded-[999px]" />
         ) : null}
       </View>
-      <View className="gap-space-1 flex-1">
-        <Text size="sm" weight="semibold">
+      <View className="flex-1 gap-[2px]">
+        <RNText className="text-foreground text-[15px] leading-[22px] font-semibold">
           {label}
-        </Text>
-        <Text size="caption" variant="subtle">
+        </RNText>
+        <RNText className="text-muted-foreground font-sans text-[13px] leading-[19px]">
           {helper}
-        </Text>
+        </RNText>
       </View>
     </Pressable>
   );

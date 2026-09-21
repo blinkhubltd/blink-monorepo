@@ -314,7 +314,7 @@ export default function ClearanceCartScreen() {
           </Text>
         </View>
         <Button
-          size="lg"
+          size="cta"
           full
           disabled={sellable.length === 0 || !quote}
           label="Checkout deals"

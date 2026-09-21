@@ -155,7 +155,7 @@ export default function RateDeliveryScreen() {
             ) : null}
 
             <Button
-              size="lg"
+              size="cta"
               full
               label="Send rating"
               loading={submitting}

@@ -3,6 +3,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Text as RNText,
   ScrollView,
   View,
 } from "react-native";
@@ -15,7 +16,6 @@ import type { Id } from "@repo/backend/dataModel";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
-import { Input } from "@repo/mobile-ui/components/ui/input";
 
 import { useCart } from "../../providers/CartProvider";
 import { useLocation } from "../../providers/LocationProvider";
@@ -24,6 +24,7 @@ import { OrderSummary } from "../../components/checkout/order-summary";
 import {
   AddressPicker,
   DeliveryAddressSection,
+  PhoneSection,
   DeliveryInstructionsSection,
   PaymentModeSection,
   ReceiverSection,
@@ -94,7 +95,6 @@ export default function CheckoutScreen() {
   );
   const [pickingAddress, setPickingAddress] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
-  const [phoneDraft, setPhoneDraft] = useState("");
   const [placing, setPlacing] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   // Held so a retry after a failure reuses the same reference, which is what
@@ -126,11 +126,8 @@ export default function CheckoutScreen() {
     api.data.addresses.getMyAddresses,
     isSignedIn ? {} : "skip",
   );
-  const access = useQuery(
-    api.user.access.getMyAccess,
-    isSignedIn ? {} : "skip",
-  );
-  const setMyPhone = useMutation(api.user.users.setMyPhone);
+  // `undefined` while loading, `null` when nothing is saved.
+  const myPhone = useQuery(api.user.users.getMyPhone, isSignedIn ? {} : "skip");
   const recordAcceptance = useMutation(
     api.data.legal_acceptances.recordAcceptance,
   );
@@ -191,10 +188,7 @@ export default function CheckoutScreen() {
     receiver.required,
   );
 
-  const storedPhone =
-    access && "hasUser" in access && access.hasUser
-      ? ((access as { phone?: string }).phone ?? "")
-      : "";
+  const storedPhone = myPhone ?? "";
   const hasPhone = storedPhone.trim().length > 0;
 
   const quote = quoteResult?.quote ?? null;
@@ -243,6 +237,15 @@ export default function CheckoutScreen() {
     receiverErrors,
     prescriptionStatus,
   });
+
+  /*
+    Listed at the foot of the screen, minus the phone — that one is said in the
+    phone card itself, next to the field that fixes it, so it is not a yellow
+    banner about a control three inches above it.
+  */
+  const footerBlockers = blockers.filter(
+    (blocker) => !blocker.toLowerCase().includes("phone number we can reach"),
+  );
 
   /**
    * Start checkout, then place the order.
@@ -356,7 +359,7 @@ export default function CheckoutScreen() {
 
   if (!isLoaded) {
     return (
-      <SafeAreaView edges={["top"]} className="bg-background flex-1">
+      <SafeAreaView edges={["top"]} className="bg-muted flex-1">
         <ScreenHeader title="Checkout" />
       </SafeAreaView>
     );
@@ -402,7 +405,7 @@ export default function CheckoutScreen() {
   }
 
   return (
-    <SafeAreaView edges={["top"]} className="bg-background flex-1">
+    <SafeAreaView edges={["top"]} className="bg-muted flex-1">
       <ScreenHeader
         title="Checkout"
         subtitle={`${quote.itemCount} ${quote.itemCount === 1 ? "item" : "items"}${
@@ -415,7 +418,7 @@ export default function CheckoutScreen() {
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="px-screen gap-space-4 pb-space-10"
+          contentContainerClassName="px-screen pb-space-10 gap-[12px] pt-space-5"
           keyboardShouldPersistTaps="handled"
         >
           {pickingAddress ? (
@@ -441,6 +444,8 @@ export default function CheckoutScreen() {
               */}
               <Button
                 variant="outline"
+                size="cta"
+                full
                 label="Add an address"
                 onPress={() => router.push("/addresses/new")}
               />
@@ -452,6 +457,8 @@ export default function CheckoutScreen() {
                 and it is saved for next time.
               </Text>
               <Button
+                size="cta"
+                full
                 label="Add an address"
                 onPress={() => router.push("/addresses/new")}
               />
@@ -463,47 +470,7 @@ export default function CheckoutScreen() {
             />
           )}
 
-          {/*
-            Phone capture, kept from the old screen but inline rather than a
-            modal that re-entered itself off stale data. The old one read
-            `userData` from a closure captured before the mutation resolved, so
-            it could reopen indefinitely.
-          */}
-          {!hasPhone ? (
-            <SectionCard title="A number we can reach you on">
-              <Text size="sm" variant="muted">
-                The rider will call this number if they cannot find you.
-              </Text>
-              <Input
-                value={phoneDraft}
-                onChangeText={setPhoneDraft}
-                placeholder="+254…"
-                keyboardType="phone-pad"
-                textContentType="telephoneNumber"
-              />
-              <Button
-                label="Save number"
-                variant="outline"
-                disabled={phoneDraft.trim().length === 0}
-                onPress={() => {
-                  void setMyPhone({ phone: phoneDraft }).catch((err) =>
-                    setFailure(
-                      err instanceof Error
-                        ? err.message
-                        : "Could not save that number.",
-                    ),
-                  );
-                }}
-              />
-            </SectionCard>
-          ) : (
-            <SectionCard title="Contact">
-              <Text size="sm">{storedPhone}</Text>
-              <Text size="caption" variant="subtle">
-                The rider will call this number if they cannot find you.
-              </Text>
-            </SectionCard>
-          )}
+          <PhoneSection stored={myPhone} />
 
           <PrescriptionUploadSection
             vendors={vendorsNeedingRx.map((vendorId) => {
@@ -523,13 +490,6 @@ export default function CheckoutScreen() {
             // upload does not leave a stale banner from a previous attempt.
             onUploaded={() => setFailure(null)}
           />
-
-          <SectionCard title="Order summary">
-            <OrderSummary
-              quote={quote}
-              unavailable={quoteResult?.unavailable ?? []}
-            />
-          </SectionCard>
 
           <DeliveryInstructionsSection
             value={instructions}
@@ -559,22 +519,24 @@ export default function CheckoutScreen() {
             allowPayNow={cardConfigured}
           />
 
+          <SectionCard title="Order summary">
+            <OrderSummary
+              quote={quote}
+              unavailable={quoteResult?.unavailable ?? []}
+            />
+          </SectionCard>
+
           {/*
             The agreement, stated where the commitment is made rather than
             buried in the profile tab. Both documents open on the website — one
             copy, editable without a store release — and placing the order
             records the acceptance against the versions the server holds.
           */}
-          <View className="gap-space-2 flex-row flex-wrap items-baseline">
-            <Text size="caption" variant="subtle">
-              Placing this order accepts our
-            </Text>
-            <LegalLink doc="terms" onFail={setFailure} />
-            <Text size="caption" variant="subtle">
-              and
-            </Text>
+          <RNText className="text-muted-foreground px-space-3 py-space-1 text-center font-sans text-[13px] leading-[19px]">
+            By placing this order, you agree to our{" "}
+            <LegalLink doc="terms" onFail={setFailure} /> and{" "}
             <LegalLink doc="privacy" onFail={setFailure} />
-          </View>
+          </RNText>
 
           {failure ? (
             <View className="bg-destructive-soft p-space-4 rounded-md">
@@ -616,12 +578,12 @@ export default function CheckoutScreen() {
             conditions across two buttons and showed none of them — it simply
             did nothing when tapped.
           */}
-          {blockers.length > 0 ? (
+          {footerBlockers.length > 0 ? (
             <View className="bg-warning-soft p-space-4 gap-space-1 rounded-md">
               <Text size="sm" weight="semibold">
                 Before you can place this order
               </Text>
-              {blockers.map((blocker) => (
+              {footerBlockers.map((blocker) => (
                 <Text key={blocker} size="sm">
                   • {blocker}
                 </Text>
@@ -631,19 +593,19 @@ export default function CheckoutScreen() {
         </ScrollView>
 
         {/* Pinned, so the amount is visible without scrolling back. */}
-        <View className="border-hairline border-border bg-card px-screen py-space-4 gap-space-2">
+        <View className="border-t-hairline border-border bg-card px-screen gap-space-3 py-[14px]">
           <View className="flex-row items-baseline justify-between">
-            <Text size="sm" variant="muted">
+            <RNText className="text-foreground text-[16px] leading-[23px] font-semibold">
               {paymentMode === "pay_on_delivery"
                 ? "Pay on delivery"
-                : "To pay now"}
-            </Text>
-            <Text variant="price" size="priceLg">
+                : "Pay now"}
+            </RNText>
+            <RNText className="text-foreground text-[16px] leading-[23px] font-semibold">
               {formatKES(quote.total)}
-            </Text>
+            </RNText>
           </View>
           <Button
-            size="lg"
+            size="cta"
             full
             loading={placing || card.busy}
             /*
@@ -658,11 +620,7 @@ export default function CheckoutScreen() {
               card.busy ||
               (paymentMode === "pay_now" && !card.canPay)
             }
-            label={
-              paymentMode === "pay_on_delivery"
-                ? `Place order · ${formatKES(quote.total)}`
-                : `Pay ${formatKES(quote.total)}`
-            }
+            label={`Place order · ${formatKES(quote.total)}`}
             onPress={() => void place()}
           />
         </View>
@@ -687,10 +645,11 @@ function LegalLink({
 }) {
   const url = legalUrl(doc);
   return (
-    <Pressable
+    <RNText
       accessibilityRole="link"
       accessibilityLabel={LEGAL_DOC_META[doc].title}
       accessibilityHint="Opens in your browser"
+      className="text-blink-700 font-semibold underline"
       onPress={() => {
         // Checked before opening, not after — a `.invalid` placeholder URL
         // still "succeeds" by openExternal's own contract, so waiting for the
@@ -703,14 +662,9 @@ function LegalLink({
           if (!ok) onFail("Could not open your browser.");
         });
       }}
-      // A 44pt target is not available inline in a sentence, so the underline
-      // and colour carry the affordance instead of size.
-      hitSlop={8}
     >
-      <Text size="caption" weight="semibold" className="underline">
-        {LEGAL_DOC_META[doc].title}
-      </Text>
-    </Pressable>
+      {LEGAL_DOC_META[doc].title}
+    </RNText>
   );
 }
 
@@ -724,7 +678,7 @@ function Gate({
   action?: { label: string; onPress: () => void };
 }) {
   return (
-    <SafeAreaView edges={["top"]} className="bg-background flex-1">
+    <SafeAreaView edges={["top"]} className="bg-muted flex-1">
       <ScreenHeader title="Checkout" />
       <View className="gap-space-4 px-screen py-space-8 items-center">
         <Text size="lg" weight="semibold" className="text-center">

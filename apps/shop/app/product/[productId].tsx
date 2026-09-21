@@ -516,7 +516,7 @@ export default function ProductDetailScreen() {
           }}
         >
           {!sellable ? (
-            <Button size="lg" full disabled label="Unavailable" />
+            <Button size="cta" full disabled label="Unavailable" />
           ) : inBasket > 0 ? (
             <View className="h-control-lg gap-space-3 bg-primary px-space-3 flex-1 flex-row items-center justify-between rounded-md">
               <Pressable

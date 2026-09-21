@@ -1,8 +1,6 @@
-import { View } from "react-native";
+import { Text as RNText, View } from "react-native";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
-import { Separator } from "@repo/mobile-ui/components/ui/separator";
-import { Badge } from "@repo/mobile-ui/components/ui/badge";
 
 import { formatKES } from "../../lib/format";
 
@@ -27,6 +25,13 @@ import { formatKES } from "../../lib/format";
  * zero, because the tax is already inside the price rather than added to it.
  * Retained because a customer who saw it before would notice its absence, and
  * because a VAT-registered buyer needs the figure.
+ *
+ * ── Rows, not boxes ──────────────────────────────────────────────────────
+ *
+ * Every line is one flat row at the design's body size — label left, value
+ * right — because the card this sits in is already the container. The
+ * per-shop bordered boxes it had before nested a card inside a card, which is
+ * what made this section read as heavier than the four above it.
  */
 
 const VAT_RATE = 0.16;
@@ -69,66 +74,39 @@ export function OrderSummary({
   const vat = quote.subtotal - exVat;
 
   return (
-    <View className="gap-space-4">
-      <Text size="base" weight="semibold">
-        Order summary
-      </Text>
-
-      {/*
-        Lines are grouped by shop, which the old screen did not show at all —
-        it listed every product in one block while silently creating one order
-        per shop. If the basket becomes several deliveries, the customer should
-        see that before they pay, not discover it in their order history.
-      */}
+    <>
       {quote.legs.map((leg, index) => (
-        <View
-          key={leg.vendorId}
-          className="border-hairline border-border gap-space-2 p-space-4 rounded-lg"
-        >
+        <View key={leg.vendorId} className="gap-[12px]">
+          {/*
+            Named only when there is more than one — which the old screen never
+            showed at all. It listed every product in one block while silently
+            creating one order per shop, so a basket that was about to become
+            several deliveries looked like one.
+          */}
           {quote.legs.length > 1 ? (
-            <View className="gap-space-2 flex-row items-center justify-between">
-              <Text size="caption" variant="eyebrow">
-                Delivery {index + 1} of {quote.legs.length}
-              </Text>
-              <Text size="caption" variant="subtle">
-                {formatKES(leg.total)}
-              </Text>
-            </View>
+            <SummaryRow
+              label={`Delivery ${index + 1} of ${quote.legs.length}`}
+              value={formatKES(leg.total)}
+            />
           ) : null}
 
           {leg.lines.map((line) => (
-            <View
+            <SummaryRow
               key={line.productId}
-              className="gap-space-3 flex-row items-start justify-between"
-            >
-              <View className="gap-space-2 flex-1 flex-row items-start">
-                <Text size="sm" variant="muted">
-                  {line.quantity}×
-                </Text>
-                <View className="gap-space-1 flex-1">
-                  <Text size="sm" numberOfLines={2}>
-                    {line.name}
-                  </Text>
-                  {line.requiresPrescription ? (
-                    <Badge variant="info" label="Rx" />
-                  ) : null}
-                </View>
-              </View>
-              {/*
-                A per-line price, which the old screen showed for clearance
-                items and omitted for everything else — so a customer checking
-                one item against the total could not.
-              */}
-              <Text size="sm" weight="medium">
-                {formatKES(line.lineTotal)}
-              </Text>
-            </View>
+              // A per-line price, which the old screen showed for clearance
+              // items and omitted for everything else — so a customer checking
+              // one item against the total could not.
+              label={`${line.quantity}× ${line.name}${
+                line.requiresPrescription ? " (Rx)" : ""
+              }`}
+              value={formatKES(line.lineTotal)}
+            />
           ))}
         </View>
       ))}
 
       {unavailable.length > 0 ? (
-        <View className="bg-warning-soft p-space-4 gap-space-1 rounded-md">
+        <View className="bg-warning-soft gap-space-1 rounded-[14px] p-[14px]">
           <Text size="sm" weight="semibold">
             Some items were removed
           </Text>
@@ -140,7 +118,7 @@ export function OrderSummary({
         </View>
       ) : null}
 
-      <Separator />
+      <Divider />
 
       <SummaryRow label="Subtotal (excl. VAT)" value={formatKES(exVat)} />
       <SummaryRow label={`VAT (${VAT_RATE * 100}%)`} value={formatKES(vat)} />
@@ -160,47 +138,60 @@ export function OrderSummary({
       />
 
       {quote.freeDeliveryApplied ? (
-        <Text size="caption" variant="success">
+        <RNText className="text-success font-sans text-[13px] leading-[19px]">
           Free delivery applied — you saved{" "}
           {formatKES(quote.grossDeliveryFee - quote.deliveryFee)}.
-        </Text>
+        </RNText>
       ) : quote.freeDeliveryThreshold > 0 ? (
-        <Text size="caption" variant="subtle">
+        <RNText className="text-muted-foreground font-sans text-[13px] leading-[19px]">
           Spend {formatKES(quote.freeDeliveryThreshold - quote.subtotal)} more
           for free delivery.
-        </Text>
+        </RNText>
       ) : null}
 
       {quote.vendorCount > 1 ? (
-        <Text size="caption" variant="subtle">
+        <RNText className="text-muted-foreground font-sans text-[13px] leading-[19px]">
           One delivery fee for the basket, plus a pickup charge for each extra
           shop.
-        </Text>
+        </RNText>
       ) : null}
 
-      <Separator />
+      <Divider />
 
-      <View className="gap-space-3 flex-row items-baseline justify-between">
-        <Text size="lg" weight="semibold">
-          Total
-        </Text>
-        <Text variant="price" size="priceLg">
-          {formatKES(quote.total)}
-        </Text>
-      </View>
-    </View>
+      <SummaryRow label="Total" value={formatKES(quote.total)} strong />
+    </>
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function Divider() {
+  return <View className="bg-border h-[1px]" />;
+}
+
+/**
+ * One line of the summary.
+ *
+ * Plain `RNText` at explicit px rather than the `Text` scale: this is a money
+ * table, and every row in it — including the total — has to sit on the same
+ * grid as the pinned footer's figure.
+ */
+function SummaryRow({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  const font = strong
+    ? "font-semibold text-[16px] leading-[23px]"
+    : "font-sans text-[14px] leading-[21px]";
   return (
-    <View className="gap-space-3 flex-row items-baseline justify-between">
-      <Text size="sm" variant="muted">
+    <View className="gap-space-4 flex-row items-baseline justify-between">
+      <RNText className={`text-foreground shrink ${font}`} numberOfLines={2}>
         {label}
-      </Text>
-      <Text size="sm" weight="medium">
-        {value}
-      </Text>
+      </RNText>
+      <RNText className={`text-foreground ${font}`}>{value}</RNText>
     </View>
   );
 }

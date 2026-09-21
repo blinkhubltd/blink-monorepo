@@ -1,4 +1,9 @@
-import { ActivityIndicator, Pressable, View, type PressableProps } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  View,
+  type PressableProps,
+} from "react-native";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 import { Text } from "./text";
@@ -27,12 +32,24 @@ const buttonVariants = cva(
         default: "h-control",
         sm: "h-control-sm px-space-4",
         lg: "h-control-lg px-space-7",
+        /** Pill CTA (48px, 24px gutters) — the checkout "Place order" shape. */
+        cta: "h-12 rounded-[999px] px-space-6",
+        /** Small pill — "Save number" in the checkout design (8px/16px, 14px). */
+        ctaSm: "h-10 rounded-[999px] px-space-5",
         icon: "h-control w-control px-0",
         iconSm: "h-control-sm w-control-sm px-0",
       },
       full: { true: "w-full", false: "" },
     },
     defaultVariants: { variant: "default", size: "default", full: false },
+    compoundVariants: [
+      { size: "cta", variant: "default", className: "shadow-brand" },
+      {
+        size: "ctaSm",
+        variant: "outline",
+        className: "border-[1.5px] border-border",
+      },
+    ],
   },
 );
 
@@ -52,6 +69,8 @@ const buttonTextVariants = cva("font-semibold text-body", {
       default: "",
       sm: "text-body-sm",
       lg: "text-body-lg",
+      cta: "text-[15px] font-semibold",
+      ctaSm: "text-[13px]",
       icon: "",
       iconSm: "",
     },
@@ -60,8 +79,7 @@ const buttonTextVariants = cva("font-semibold text-body", {
 });
 
 export interface ButtonProps
-  extends PressableProps,
-    VariantProps<typeof buttonVariants> {
+  extends PressableProps, VariantProps<typeof buttonVariants> {
   label?: string;
   /** Rendered before the label. */
   icon?: React.ReactNode;

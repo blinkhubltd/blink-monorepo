@@ -120,7 +120,7 @@ export default function SignInScreen() {
                 <Button
                   label="Continue with Google"
                   variant="outline"
-                  size="lg"
+                  size="cta"
                   full
                   loading={social.pending === "google"}
                   disabled={social.pending !== null}
@@ -137,7 +137,7 @@ export default function SignInScreen() {
                   <Button
                     label="Continue with Apple"
                     variant="outline"
-                    size="lg"
+                    size="cta"
                     full
                     loading={social.pending === "apple"}
                     disabled={social.pending !== null}
@@ -175,7 +175,7 @@ export default function SignInScreen() {
                 />
                 <Button
                   label="Continue"
-                  size="lg"
+                  size="cta"
                   full
                   loading={flow.busy}
                   disabled={!flow.isLoaded || flow.email.trim().length === 0}
@@ -202,7 +202,7 @@ export default function SignInScreen() {
               />
               <Button
                 label="Sign in"
-                size="lg"
+                size="cta"
                 full
                 loading={flow.busy}
                 disabled={flow.password.length === 0}
@@ -259,7 +259,7 @@ export default function SignInScreen() {
               />
               <Button
                 label="Verify"
-                size="lg"
+                size="cta"
                 full
                 loading={flow.busy}
                 onPress={() => void flow.submitCode()}

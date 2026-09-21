@@ -249,7 +249,7 @@ export default function ClearanceDealScreen() {
 
         <View className="flex-1">
           <Button
-            size="lg"
+            size="cta"
             full
             loading={busy}
             disabled={!!unavailable || busy}
