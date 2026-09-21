@@ -187,6 +187,60 @@ describe("the read rule: owner, assignee, or orders:READ within scope", () => {
   });
 });
 
+describe("the delivery code is not searchable", () => {
+  // Search results carry `searchText`, and staff could find an order by
+  // searching for its code — so the code must not be in the text at all.
+  const builder = (() => {
+    const start = orders.indexOf("const computeOrderSearchText = (");
+    return start === -1 ? "" : orders.slice(start, orders.indexOf("\n};\n", start));
+  })();
+
+  it("computeOrderSearchText neither accepts nor emits delivery_code", () => {
+    expect(builder).not.toBe("");
+    expect(builder).not.toMatch(/delivery_code/);
+    // Still indexes what staff legitimately search by.
+    expect(builder).toMatch(/order\.reference/);
+    expect(builder).toMatch(/order\.payment_reference/);
+  });
+
+  it("no other order searchText builder includes it", () => {
+    const root = join(__dirname, "..", "convex");
+    const offenders = (readdirSync(root, { recursive: true }) as string[])
+      .filter((f) => f.endsWith(".ts") && !f.includes("_generated"))
+      .filter((f) =>
+        /searchText[^;]*?delivery_code/s.test(
+          // Only the text of each searchText assignment, not the whole file.
+          (readFileSync(join(root, f), "utf8").match(
+            /searchText\s*[:=]\s*[\s\S]*?(?:;|\n\s*\},?\n)/g,
+          ) ?? []).join("\n"),
+        ),
+      )
+      .map((f) => relative(root, join(root, f)));
+    expect(offenders).toEqual([]);
+  });
+
+  it("existing orders are scrubbed by an internal, paged migration", () => {
+    expect(orders).toMatch(
+      /export const scrubDeliveryCodesFromSearchText = internalMutation\(/,
+    );
+    const b = exported(orders, "internalMutation").find(
+      (f) => f.name === "scrubDeliveryCodesFromSearchText",
+    )!.body;
+    expect(b).toMatch(/\.paginate\(/);
+    expect(b).toMatch(/orderSearchTextFor\(ctx, order\)/);
+    // Continues itself until the table is done.
+    expect(b).toMatch(
+      /scheduler\.runAfter\(\s*0,\s*internal\.data\.orders\.scrubDeliveryCodesFromSearchText/,
+    );
+  });
+
+  it("the admin backfill recomputes through the same helper", () => {
+    expect(body("backfillOrdersSearchText")).toMatch(
+      /orderSearchTextFor\(ctx, order\)/,
+    );
+  });
+});
+
 describe("the remaining writes", () => {
   it("createOrder is internal — it accepted user_id and prices from the client", () => {
     expect(orders).toMatch(/export const createOrder = internalMutation\(/);

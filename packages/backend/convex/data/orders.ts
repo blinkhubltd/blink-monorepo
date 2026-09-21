@@ -199,10 +199,17 @@ async function assertCanActOnOrder(
   return await getScopedOrder(ctx, scope, orderId);
 }
 
+/**
+ * The text the admin order search matches against.
+ *
+ * Deliberately without `delivery_code`. That is the secret the customer reads
+ * to the rider to prove the handover; with it in here, anyone who could search
+ * orders could find an order by its code — and search results carry
+ * `searchText` itself, so the code came back in the payload too.
+ */
 const computeOrderSearchText = (order: {
   reference?: string;
   payment_reference?: string;
-  delivery_code?: string;
   receiver_contact?: { name?: string; phone?: string; email?: string };
   customer?: { name?: string; email?: string; phone?: string } | null;
   vendor?: { name?: string } | null;
@@ -210,7 +217,6 @@ const computeOrderSearchText = (order: {
   return [
     order.reference ?? "",
     order.payment_reference ?? "",
-    order.delivery_code ?? "",
     order.receiver_contact?.name ?? "",
     order.receiver_contact?.phone ?? "",
     order.receiver_contact?.email ?? "",
@@ -502,34 +508,81 @@ export const backfillOrdersSearchText = mutation({
     let updatedCount = 0;
 
     for (const order of orders) {
-      const [customer, vendor] = await Promise.all([
-        ctx.db.get(order.user_id),
-        ctx.db.get(order.vendor_id),
-      ]);
-
-      const customerName = customer
-        ? customer.name ||
-          `${customer.first_name || ""} ${customer.last_name || ""}`.trim()
-        : "";
-
-      const searchText = computeOrderSearchText({
-        ...order,
-        customer: customer
-          ? {
-              name: customerName,
-              email: customer.email,
-              phone: customer.phone,
-            }
-          : null,
-        vendor: vendor ? { name: vendor.name } : null,
-      });
-
+      const searchText = await orderSearchTextFor(ctx, order);
       if (order.searchText === searchText) continue;
       await ctx.db.patch(order._id, { searchText, updated_at: Date.now() });
       updatedCount += 1;
     }
 
     return { updatedCount };
+  },
+});
+
+/** Recompute one stored order's `searchText` from its current customer and vendor. */
+async function orderSearchTextFor(
+  ctx: MutationCtx,
+  order: Doc<"orders">,
+): Promise<string> {
+  const [customer, vendor] = await Promise.all([
+    ctx.db.get(order.user_id),
+    ctx.db.get(order.vendor_id),
+  ]);
+
+  const customerName = customer
+    ? customer.name ||
+      `${customer.first_name || ""} ${customer.last_name || ""}`.trim()
+    : "";
+
+  return computeOrderSearchText({
+    ...order,
+    customer: customer
+      ? { name: customerName, email: customer.email, phone: customer.phone }
+      : null,
+    vendor: vendor ? { name: vendor.name } : null,
+  });
+}
+
+/**
+ * One-off: rewrite every order's `searchText` so none still contains its
+ * delivery code, which `computeOrderSearchText` used to include.
+ *
+ * Internal and identity-free, so it can be run from the CLI:
+ *
+ *   npx convex run data/orders:scrubDeliveryCodesFromSearchText
+ *
+ * Works through the table in pages and schedules itself for the next one, so
+ * it stays inside a mutation's read and write limits however large the table
+ * is. Only orders whose text actually changes are written.
+ */
+export const scrubDeliveryCodesFromSearchText = internalMutation({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    updatedSoFar: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("orders")
+      .paginate({ cursor: args.cursor ?? null, numItems: 200 });
+
+    let updated = args.updatedSoFar ?? 0;
+    for (const order of page.page) {
+      const searchText = await orderSearchTextFor(ctx, order);
+      if (order.searchText === searchText) continue;
+      // No `updated_at` bump: this changes an index, not the order.
+      await ctx.db.patch(order._id, { searchText });
+      updated += 1;
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.data.orders.scrubDeliveryCodesFromSearchText,
+        { cursor: page.continueCursor, updatedSoFar: updated },
+      );
+      return { done: false, updated };
+    }
+    console.log(`[scrubDeliveryCodesFromSearchText] done, ${updated} orders rewritten`);
+    return { done: true, updated };
   },
 });
 
