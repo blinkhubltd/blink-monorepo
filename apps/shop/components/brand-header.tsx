@@ -8,6 +8,7 @@ import { CartIconButton } from "./cart-icon-button";
 import { SearchIconButton } from "./search-icon-button";
 import { Logo } from "./logo";
 import { DeliveryBadge } from "./delivery-badge";
+import { BannerCarousel } from "./banner-carousel";
 import { useAddressLabel } from "../lib/use-address-label";
 
 /**
@@ -74,6 +75,7 @@ export function BrandHeader({
   showSearchButton = false,
   showCart = true,
   logoRow = false,
+  banners = false,
 }: {
   /** Omit entirely on a screen using `logoRow` instead. */
   title?: string;
@@ -92,6 +94,14 @@ export function BrandHeader({
   showCart?: boolean;
   /** The wordmark + delivery-time badge row, in place of the title block. Home only. */
   logoRow?: boolean;
+  /**
+   * The promo carousel, as the last row inside the yellow band. Home only.
+   *
+   * Inside the band rather than under it because the band is what gives the
+   * artwork a surface to sit on — on the page background the slides would
+   * read as the first row of content rather than as the header's own.
+   */
+  banners?: boolean;
 }) {
   const { label: locationLabel, state: locationState } = useAddressLabel();
 
@@ -192,6 +202,8 @@ export function BrandHeader({
           </View>
         </View>
       ) : null}
+
+      {banners ? <BannerCarousel /> : null}
     </View>
   );
 }

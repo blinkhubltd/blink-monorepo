@@ -10,7 +10,7 @@ export type Banner = {
   cta_text?: string;
   promo_type?: "product" | "brand" | "blink";
   product_id?: Id<"products">;
-  brand?: string;
+  brand_id?: Id<"brands">;
   categoryId?: Id<"categories">;
   status: "active" | "inactive";
   start_date: number;
@@ -27,7 +27,7 @@ export type BannerFormValues = {
   cta_text?: string;
   promo_type?: "product" | "brand" | "blink";
   product_id?: Id<"products">;
-  brand?: string;
+  brand_id?: Id<"brands">;
   categoryId?: Id<"categories">;
   status: "active" | "inactive";
   start_date: number;

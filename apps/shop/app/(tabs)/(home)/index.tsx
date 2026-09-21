@@ -44,7 +44,7 @@ export default function CategoriesScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader showLocation showSearchButton sweep logoRow />
+      <BrandHeader showLocation showSearchButton sweep logoRow banners />
 
       {tree.loading ? (
         <CategoryListSkeleton />

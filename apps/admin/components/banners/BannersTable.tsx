@@ -62,6 +62,7 @@ export function BannersTable() {
   const categories = useQuery(api.data.categories.getAllCategories);
   const products = useQuery(api.data.products.getAllProducts);
   const vendors = useQuery(api.data.vendors.getAllVendors);
+  const brands = useQuery(api.data.brands.getAllBrands);
 
   const banners = bannersData || [];
 
@@ -80,9 +81,13 @@ export function BannersTable() {
   const getProductName = (productId?: Id<"products">) => {
     if (!productId || !products) return null;
     const product = products.find((p: any) => p._id === productId);
-    return product
-      ? `${product.name}${product.brand ? ` - ${product.brand}` : ""}`
-      : "Unknown Product";
+    return product ? product.name : "Unknown Product";
+  };
+
+  const getBrandName = (brandId?: Id<"brands">) => {
+    if (!brandId || !brands) return null;
+    const brand = brands.find((b) => b._id === brandId);
+    return brand ? brand.name : "Unknown Brand";
   };
 
   const getBannerStatus = (banner: Banner) => {
@@ -125,7 +130,7 @@ export function BannersTable() {
         ...(values.categoryId && { categoryId: values.categoryId }),
         ...(values.promo_type && { promo_type: values.promo_type }),
         ...(values.product_id && { product_id: values.product_id }),
-        ...(values.brand && { brand: values.brand }),
+        ...(values.brand_id && { brand_id: values.brand_id }),
       };
 
       await createBanner(bannerData);
@@ -152,7 +157,7 @@ export function BannersTable() {
         ...(values.categoryId && { categoryId: values.categoryId }),
         ...(values.promo_type && { promo_type: values.promo_type }),
         ...(values.product_id && { product_id: values.product_id }),
-        ...(values.brand && { brand: values.brand }),
+        ...(values.brand_id && { brand_id: values.brand_id }),
       };
 
       await updateBanner(bannerData);
@@ -280,6 +285,7 @@ export function BannersTable() {
                     categories={categories}
                     products={products}
                     vendors={vendors}
+                    brands={brands}
                     onEdit={handleEditBanner}
                     onDelete={setBannerToDelete}
                     onView={setViewingBanner}
@@ -355,8 +361,8 @@ export function BannersTable() {
                     viewingBanner.product_id
                       ? getProductName(viewingBanner.product_id)
                       : viewingBanner.promo_type === "brand" &&
-                          viewingBanner.brand
-                        ? viewingBanner.brand
+                          viewingBanner.brand_id
+                        ? getBrandName(viewingBanner.brand_id)
                         : "—"}
                   </span>
                 </div>

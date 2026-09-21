@@ -41,25 +41,15 @@ type Result = {
   loadMore: () => void;
 };
 
-export function usePagedProducts({
-  categoryId,
-  l3CategoryId,
-  point,
-  pageSize = 20,
-}: {
-  categoryId: Id<"categories"> | null;
-  l3CategoryId?: Id<"categories">;
-  point: { lat: number; lng: number } | null;
-  pageSize?: number;
-}): Result {
-  // Rounded to ~11 m. Raw GPS jitter would otherwise change the scope key on
-  // almost every reading and reset paging under the customer's thumb.
-  const scopeKey = [
-    categoryId ?? "-",
-    l3CategoryId ?? "-",
-    point ? `${point.lat.toFixed(4)},${point.lng.toFixed(4)}` : "-",
-  ].join("|");
-
+/**
+ * The page accumulator, shared by every listing.
+ *
+ * Split out when the brand page arrived: it needs identical paging over a
+ * different query, and the alternative was a second copy of the reset rule,
+ * the de-duplication and the four loading flags — which is how two listings
+ * end up disagreeing about what "loading" means.
+ */
+function useAccumulator(scopeKey: string) {
   const [offset, setOffset] = useState(0);
   const [pages, setPages] = useState<Record<number, ProductForCard[]>>({});
   const scopeRef = useRef(scopeKey);
@@ -73,22 +63,25 @@ export function usePagedProducts({
     if (Object.keys(pages).length > 0) setPages({});
   }
 
-  const args =
-    categoryId && point
-      ? {
-          categoryId,
-          lat: point.lat,
-          lng: point.lng,
-          l3CategoryId,
-          limit: pageSize,
-          offset,
-        }
-      : "skip";
+  return { offset, setOffset, pages, setPages };
+}
 
-  const result = useQuery(
-    api.data.catalog.productsInCategoryTreeByCoverage,
-    args as never,
-  );
+/** Shape both coverage listings return; see `data/catalog.ts`. */
+type PageResult = {
+  products: unknown[];
+  hasMore: boolean;
+  nextOffset: number | null;
+  total: number | null;
+  totalIsExact: boolean;
+  coverageEmpty: boolean;
+} | undefined;
+
+function useAccumulated(
+  result: PageResult,
+  skipped: boolean,
+  acc: ReturnType<typeof useAccumulator>,
+): Result {
+  const { offset, setOffset, pages, setPages } = acc;
 
   useEffect(() => {
     if (!result) return;
@@ -125,8 +118,8 @@ export function usePagedProducts({
     // A skipped query also returns undefined, so "loading" is only true when
     // there is genuinely something in flight — otherwise a screen with no
     // location yet would spin forever instead of asking for one.
-    loadingInitial: args !== "skip" && !loadedFirstPage,
-    loadingMore: args !== "skip" && loadedFirstPage && result === undefined,
+    loadingInitial: !skipped && !loadedFirstPage,
+    loadingMore: !skipped && loadedFirstPage && result === undefined,
     hasMore: result?.hasMore ?? false,
     coverageEmpty: result?.coverageEmpty ?? false,
     total: pages[0] !== undefined ? (result?.total ?? null) : null,
@@ -137,4 +130,88 @@ export function usePagedProducts({
       }
     },
   };
+}
+
+export function usePagedProducts({
+  categoryId,
+  l3CategoryId,
+  point,
+  pageSize = 20,
+}: {
+  categoryId: Id<"categories"> | null;
+  l3CategoryId?: Id<"categories">;
+  point: { lat: number; lng: number } | null;
+  pageSize?: number;
+}): Result {
+  // Rounded to ~11 m. Raw GPS jitter would otherwise change the scope key on
+  // almost every reading and reset paging under the customer's thumb.
+  const acc = useAccumulator(
+    [
+      categoryId ?? "-",
+      l3CategoryId ?? "-",
+      point ? `${point.lat.toFixed(4)},${point.lng.toFixed(4)}` : "-",
+    ].join("|"),
+  );
+
+  const args =
+    categoryId && point
+      ? {
+          categoryId,
+          lat: point.lat,
+          lng: point.lng,
+          l3CategoryId,
+          limit: pageSize,
+          offset: acc.offset,
+        }
+      : "skip";
+
+  const result = useQuery(
+    api.data.catalog.productsInCategoryTreeByCoverage,
+    args as never,
+  );
+
+  return useAccumulated(result as PageResult, args === "skip", acc);
+}
+
+/**
+ * The same listing, scoped to one brand instead of a category subtree.
+ *
+ * Reached from a brand banner on the home screen. Coverage still applies:
+ * a brand page is a catalogue view like any other, and showing stock nobody
+ * can deliver would be a worse lie here than in a category, because the
+ * customer arrived expecting that brand specifically.
+ */
+export function usePagedBrandProducts({
+  brandId,
+  point,
+  pageSize = 20,
+}: {
+  brandId: Id<"brands"> | null;
+  point: { lat: number; lng: number } | null;
+  pageSize?: number;
+}): Result {
+  const acc = useAccumulator(
+    [
+      brandId ?? "-",
+      point ? `${point.lat.toFixed(4)},${point.lng.toFixed(4)}` : "-",
+    ].join("|"),
+  );
+
+  const args =
+    brandId && point
+      ? {
+          brandId,
+          lat: point.lat,
+          lng: point.lng,
+          limit: pageSize,
+          offset: acc.offset,
+        }
+      : "skip";
+
+  const result = useQuery(
+    api.data.catalog.productsByBrandInCoverage,
+    args as never,
+  );
+
+  return useAccumulated(result as PageResult, args === "skip", acc);
 }

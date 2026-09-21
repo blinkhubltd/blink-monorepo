@@ -34,6 +34,7 @@ interface BannerRowProps {
   categories: any[] | undefined;
   products: any[] | undefined;
   vendors: any[] | undefined;
+  brands: any[] | undefined;
   onEdit: (banner: Banner) => void;
   onDelete: (banner: Banner) => void;
   onView: (banner: Banner) => void;
@@ -45,6 +46,7 @@ export function BannerRow({
   categories,
   products,
   vendors,
+  brands,
   onEdit,
   onDelete,
   onView,
@@ -67,9 +69,14 @@ export function BannerRow({
   const getProductName = (productId?: Id<"products">) => {
     if (!productId || !products) return null;
     const product = products.find((p) => p._id === productId);
-    return product
-      ? `${product.name}${product.brand ? ` - ${product.brand}` : ""}`
-      : "Unknown Product";
+    return product ? product.name : "Unknown Product";
+  };
+
+  // Helper function to get brand name
+  const getBrandName = (brandId?: Id<"brands">) => {
+    if (!brandId || !brands) return null;
+    const brand = brands.find((b) => b._id === brandId);
+    return brand ? brand.name : "Unknown Brand";
   };
 
   // Helper function to get vendor name
@@ -174,7 +181,9 @@ export function BannerRow({
                 {banner.promo_type === "product" &&
                   banner.product_id &&
                   getProductName(banner.product_id)}
-                {banner.promo_type === "brand" && banner.brand && banner.brand}
+                {banner.promo_type === "brand" &&
+                  banner.brand_id &&
+                  getBrandName(banner.brand_id)}
               </div>
             </>
           ) : (

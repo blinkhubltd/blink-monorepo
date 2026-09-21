@@ -63,7 +63,9 @@ export function BannersForm({
   const [selectedVendorId, setSelectedVendorId] = useState<
     Id<"vendors"> | undefined
   >();
-  const [selectedBrand, setSelectedBrand] = useState<string | undefined>();
+  const [selectedBrandId, setSelectedBrandId] = useState<
+    Id<"brands"> | undefined
+  >();
   const [selectedOverlayPos, setSelectedOverlayPos] = useState<
     "top-left" | "top-right" | "bottom-left"
   >("bottom-left");
@@ -90,6 +92,7 @@ export function BannersForm({
   const categories = useQuery(api.data.categories.getAllCategories);
   const products = useQuery(api.data.products.getAllProducts);
   const vendors = useQuery(api.data.vendors.getAllVendors);
+  const brands = useQuery(api.data.brands.getAllBrands);
 
   // Convert categories to options (first level only)
   const getCategoryOptions = (): CascadingOption[] => {
@@ -120,7 +123,7 @@ export function BannersForm({
       setSelectedCategoryId(initialBanner.categoryId);
       setPromoType(initialBanner.promo_type);
       setSelectedProductId(initialBanner.product_id);
-      setSelectedBrand(initialBanner.brand);
+      setSelectedBrandId(initialBanner.brand_id);
     } else {
       const now = new Date();
       const oneWeekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -209,17 +212,8 @@ export function BannersForm({
       return false;
     }
 
-    if (promoType === "brand" && !selectedBrand) {
-      toast.error("Please enter a brand name for the brand promotion");
-      return false;
-    }
-
-    if (
-      promoType === "brand" &&
-      selectedBrand &&
-      selectedBrand.trim().length < 2
-    ) {
-      toast.error("Brand name must be at least 2 characters long");
+    if (promoType === "brand" && !selectedBrandId) {
+      toast.error("Please select a brand for the brand promotion");
       return false;
     }
 
@@ -264,7 +258,7 @@ export function BannersForm({
         cta_text: formData.cta_text.trim() || undefined,
         promo_type: promoType,
         product_id: promoType === "product" ? selectedProductId : undefined,
-        brand: promoType === "brand" ? selectedBrand?.trim() : undefined,
+        brand_id: promoType === "brand" ? selectedBrandId : undefined,
         categoryId: selectedCategoryId,
         status: formData.status,
         start_date: startDate!.getTime(),
@@ -288,7 +282,7 @@ export function BannersForm({
         setPromoType(undefined);
         setSelectedProductId(undefined);
         setSelectedVendorId(undefined);
-        setSelectedBrand(undefined);
+        setSelectedBrandId(undefined);
         setStartDate(now);
         setEndDate(oneWeekLater);
         setSelectedFile(null);
@@ -451,7 +445,7 @@ export function BannersForm({
                 if (value === "none") {
                   setPromoType(undefined);
                   setSelectedProductId(undefined);
-                  setSelectedBrand(undefined);
+                  setSelectedBrandId(undefined);
                 } else if (promoType && promoType !== value) {
                   // Show confirmation dialog when switching between product and brand
                   setPendingPromoType(value);
@@ -460,7 +454,7 @@ export function BannersForm({
                   setPromoType(value);
                   // Clear the other selections when switching types
                   if (value === "product") {
-                    setSelectedBrand(undefined);
+                    setSelectedBrandId(undefined);
                   } else if (value === "brand") {
                     setSelectedProductId(undefined);
                   }
@@ -512,24 +506,36 @@ export function BannersForm({
             </div>
           )}
 
-          {/* Brand Input */}
+          {/* Brand Picker */}
           {promoType === "brand" && (
             <div className="space-y-2">
-              <Label htmlFor="brand" className="text-base font-medium">
-                Brand Name <span className="text-destructive">*</span>
+              <Label className="text-base font-medium">
+                Select Brand <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="brand"
-                type="text"
-                value={selectedBrand || ""}
-                onChange={(e) => setSelectedBrand(e.target.value)}
-                placeholder="Enter brand name to promote"
-                className="w-full"
-                maxLength={100}
-                required
-              />
+              <Select
+                value={selectedBrandId || ""}
+                onValueChange={(value) =>
+                  setSelectedBrandId(value as Id<"brands">)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a brand to promote" />
+                </SelectTrigger>
+                <SelectContent>
+                  {brands?.map((brand) => (
+                    <SelectItem key={brand._id} value={brand._id}>
+                      {brand.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                Enter the brand name this banner will promote
+                {/*
+                  A picker rather than free text: tapping this banner in the
+                  shop opens the brand's page, which needs a real brand to
+                  open. Create one under Catalog -> Brands if it is missing.
+                */}
+                Tapping this banner opens the brand&apos;s page in the shop app
               </p>
             </div>
           )}
@@ -654,7 +660,7 @@ export function BannersForm({
           onClick: () => {
             setPromoType(pendingPromoType);
             if (pendingPromoType === "product") {
-              setSelectedBrand(undefined);
+              setSelectedBrandId(undefined);
             } else if (pendingPromoType === "brand") {
               setSelectedProductId(undefined);
             }

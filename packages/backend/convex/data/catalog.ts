@@ -362,6 +362,124 @@ export const productsInCategoryTreeByCoverage = query({
 });
 
 /**
+ * Products of one brand, restricted to vendors that deliver to the given
+ * point and to `status === "Active"`.
+ *
+ * Where the customer arrives from is what separates this from the category
+ * listing: a brand banner on the home screen. The result shape is
+ * deliberately identical to `productsInCategoryTreeByCoverage` so the shop's
+ * `usePagedProducts` accumulator serves both, rather than growing a second
+ * implementation of offset paging, scope resetting and coverage-empty.
+ *
+ * No subtree to walk — a brand is flat — so this reads one index rather than
+ * one per leaf.
+ */
+export const productsByBrandInCoverage = query({
+  args: {
+    brandId: v.id("brands"),
+    lat: v.float64(),
+    lng: v.float64(),
+    limit: v.optional(v.number()),
+    offset: v.optional(v.number()),
+    includeImages: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
+    const offset = Math.max(args.offset ?? 0, 0);
+    const includeImages = args.includeImages ?? true;
+
+    const covering = await coveringVendors(ctx, args.lat, args.lng);
+    if (covering.length === 0) {
+      return {
+        products: [],
+        hasMore: false,
+        nextOffset: null,
+        total: 0,
+        totalIsExact: true,
+        vendorCount: 0,
+        coverageEmpty: true,
+      };
+    }
+
+    const distanceByVendor = new Map<string, number>(
+      covering.map((c) => [c.vendor._id, c.distanceMeters]),
+    );
+    const vendorById = new Map<string, Doc<"vendors">>(
+      covering.map((c) => [c.vendor._id, c.vendor]),
+    );
+
+    // Same budget discipline as the category listing: a capped `.take`, never
+    // a `.collect()` over products.
+    const cap = Math.min(
+      Math.max(offset + limit + 1, DEFAULT_LIMIT),
+      MAX_SCANNED,
+    );
+    const rows = await ctx.db
+      .query("products")
+      .withIndex("by_brand_id_status", (q) =>
+        q.eq("brand_id", args.brandId).eq("status", "Active"),
+      )
+      .take(cap);
+
+    const truncated = rows.length === cap;
+
+    const matched = rows.filter(
+      (row) => row.vendor_id && distanceByVendor.has(row.vendor_id),
+    );
+
+    matched.sort((a, b) => {
+      const da = distanceByVendor.get(a.vendor_id!) ?? Number.MAX_SAFE_INTEGER;
+      const dbb = distanceByVendor.get(b.vendor_id!) ?? Number.MAX_SAFE_INTEGER;
+      if (da !== dbb) return da - dbb;
+      if (a._creationTime !== b._creationTime)
+        return a._creationTime - b._creationTime;
+      return a._id < b._id ? -1 : a._id > b._id ? 1 : 0;
+    });
+
+    const page = matched.slice(offset, offset + limit);
+    const hasMore = matched.length > offset + limit || truncated;
+
+    const categories = await ctx.db.query("categories").collect();
+    const byId = indexById(categories);
+
+    const products = await Promise.all(
+      page.map(async (product) => {
+        const vendor = vendorById.get(product.vendor_id!)!;
+        const category = byId.get(product.category_id);
+        const images = includeImages
+          ? await Promise.all(
+              (product.images ?? []).map((id) => ctx.storage.getUrl(id)),
+            )
+          : [];
+        return {
+          ...product,
+          images,
+          imageUrl: images.find((u): u is string => !!u) ?? null,
+          category: category
+            ? { _id: category._id, name: category.name, slug: category.slug }
+            : null,
+          vendor: {
+            _id: vendor._id,
+            name: vendor.name,
+            distanceMeters: distanceByVendor.get(vendor._id) ?? null,
+          },
+        };
+      }),
+    );
+
+    return {
+      products,
+      hasMore,
+      nextOffset: hasMore ? offset + limit : null,
+      total: offset === 0 ? matched.length : null,
+      totalIsExact: !truncated,
+      vendorCount: covering.length,
+      coverageEmpty: false,
+    };
+  },
+});
+
+/**
  * Price and describe a known set of products.
  *
  * Exists for the guest cart, which persists ids and quantities on the device
