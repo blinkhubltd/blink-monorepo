@@ -3,7 +3,10 @@ import {
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
 } from "../_generated/server";
+import type { Doc, Id } from "../_generated/dataModel";
+import { checkOrderTransition } from "@repo/lib/utils";
 import { internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
 import { api } from "../_generated/api";
@@ -13,7 +16,12 @@ import {
   orderPaymentStatus,
   orderStatus,
 } from "../validators";
-import { getAuthUser, getUserByClerkId } from "../auth.helpers";
+import {
+  assertPermission,
+  getAuthUser,
+  getUserByClerkId,
+} from "../auth.helpers";
+import { isSuperAdminPermissions } from "../lib/role_presets";
 import { syncShipmentStatusForOrder } from "./shipments";
 import { generateDeliveryCode as createDeliveryCode } from "../lib/delivery_code";
 import { priceClearanceDelivery } from "../lib/delivery_fee";
@@ -49,9 +57,7 @@ export const paginateOrders = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    order_status: v.optional(
-      v.union(...orderStatus.map((e) => v.literal(e))),
-    ),
+    order_status: v.optional(v.union(...orderStatus.map((e) => v.literal(e)))),
     payment_status: v.optional(
       v.union(...orderPaymentStatus.map((e) => v.literal(e))),
     ),
@@ -398,9 +404,7 @@ export const listOrders = query({
 export const listOrdersFiltered = query({
   args: {
     userId: v.optional(v.id("users")),
-    status: v.optional(
-      v.union(...orderStatus.map((e) => v.literal(e))),
-    ),
+    status: v.optional(v.union(...orderStatus.map((e) => v.literal(e)))),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
@@ -458,6 +462,127 @@ export const deleteOrder = mutation({
   },
 });
 
+type OrderStatusValue = Doc<"orders">["order_status"];
+
+/**
+ * Write a status and run everything that hangs off it: the confirmed/picked-up
+ * timestamps, the customer notification, the shipment sync, and stock
+ * fulfilment or release.
+ *
+ * Unchecked on purpose. Callers decide whether the change is allowed:
+ * `updateOrderStatus` holds a person to the one-step-at-a-time track, and
+ * `verifyDeliveryCode` does not, because a code read at the door is proof the
+ * parcel arrived whatever the bookkeeping last said.
+ */
+async function writeOrderStatus(
+  ctx: MutationCtx,
+  order: Doc<"orders">,
+  args: { orderId: Id<"orders">; status: OrderStatusValue },
+) {
+  // Update order status
+  await ctx.db.patch(args.orderId, {
+    order_status: args.status,
+    updated_at: Date.now(),
+    // Capture timestamps for pickup duration tracking
+    ...(args.status === "Confirmed" && !order.confirmed_at
+      ? { confirmed_at: Date.now() }
+      : {}),
+    ...(args.status === "Pickup" ? { picked_up_at: Date.now() } : {}),
+  });
+
+  // For Delivery / Delivered trigger notification pipeline if called directly via admin panel
+  if (args.status === "Delivery" || args.status === "Delivered") {
+    try {
+      console.log(
+        "[updateOrderStatus] scheduling triggerOrderStatusNotification",
+        {
+          orderId: args.orderId,
+          status: args.status,
+          previousStatus: order.order_status,
+          invokedFrom: "orders.updateOrderStatus",
+        },
+      );
+      await ctx.scheduler.runAfter(
+        0,
+        api.data.notifications.triggerOrderStatusNotification,
+        {
+          orderId: args.orderId,
+          newStatus: args.status,
+          previousStatus: order.order_status,
+        },
+      );
+    } catch (e) {
+      console.error(
+        "[updateOrderStatus] failed to schedule status notification",
+        e,
+      );
+    }
+  }
+
+  try {
+    await syncShipmentStatusForOrder(ctx, args.orderId, args.status);
+  } catch (syncError) {
+    console.error(
+      `Shipment status sync failed for order ${args.orderId}:`,
+      syncError,
+    );
+  }
+
+  // Handle stock fulfillment when order is delivered or in transit
+  if (
+    (args.status === "Delivered" || args.status === "Delivery") &&
+    order.payment_reference
+  ) {
+    try {
+      // Call the stock fulfillment function
+      await ctx.runMutation(internal.data.stock_reservation.fulfillStock, {
+        orderReference: order.payment_reference,
+      });
+      console.log(
+        `Stock reservation marked as fulfilled for order ${args.orderId} - inventory managed by external API`,
+      );
+    } catch (stockError) {
+      console.error(
+        `Stock fulfillment failed for order ${args.orderId}:`,
+        stockError,
+      );
+    }
+  }
+
+  // Handle stock release when order is cancelled or refunded
+  if (
+    (args.status === "Cancelled" || args.status === "Refunded") &&
+    order.payment_reference
+  ) {
+    try {
+      // Call the stock release function
+      await ctx.runMutation(internal.data.stock_reservation.releaseStock, {
+        orderReference: order.payment_reference,
+      });
+      console.log(
+        `Stock released for cancelled/refunded order ${args.orderId} with reference ${order.payment_reference}`,
+      );
+    } catch (stockError) {
+      console.error(
+        `Stock release failed for order ${args.orderId}:`,
+        stockError,
+      );
+      // Don't throw error - order status update should still succeed
+    }
+  }
+
+  return await ctx.db.get(args.orderId);
+}
+
+/**
+ * A manual status change, held to the order track.
+ *
+ * One step at a time — Confirmed cannot become Delivered in one click — with a
+ * single step back for a mis-click, cancel from anywhere live, and refund only
+ * once an order has ended. The rules and their reasons live in
+ * `@repo/lib/utils` (`order-transitions.ts`), shared with the admin so it can
+ * grey out what this would refuse.
+ */
 export const updateOrderStatus = mutation({
   args: {
     orderId: v.id("orders"),
@@ -469,99 +594,10 @@ export const updateOrderStatus = mutation({
       throw new Error("Order not found");
     }
 
-    // Update order status
-    await ctx.db.patch(args.orderId, {
-      order_status: args.status,
-      updated_at: Date.now(),
-      // Capture timestamps for pickup duration tracking
-      ...(args.status === "Confirmed" && !order.confirmed_at
-        ? { confirmed_at: Date.now() }
-        : {}),
-      ...(args.status === "Pickup" ? { picked_up_at: Date.now() } : {}),
-    });
+    const check = checkOrderTransition(order.order_status, args.status);
+    if (!check.ok) throw new ConvexError(check.reason);
 
-    // For Delivery / Delivered trigger notification pipeline if called directly via admin panel
-    if (args.status === "Delivery" || args.status === "Delivered") {
-      try {
-        console.log(
-          "[updateOrderStatus] scheduling triggerOrderStatusNotification",
-          {
-            orderId: args.orderId,
-            status: args.status,
-            previousStatus: order.order_status,
-            invokedFrom: "orders.updateOrderStatus",
-          },
-        );
-        await ctx.scheduler.runAfter(
-          0,
-          api.data.notifications.triggerOrderStatusNotification,
-          {
-            orderId: args.orderId,
-            newStatus: args.status,
-            previousStatus: order.order_status,
-          },
-        );
-      } catch (e) {
-        console.error(
-          "[updateOrderStatus] failed to schedule status notification",
-          e,
-        );
-      }
-    }
-
-    try {
-      await syncShipmentStatusForOrder(ctx, args.orderId, args.status);
-    } catch (syncError) {
-      console.error(
-        `Shipment status sync failed for order ${args.orderId}:`,
-        syncError,
-      );
-    }
-
-    // Handle stock fulfillment when order is delivered or in transit
-    if (
-      (args.status === "Delivered" || args.status === "Delivery") &&
-      order.payment_reference
-    ) {
-      try {
-        // Call the stock fulfillment function
-        await ctx.runMutation(internal.data.stock_reservation.fulfillStock, {
-          orderReference: order.payment_reference,
-        });
-        console.log(
-          `Stock reservation marked as fulfilled for order ${args.orderId} - inventory managed by external API`,
-        );
-      } catch (stockError) {
-        console.error(
-          `Stock fulfillment failed for order ${args.orderId}:`,
-          stockError,
-        );
-      }
-    }
-
-    // Handle stock release when order is cancelled or refunded
-    if (
-      (args.status === "Cancelled" || args.status === "Refunded") &&
-      order.payment_reference
-    ) {
-      try {
-        // Call the stock release function
-        await ctx.runMutation(internal.data.stock_reservation.releaseStock, {
-          orderReference: order.payment_reference,
-        });
-        console.log(
-          `Stock released for cancelled/refunded order ${args.orderId} with reference ${order.payment_reference}`,
-        );
-      } catch (stockError) {
-        console.error(
-          `Stock release failed for order ${args.orderId}:`,
-          stockError,
-        );
-        // Don't throw error - order status update should still succeed
-      }
-    }
-
-    return await ctx.db.get(args.orderId);
+    return await writeOrderStatus(ctx, order, args);
   },
 });
 
@@ -767,9 +803,14 @@ export const verifyDeliveryCode = mutation({
       updated_at: Date.now(),
     });
 
-    // Update order status to delivered if not already
+    // Update order status to delivered if not already.
+    //
+    // Straight through the writer, not `updateOrderStatus`: the customer's
+    // code, read at the door, is proof of delivery. If nobody moved the order
+    // to Delivery first, refusing here would strand a rider holding a parcel
+    // the customer has already accepted.
     if (order.order_status !== "Delivered") {
-      await ctx.runMutation(api.data.orders.updateOrderStatus, {
+      await writeOrderStatus(ctx, order, {
         orderId: args.orderId,
         status: "Delivered",
       });
@@ -893,6 +934,21 @@ export const bulkUpdateOrderStatus = mutation({
   handler: async (ctx, args) => {
     const { orderIds, status } = args;
 
+    /*
+      Checked before anything is written, and all-or-nothing: a bulk action
+      that applies to half the selection and quietly skips the rest leaves
+      staff unsure which orders moved. The message names the first refusal.
+    */
+    for (const orderId of orderIds) {
+      const order = await ctx.db.get(orderId);
+      if (!order)
+        throw new ConvexError("One of the selected orders no longer exists.");
+      const check = checkOrderTransition(order.order_status, status);
+      if (!check.ok) {
+        throw new ConvexError(`Order ${order.reference}: ${check.reason}`);
+      }
+    }
+
     // Update all orders with timestamps
     const updatePromises = orderIds.map(async (orderId) => {
       const order = await ctx.db.get(orderId);
@@ -925,9 +981,7 @@ export const bulkUpdateOrderStatus = mutation({
 export const listOrdersWithDetails = query({
   args: {
     userId: v.optional(v.id("users")),
-    status: v.optional(
-      v.union(...orderStatus.map((e) => v.literal(e))),
-    ),
+    status: v.optional(v.union(...orderStatus.map((e) => v.literal(e)))),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
@@ -1057,8 +1111,15 @@ export const getOrderItems = query({
   },
 });
 
-// Get order with full details, including customer and items
-export const getOrderWithItems = query({
+/**
+ * An order with its customer, vendor and items — server-side only.
+ *
+ * `internalQuery`: as a public query it had no auth check, so any client with
+ * an order id could read the customer's name, email and phone. Its only callers
+ * are the notification actions, which run on the server. The admin details
+ * page reads `getOrderDetails` below, which is gated.
+ */
+export const getOrderWithItems = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
@@ -1083,6 +1144,113 @@ export const getOrderWithItems = query({
       customer_phone: customer?.phone,
       order_items: orderItems,
       items_count: orderItems.length,
+    };
+  },
+});
+
+/**
+ * One order, everything the admin details page shows, behind a permission.
+ *
+ * Written for `/orders/[orderId]` rather than reusing `getOrderWithItems`
+ * above, which has no auth check at all — any caller with an order id gets the
+ * customer's name, email and phone back.
+ *
+ * ── Vendor scoping is enforced here, not requested ───────────────────────
+ *
+ * A hub manager's view is limited to their vendors, but in the orders list that
+ * limit is a `vendor_ids` filter the browser sends — a manager who edits the
+ * request sees everything. A details page is addressed by id, so the check has
+ * to live on the server: a scoped manager asking for another vendor's order
+ * gets `null`, the same answer as an id that does not exist, rather than an
+ * error that confirms it does.
+ *
+ * ── What is deliberately not returned ────────────────────────────────────
+ *
+ * `delivery_code` is the proof-of-delivery secret the customer reads to the
+ * rider. Nobody on this page needs to know it, and anyone who could read it
+ * here could close a delivery that never happened; only whether it was
+ * verified is returned. `idempotency_key` is plumbing.
+ */
+export const getOrderDetails = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:READ");
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) return null;
+
+    // Re-read as a typed document: `AuthedUser.user` is an index-signature
+    // shape, and a scope check is the wrong place to trust a cast.
+    const me = await ctx.db.get(authed.user._id);
+    const scopedVendorIds = me?.manager_details?.vendor_id ?? [];
+    if (
+      scopedVendorIds.length > 0 &&
+      !isSuperAdminPermissions(authed.permissions) &&
+      !scopedVendorIds.includes(order.vendor_id)
+    ) {
+      return null;
+    }
+
+    const [customer, vendor, rider, picker, items, shipment] =
+      await Promise.all([
+        ctx.db.get(order.user_id),
+        ctx.db.get(order.vendor_id),
+        order.rider_id ? ctx.db.get(order.rider_id) : null,
+        order.assigned_picker_id ? ctx.db.get(order.assigned_picker_id) : null,
+        ctx.db
+          .query("order_items")
+          .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
+          .collect(),
+        ctx.db
+          .query("shipments")
+          .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
+          .first(),
+      ]);
+
+    const personName = (
+      person: {
+        first_name?: string;
+        last_name?: string;
+        email?: string;
+      } | null,
+    ) => {
+      if (!person) return null;
+      const full =
+        `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim();
+      return full || person.email || null;
+    };
+
+    // Destructured out, not spread over: see the note above.
+    const { delivery_code, idempotency_key, ...safeOrder } = order;
+    void delivery_code;
+    void idempotency_key;
+
+    return {
+      ...safeOrder,
+      customer_name: personName(customer) ?? "Unknown customer",
+      customer_email: customer?.email,
+      customer_phone: customer?.phone,
+      vendor_name: vendor?.name,
+      vendor_contact: vendor?.contact,
+      rider_name: personName(rider),
+      rider_phone: rider?.phone,
+      picker_name: personName(picker),
+      shipment_status: shipment?.status ?? null,
+      items: items.map((item) => ({
+        _id: item._id,
+        product_id: item.product_id,
+        name: item.name,
+        sku: item.sku,
+        quantity: item.quantity,
+        price: item.price,
+        discount: item.discount,
+        total: item.total,
+        unit_type: item.unit_type,
+        unit_value: item.unit_value,
+        requires_prescription: item.requires_prescription ?? false,
+        is_picked: item.is_picked ?? false,
+        picked_quantity: item.picked_quantity,
+      })),
     };
   },
 });
@@ -1181,11 +1349,15 @@ export const assignRider = mutation({
     }
 
     try {
-      await ctx.scheduler.runAfter(0, api.data.notifications.notifyRiderAssignment, {
-        riderId: args.riderId,
-        orderId: args.orderId,
-        shipmentId: shipment?._id,
-      });
+      await ctx.scheduler.runAfter(
+        0,
+        api.data.notifications.notifyRiderAssignment,
+        {
+          riderId: args.riderId,
+          orderId: args.orderId,
+          shipmentId: shipment?._id,
+        },
+      );
     } catch (error) {
       console.error("Failed to schedule rider assignment notification:", error);
       // Don't fail the assignment if notification scheduling fails
@@ -1406,8 +1578,7 @@ export const createClearanceOrder = internalMutation({
       ...args.order,
       is_clearance: true,
       payment_mode: (args.order.payment_mode ?? "pay_now") as
-        | "pay_now"
-        | "pay_on_delivery",
+        "pay_now" | "pay_on_delivery",
       searchText: "",
     };
 

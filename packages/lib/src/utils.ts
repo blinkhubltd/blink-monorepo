@@ -26,3 +26,15 @@ export type {
   PermissionAction,
   GrantableAction,
 } from "./utils/permissions";
+
+export {
+  ORDER_TRACK,
+  checkOrderTransition,
+  canTransitionOrder,
+} from "./utils/order-transitions";
+
+export type {
+  OrderTrackStatus,
+  OrderLifecycleStatus,
+  TransitionCheck,
+} from "./utils/order-transitions";
