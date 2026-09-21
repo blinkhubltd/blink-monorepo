@@ -4,6 +4,7 @@ import {
   mutation,
   query,
 } from "../_generated/server";
+import { checkOrderTransition } from "@repo/lib/utils";
 import { internal } from "../_generated/api";
 import { v, ConvexError } from "convex/values";
 import { api } from "../_generated/api";
@@ -97,9 +98,7 @@ export const paginateOrders = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    order_status: v.optional(
-      v.union(...orderStatus.map((e) => v.literal(e))),
-    ),
+    order_status: v.optional(v.union(...orderStatus.map((e) => v.literal(e)))),
     payment_status: v.optional(
       v.union(...orderPaymentStatus.map((e) => v.literal(e))),
     ),
@@ -472,9 +471,7 @@ export const listOrders = query({
 export const listOrdersFiltered = query({
   args: {
     userId: v.optional(v.id("users")),
-    status: v.optional(
-      v.union(...orderStatus.map((e) => v.literal(e))),
-    ),
+    status: v.optional(v.union(...orderStatus.map((e) => v.literal(e)))),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
@@ -652,6 +649,13 @@ async function applyOrderStatus(
 
 }
 
+/**
+ * A manual status change: `orders:UPDATE`, within the caller's vendor scope,
+ * and held to the order track — Confirmed cannot become Delivered in one
+ * click. The track rules and their reasons live in `@repo/lib/utils`
+ * (`order-transitions.ts`), shared with the admin so it can grey out what
+ * this would refuse.
+ */
 export const updateOrderStatus = mutation({
   args: {
     orderId: v.id("orders"),
@@ -661,6 +665,11 @@ export const updateOrderStatus = mutation({
     const authed = await assertPermission(ctx, "orders:UPDATE");
     const scope = await orderVendorScope(ctx, authed);
     const order = await getScopedOrder(ctx, scope, args.orderId);
+
+    // Held to the order track: one step at a time, one back for a mis-click,
+    // cancel while live, refund once ended. See @repo/lib order-transitions.
+    const check = checkOrderTransition(order.order_status, args.status);
+    if (!check.ok) throw new ConvexError(check.reason);
 
     await applyOrderStatus(ctx, order, args.status);
 
@@ -898,10 +907,14 @@ export const verifyDeliveryCode = mutation({
       updated_at: Date.now(),
     });
 
-    // Update order status to delivered if not already
-    // Directly, not through the public `updateOrderStatus`: that is gated on
-    // `orders:UPDATE`, which a rider does not hold. The rider check above is
-    // this path's authorisation.
+    // Update order status to delivered if not already.
+    //
+    // Directly through `applyOrderStatus`, not the public `updateOrderStatus`,
+    // for two reasons: that mutation is gated on `orders:UPDATE`, which a rider
+    // does not hold (the rider check above is this path's authorisation), and
+    // it holds changes to the one-step track. A code read at the door is proof
+    // of delivery; if nobody moved the order to Delivery first, refusing here
+    // would strand a rider holding a parcel the customer has already accepted.
     if (order.order_status !== "Delivered") {
       await applyOrderStatus(ctx, order, "Delivered");
     }
@@ -1032,6 +1045,15 @@ export const bulkUpdateOrderStatus = mutation({
       orderIds.map((orderId) => getScopedOrder(ctx, scope, orderId)),
     );
 
+    // And every one of them held to the order track, still before any write,
+    // so the batch is refused whole. The message names the first refusal.
+    for (const order of orders) {
+      const check = checkOrderTransition(order.order_status, status);
+      if (!check.ok) {
+        throw new ConvexError(`Order ${order.reference}: ${check.reason}`);
+      }
+    }
+
     // Update all orders with timestamps
     const updatePromises = orders.map(async (order) => {
       await ctx.db.patch(order._id, {
@@ -1063,9 +1085,7 @@ export const bulkUpdateOrderStatus = mutation({
 export const listOrdersWithDetails = query({
   args: {
     userId: v.optional(v.id("users")),
-    status: v.optional(
-      v.union(...orderStatus.map((e) => v.literal(e))),
-    ),
+    status: v.optional(v.union(...orderStatus.map((e) => v.literal(e)))),
     limit: v.optional(v.number()),
     cursor: v.optional(v.string()),
   },
@@ -1195,8 +1215,15 @@ export const getOrderItems = query({
   },
 });
 
-// Get order with full details, including customer and items
-export const getOrderWithItems = query({
+/**
+ * An order with its customer, vendor and items — server-side only.
+ *
+ * `internalQuery`: as a public query it had no auth check, so any client with
+ * an order id could read the customer's name, email and phone. Its only callers
+ * are the notification actions, which run on the server. The admin details
+ * page reads `getOrderDetails` below, which is gated.
+ */
+export const getOrderWithItems = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId);
@@ -1221,6 +1248,113 @@ export const getOrderWithItems = query({
       customer_phone: customer?.phone,
       order_items: orderItems,
       items_count: orderItems.length,
+    };
+  },
+});
+
+/**
+ * One order, everything the admin details page shows, behind a permission.
+ *
+ * Written for `/orders/[orderId]` rather than reusing `getOrderWithItems`
+ * above, which has no auth check at all — any caller with an order id gets the
+ * customer's name, email and phone back.
+ *
+ * ── Vendor scoping is enforced here, not requested ───────────────────────
+ *
+ * A hub manager's view is limited to their vendors, but in the orders list that
+ * limit is a `vendor_ids` filter the browser sends — a manager who edits the
+ * request sees everything. A details page is addressed by id, so the check has
+ * to live on the server: a scoped manager asking for another vendor's order
+ * gets `null`, the same answer as an id that does not exist, rather than an
+ * error that confirms it does.
+ *
+ * ── What is deliberately not returned ────────────────────────────────────
+ *
+ * `delivery_code` is the proof-of-delivery secret the customer reads to the
+ * rider. Nobody on this page needs to know it, and anyone who could read it
+ * here could close a delivery that never happened; only whether it was
+ * verified is returned. `idempotency_key` is plumbing.
+ */
+export const getOrderDetails = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const authed = await assertPermission(ctx, "orders:READ");
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) return null;
+
+    // Re-read as a typed document: `AuthedUser.user` is an index-signature
+    // shape, and a scope check is the wrong place to trust a cast.
+    const me = await ctx.db.get(authed.user._id);
+    const scopedVendorIds = me?.manager_details?.vendor_id ?? [];
+    if (
+      scopedVendorIds.length > 0 &&
+      !isSuperAdminPermissions(authed.permissions) &&
+      !scopedVendorIds.includes(order.vendor_id)
+    ) {
+      return null;
+    }
+
+    const [customer, vendor, rider, picker, items, shipment] =
+      await Promise.all([
+        ctx.db.get(order.user_id),
+        ctx.db.get(order.vendor_id),
+        order.rider_id ? ctx.db.get(order.rider_id) : null,
+        order.assigned_picker_id ? ctx.db.get(order.assigned_picker_id) : null,
+        ctx.db
+          .query("order_items")
+          .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
+          .collect(),
+        ctx.db
+          .query("shipments")
+          .withIndex("by_order", (q) => q.eq("order_id", args.orderId))
+          .first(),
+      ]);
+
+    const personName = (
+      person: {
+        first_name?: string;
+        last_name?: string;
+        email?: string;
+      } | null,
+    ) => {
+      if (!person) return null;
+      const full =
+        `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim();
+      return full || person.email || null;
+    };
+
+    // Destructured out, not spread over: see the note above.
+    const { delivery_code, idempotency_key, ...safeOrder } = order;
+    void delivery_code;
+    void idempotency_key;
+
+    return {
+      ...safeOrder,
+      customer_name: personName(customer) ?? "Unknown customer",
+      customer_email: customer?.email,
+      customer_phone: customer?.phone,
+      vendor_name: vendor?.name,
+      vendor_contact: vendor?.contact,
+      rider_name: personName(rider),
+      rider_phone: rider?.phone,
+      picker_name: personName(picker),
+      shipment_status: shipment?.status ?? null,
+      items: items.map((item) => ({
+        _id: item._id,
+        product_id: item.product_id,
+        name: item.name,
+        sku: item.sku,
+        quantity: item.quantity,
+        price: item.price,
+        discount: item.discount,
+        total: item.total,
+        unit_type: item.unit_type,
+        unit_value: item.unit_value,
+        requires_prescription: item.requires_prescription ?? false,
+        is_picked: item.is_picked ?? false,
+        picked_quantity: item.picked_quantity,
+      })),
     };
   },
 });
@@ -1323,11 +1457,15 @@ export const assignRider = mutation({
     }
 
     try {
-      await ctx.scheduler.runAfter(0, api.data.notifications.notifyRiderAssignment, {
-        riderId: args.riderId,
-        orderId: args.orderId,
-        shipmentId: shipment?._id,
-      });
+      await ctx.scheduler.runAfter(
+        0,
+        api.data.notifications.notifyRiderAssignment,
+        {
+          riderId: args.riderId,
+          orderId: args.orderId,
+          shipmentId: shipment?._id,
+        },
+      );
     } catch (error) {
       console.error("Failed to schedule rider assignment notification:", error);
       // Don't fail the assignment if notification scheduling fails
@@ -1548,8 +1686,7 @@ export const createClearanceOrder = internalMutation({
       ...args.order,
       is_clearance: true,
       payment_mode: (args.order.payment_mode ?? "pay_now") as
-        | "pay_now"
-        | "pay_on_delivery",
+        "pay_now" | "pay_on_delivery",
       searchText: "",
     };
 

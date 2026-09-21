@@ -1,0 +1,38 @@
+diff --git a/production/lib/utils.js b/production/lib/utils.js
+index 356789cbb3823492fd9b9c84c8d8215dc542a731..46d979b647bc6966e53450b457b8e5d7ddc03d92 100644
+--- a/production/lib/utils.js
++++ b/production/lib/utils.js
+@@ -78,6 +78,9 @@ const handlePaystackMessage = ({ event, debug, params, onGlobalSuccess, onGlobal
+             case 'error': {
+                 if (debug)
+                     console.error('[Paystack] Error:', data.error);
++                // Patched: upstream closed the modal without telling the
++                // caller, leaving its payment state waiting forever.
++                params?.onError?.(data.error);
+                 close?.();
+                 break;
+             }
+@@ -136,10 +139,19 @@ const paystackHtmlContent = (params, method = 'checkout') => `
+       <script src="https://js.paystack.co/v2/inline.js"></script>
+       <script>
+         function payWithPaystack() {
+-          var paystack = new PaystackPop();
+-          paystack.${method}({
+-            ${params}
+-          });
++          // Patched: a throw here (script blocked, bad key) previously posted
++          // nothing back, so the caller never learned the sheet had failed.
++          try {
++            var paystack = new PaystackPop();
++            paystack.${method}({
++              ${params}
++            });
++          } catch (e) {
++            window.ReactNativeWebView.postMessage(JSON.stringify({
++              event: 'error',
++              error: { message: (e && e.message) || 'Paystack could not start' }
++            }));
++          }
+         }
+       </script>
+     </body>

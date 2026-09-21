@@ -91,12 +91,8 @@ export const getRiders = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    status: v.optional(
-      v.union(...riderStatus.map((e) => v.literal(e))),
-    ),
-    vehicle_type: v.optional(
-      v.union(...vehicleTypes.map((e) => v.literal(e))),
-    ),
+    status: v.optional(v.union(...riderStatus.map((e) => v.literal(e)))),
+    vehicle_type: v.optional(v.union(...vehicleTypes.map((e) => v.literal(e)))),
     vendorId: v.optional(v.id("vendors")),
   },
 
@@ -444,9 +440,7 @@ export const getPickers = query({
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
-    status: v.optional(
-      v.union(...pickerStatus.map((e) => v.literal(e))),
-    ),
+    status: v.optional(v.union(...pickerStatus.map((e) => v.literal(e)))),
     vendorId: v.optional(v.id("vendors")),
   },
   handler: async (ctx, args) => {
@@ -1646,5 +1640,33 @@ export const setMyPhone = mutation({
 
     await ctx.db.patch(user._id, { phone, updated_at: Date.now() });
     return { ok: true };
+  },
+});
+
+/**
+ * The caller's own phone number, or `null` when none is on file.
+ *
+ * Its own query rather than a field on `access.getMyAccess`: that one answers
+ * "what may this caller do" for every app including admin, and contact details
+ * are not an authorisation fact. Checkout and edit-profile previously read
+ * `phone` off `getMyAccess` through a cast — a field it never returned — so a
+ * saved number always read as missing and the phone gate could never clear.
+ *
+ * `undefined` (loading) vs `null` (signed in, nothing saved) is kept distinct so
+ * a screen does not flash the empty form before the answer arrives.
+ */
+export const getMyPhone = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    const phone = user?.phone?.trim();
+    return phone ? phone : null;
   },
 });

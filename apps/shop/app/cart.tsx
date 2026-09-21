@@ -226,6 +226,7 @@ export default function CartScreen() {
                   : `Check out · ${formatKES(orderTotal)}`
               }
               full
+              size="cta"
               disabled={!canCheckout}
               onPress={() => router.push("/checkout")}
               className="mt-space-3"

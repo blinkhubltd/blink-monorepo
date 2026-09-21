@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function OrdersPage() {
   // Pagination state
@@ -53,7 +54,7 @@ export default function OrdersPage() {
     isAdminUser ? (
       <Link href="/orders/insights">
         <Button variant="outline" size="sm">
-          <HugeiconsIcon icon={BarChart3} className="w-4 h-4 mr-2" />
+          <HugeiconsIcon icon={BarChart3} className="mr-2 h-4 w-4" />
           View Insights
         </Button>
       </Link>
@@ -129,9 +130,15 @@ export default function OrdersPage() {
   };
 
   // Mutations
-  const updateSingleOrderStatus = useMutation(api.data.orders.updateOrderStatus);
-  const updateSinglePaymentStatus = useMutation(api.data.orders.updatePaymentStatus);
-  const bulkUpdateOrderStatus = useMutation(api.data.orders.bulkUpdateOrderStatus);
+  const updateSingleOrderStatus = useMutation(
+    api.data.orders.updateOrderStatus,
+  );
+  const updateSinglePaymentStatus = useMutation(
+    api.data.orders.updatePaymentStatus,
+  );
+  const bulkUpdateOrderStatus = useMutation(
+    api.data.orders.bulkUpdateOrderStatus,
+  );
   const deleteOrder = useMutation(api.data.orders.deleteOrder);
   const backfillOrdersSearchText = useMutation(
     api.data.orders.backfillOrdersSearchText,
@@ -139,15 +146,7 @@ export default function OrdersPage() {
 
   // State
   const [selectedOrderIds, setSelectedOrderIds] = useState<Id<"orders">[]>([]);
-  const [selectedOrderForDetails, setSelectedOrderForDetails] =
-    useState<any>(null);
-  const [orderDetailsDialogOpen, setOrderDetailsDialogOpen] = useState(false);
-
-  // Fetch detailed order data when dialog opens
-  const orderDetails = useQuery(
-    api.data.orders.getOrderWithItems,
-    selectedOrderForDetails ? { orderId: selectedOrderForDetails._id } : "skip",
-  );
+  const router = useRouter();
 
   const isLoading = !ordersResult;
 
@@ -305,9 +304,12 @@ export default function OrdersPage() {
     }
   };
 
+  /*
+    To the order's own page. This used to set state for a details dialog that
+    was never rendered, so the action did nothing at all.
+  */
   const handleViewDetails = (order: any) => {
-    setSelectedOrderForDetails(order);
-    setOrderDetailsDialogOpen(true);
+    router.push(`/orders/${order._id}`);
   };
 
   const handleSelectedIdsChange = (selectedIds: Id<"orders">[]) => {
@@ -339,25 +341,29 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <HugeiconsIcon icon={ShoppingCart}
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true" />
+            <HugeiconsIcon
+              icon={ShoppingCart}
+              className="text-muted-foreground h-4 w-4"
+              aria-hidden="true"
+            />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalOrders}</div>
-            <p className="text-xs text-muted-foreground">All time orders</p>
+            <p className="text-muted-foreground text-xs">All time orders</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <HugeiconsIcon icon={DollarSign}
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true" />
+            <HugeiconsIcon
+              icon={DollarSign}
+              className="text-muted-foreground h-4 w-4"
+              aria-hidden="true"
+            />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatKES(totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               From paid orders only
             </p>
           </CardContent>
@@ -367,13 +373,15 @@ export default function OrdersPage() {
             <CardTitle className="text-sm font-medium">
               Pending Orders
             </CardTitle>
-            <HugeiconsIcon icon={Clock}
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true" />
+            <HugeiconsIcon
+              icon={Clock}
+              className="text-muted-foreground h-4 w-4"
+              aria-hidden="true"
+            />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{pendingOrders}</div>
-            <p className="text-xs text-muted-foreground">Awaiting processing</p>
+            <p className="text-muted-foreground text-xs">Awaiting processing</p>
           </CardContent>
         </Card>
         <Card>
@@ -381,13 +389,15 @@ export default function OrdersPage() {
             <CardTitle className="text-sm font-medium">
               Delivered Orders
             </CardTitle>
-            <HugeiconsIcon icon={CheckCircle}
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true" />
+            <HugeiconsIcon
+              icon={CheckCircle}
+              className="text-muted-foreground h-4 w-4"
+              aria-hidden="true"
+            />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{deliveredOrders}</div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Successfully completed
             </p>
           </CardContent>
@@ -402,7 +412,7 @@ export default function OrdersPage() {
             View and manage all customer orders with comprehensive filtering and
             bulk actions.
             {filteredOrders.length > 0 && (
-              <span className="block mt-1 text-xs">
+              <span className="mt-1 block text-xs">
                 Showing {filteredOrders.length} orders with their associated
                 items.
               </span>

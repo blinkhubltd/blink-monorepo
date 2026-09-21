@@ -98,10 +98,8 @@ export default function ClearanceCheckoutScreen() {
     api.data.addresses.getMyAddresses,
     isSignedIn ? {} : "skip",
   );
-  const access = useQuery(
-    api.user.access.getMyAccess,
-    isSignedIn ? {} : "skip",
-  );
+  // `undefined` while loading, `null` when nothing is saved.
+  const myPhone = useQuery(api.user.users.getMyPhone, isSignedIn ? {} : "skip");
   const beginClearanceCheckout = useMutation(
     api.data.clearance_checkout.beginClearanceCheckout,
   );
@@ -137,10 +135,7 @@ export default function ClearanceCheckoutScreen() {
     receiver.required,
   );
 
-  const storedPhone =
-    access && "hasUser" in access && access.hasUser
-      ? ((access as { phone?: string }).phone ?? "")
-      : "";
+  const storedPhone = myPhone ?? "";
   const hasPhone = storedPhone.trim().length > 0;
 
   const quote = quoteResult?.quote ?? null;
@@ -287,6 +282,8 @@ export default function ClearanceCheckoutScreen() {
               )}
               <Button
                 variant="outline"
+                size="cta"
+                full
                 label="Add an address"
                 onPress={() => router.push("/addresses/new")}
               />
@@ -306,6 +303,8 @@ export default function ClearanceCheckoutScreen() {
               </Text>
               <Button
                 variant="outline"
+                size="ctaSm"
+                className="self-start"
                 label="Add your number"
                 onPress={() => router.push("/edit-profile")}
               />
@@ -403,7 +402,7 @@ export default function ClearanceCheckoutScreen() {
 
           <View className="gap-space-2 flex-row flex-wrap items-baseline">
             <Text size="caption" variant="subtle">
-              Placing this order accepts our
+              By placing this order, you agree to our
             </Text>
             <LegalLink doc="terms" onFail={setFailure} />
             <Text size="caption" variant="subtle">
@@ -469,15 +468,15 @@ export default function ClearanceCheckoutScreen() {
 
         <View className="border-hairline border-border bg-card px-screen py-space-4 gap-space-2">
           <View className="flex-row items-baseline justify-between">
-            <Text size="sm" variant="muted">
-              To pay now
+            <Text size="lg" weight="semibold">
+              Pay now
             </Text>
-            <Text variant="price" size="priceLg">
+            <Text size="lg" weight="semibold">
               {formatKES(quote.total)}
             </Text>
           </View>
           <Button
-            size="lg"
+            size="cta"
             full
             loading={placing || card.busy}
             disabled={
@@ -530,7 +529,7 @@ function LegalLink({
       }}
       hitSlop={8}
     >
-      <Text size="caption" weight="semibold" className="underline">
+      <Text size="caption" weight="semibold" className="text-blink-700 underline">
         {LEGAL_DOC_META[doc].title}
       </Text>
     </Pressable>

@@ -82,7 +82,9 @@ export function useCardPayment(opts: {
   /** Called once, ever, when the server confirms and the orders exist. */
   onSettled: (orderIds: string[]) => void;
 }) {
-  const [state, dispatch] = useReducer(cardReducer, { kind: "idle" } as CardState);
+  const [state, dispatch] = useReducer(cardReducer, {
+    kind: "idle",
+  } as CardState);
 
   const { popup } = usePaystack();
   const confirm = useAction(api.data.checkout.confirmMyCardPayment);
@@ -151,7 +153,8 @@ export function useCardPayment(opts: {
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const subscription = AppState.addEventListener("change", (next) => {
-      const cameBack = appStateRef.current === "background" && next === "active";
+      const cameBack =
+        appStateRef.current === "background" && next === "active";
       appStateRef.current = next;
       if (!cameBack || !referenceRef.current) return;
 
@@ -194,7 +197,9 @@ export function useCardPayment(opts: {
         let splitCode: string | undefined;
         try {
           const prepared = await prepareSplit({ reference: params.reference });
-          splitCode = prepared.split_code;
+          // `null` under a Paystack test key: the server skips the vendor
+          // split there, and the transaction opens without one.
+          splitCode = prepared.split_code ?? undefined;
         } catch (error) {
           dispatch({
             type: "sheetErrored",

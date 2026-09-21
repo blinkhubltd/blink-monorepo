@@ -218,7 +218,7 @@ export default function AddressBookScreen() {
       <View className="border-hairline border-border bg-card px-screen py-space-4">
         <Button
           full
-          size="lg"
+          size="cta"
           label="Add an address"
           icon={<Icon name="add" size={18} tone="onBrand" />}
           onPress={() => router.push("/addresses/new")}

@@ -164,11 +164,14 @@ function VendorRow({
 }
 
 function StatusBadge({ status }: { status: string | null }) {
-  if (status === "approved") return <Badge variant="success" label="Approved" />;
+  if (status === "approved")
+    return <Badge variant="success" label="Approved" />;
   if (status === "rejected") {
     return <Badge variant="destructive" label="Not accepted" />;
   }
   if (status === null) return <Badge variant="warning" label="Needed" />;
   // An unknown status shows as itself rather than as cleared.
-  return <Badge variant="info" label={status === "pending" ? "In review" : status} />;
+  return (
+    <Badge variant="info" label={status === "pending" ? "In review" : status} />
+  );
 }

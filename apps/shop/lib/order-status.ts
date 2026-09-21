@@ -117,3 +117,69 @@ export function presentStatus(status: string): StatusPresentation {
 export function isLive(status: string): boolean {
   return !["Delivered", "Cancelled", "Refunded"].includes(status);
 }
+
+/**
+ * The order list's vocabulary: four stages a customer thinks in, not the eight
+ * the system tracks.
+ *
+ * "Being picked" and "Ready for a rider" are one thing from the sofa — the shop
+ * has it and it has not left — so the list calls both "Preparing", as the design
+ * does. Pending sits with Confirmed rather than getting a filter of its own: an
+ * order awaiting payment is rare and short-lived, and a fifth chip for it would
+ * be empty almost always. Cancelled and Refunded appear under "All" only.
+ */
+export type OrderStage =
+  | "Confirmed"
+  | "Preparing"
+  | "On the way"
+  | "Delivered"
+  | "Cancelled"
+  | "Refunded";
+
+export const ORDER_STAGE_FILTERS = [
+  "All",
+  "Confirmed",
+  "Preparing",
+  "On the way",
+  "Delivered",
+] as const;
+export type OrderStageFilter = (typeof ORDER_STAGE_FILTERS)[number];
+
+const STAGE_BY_STATUS = {
+  Pending: "Confirmed",
+  Confirmed: "Confirmed",
+  Processing: "Preparing",
+  Pickup: "Preparing",
+  Delivery: "On the way",
+  Delivered: "Delivered",
+  Cancelled: "Cancelled",
+  Refunded: "Refunded",
+} satisfies Record<OrderStatus, OrderStage>;
+
+/** Unknown statuses read as Confirmed: still in hand, not yet moving. */
+export function orderStage(status: string): OrderStage {
+  return Object.prototype.hasOwnProperty.call(STAGE_BY_STATUS, status)
+    ? STAGE_BY_STATUS[status as OrderStatus]
+    : "Confirmed";
+}
+
+export function matchesStageFilter(
+  status: string,
+  filter: OrderStageFilter,
+): boolean {
+  return filter === "All" || orderStage(status) === filter;
+}
+
+/**
+ * The status pill's colours, per stage — a typed lookup rather than an
+ * interpolated class name, so a missing stage is a type error and not an
+ * invisibly unstyled pill.
+ */
+export const STAGE_PILL = {
+  Confirmed: { bg: "bg-info-soft", fg: "text-info" },
+  Preparing: { bg: "bg-warning-soft", fg: "text-blink-700" },
+  "On the way": { bg: "bg-warning-soft", fg: "text-blink-700" },
+  Delivered: { bg: "bg-success-soft", fg: "text-success" },
+  Cancelled: { bg: "bg-destructive-soft", fg: "text-destructive" },
+  Refunded: { bg: "bg-muted", fg: "text-foreground" },
+} satisfies Record<OrderStage, { bg: string; fg: string }>;

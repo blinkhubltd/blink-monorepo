@@ -392,7 +392,7 @@ export default function EditAddressScreen() {
         <View className="border-hairline border-border bg-card px-screen py-space-4">
           <Button
             full
-            size="lg"
+            size="cta"
             loading={saving}
             disabled={blockers.length > 0 || saving}
             label={replacing ? `Replace ${replacing}` : "Save address"}

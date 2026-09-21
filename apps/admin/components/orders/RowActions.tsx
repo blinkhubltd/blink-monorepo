@@ -17,6 +17,7 @@ import { useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import { toast } from "sonner";
 import { getConvexErrorMessage } from "@/lib/utils";
+import { canTransitionOrder } from "@repo/lib/utils";
 import { Button } from "@repo/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -162,7 +163,9 @@ export function RowActions({
                     <DropdownMenuItem
                       key={status}
                       onClick={() => handleOrderStatusUpdate(status)}
-                      disabled={order.order_status === status}
+                      // Greyed where the server would refuse: orders move one
+                      // step at a time. See @repo/lib order-transitions.
+                      disabled={!canTransitionOrder(order.order_status, status)}
                     >
                       {status}
                     </DropdownMenuItem>

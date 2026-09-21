@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -12,7 +12,7 @@ import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Label } from "@repo/mobile-ui/components/ui/label";
 
 import { ScreenHeader } from "../components/screen-header";
-import { SectionCard } from "../components/checkout/sections";
+import { PhoneSection, SectionCard } from "../components/checkout/sections";
 
 /**
  * Edit your details.
@@ -39,28 +39,16 @@ export default function EditProfileScreen() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
 
-  const access = useQuery(
-    api.user.access.getMyAccess,
-    isSignedIn ? {} : "skip",
-  );
-  const setMyPhone = useMutation(api.user.users.setMyPhone);
+  // `undefined` while loading, `null` when nothing is saved.
+  const myPhone = useQuery(api.user.users.getMyPhone, isSignedIn ? {} : "skip");
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
   const [prefilled, setPrefilled] = useState(false);
 
   const [savingName, setSavingName] = useState(false);
-  const [savingPhone, setSavingPhone] = useState(false);
   const [nameResult, setNameResult] = useState<string | null>(null);
-  const [phoneResult, setPhoneResult] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [phoneError, setPhoneError] = useState<string | null>(null);
-
-  const storedPhone =
-    access && "hasUser" in access && access.hasUser
-      ? ((access as { phone?: string }).phone ?? "")
-      : "";
 
   // Prefill once. Guarded by a flag rather than by dependencies, so a
   // subscription update cannot overwrite what is being typed.
@@ -70,11 +58,6 @@ export default function EditProfileScreen() {
     setLastName(user.lastName ?? "");
     setPrefilled(true);
   }, [prefilled, user]);
-
-  useEffect(() => {
-    if (phone || !storedPhone) return;
-    setPhone(storedPhone);
-  }, [phone, storedPhone]);
 
   if (isLoaded && !isSignedIn) {
     return (
@@ -96,7 +79,6 @@ export default function EditProfileScreen() {
   const nameChanged =
     firstName.trim() !== (user?.firstName ?? "") ||
     lastName.trim() !== (user?.lastName ?? "");
-  const phoneChanged = phone.replace(/[\s-]/g, "") !== storedPhone;
 
   async function saveName() {
     if (!user) return;
@@ -115,24 +97,6 @@ export default function EditProfileScreen() {
       );
     } finally {
       setSavingName(false);
-    }
-  }
-
-  async function savePhone() {
-    setSavingPhone(true);
-    setPhoneError(null);
-    setPhoneResult(null);
-    try {
-      await setMyPhone({ phone });
-      setPhoneResult("Saved");
-    } catch (caught) {
-      setPhoneError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not save that number.",
-      );
-    } finally {
-      setSavingPhone(false);
     }
   }
 
@@ -187,36 +151,12 @@ export default function EditProfileScreen() {
             />
           </SectionCard>
 
-          <SectionCard title="Phone">
-            <Text size="sm" variant="muted">
-              The rider calls this number if they cannot find you, so keep it
-              one you answer.
-            </Text>
-            <Input
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="+254…"
-              keyboardType="phone-pad"
-              textContentType="telephoneNumber"
-              accessibilityLabel="Phone number"
-            />
-            {phoneError ? (
-              <Text size="sm" variant="destructive">
-                {phoneError}
-              </Text>
-            ) : phoneResult ? (
-              <Text size="sm" variant="muted">
-                {phoneResult}
-              </Text>
-            ) : null}
-            <Button
-              variant="outline"
-              label="Save number"
-              loading={savingPhone}
-              disabled={!phoneChanged || savingPhone || phone.trim().length === 0}
-              onPress={() => void savePhone()}
-            />
-          </SectionCard>
+          <PhoneSection
+            stored={myPhone}
+            title="Phone"
+            helper="The rider calls this number if they cannot find you, so keep it one you answer."
+            missingHelper="No number saved yet. Add one so a rider can reach you."
+          />
 
           <SectionCard title="Email">
             <Text size="sm">

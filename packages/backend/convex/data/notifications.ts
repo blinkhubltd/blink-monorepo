@@ -3,10 +3,7 @@ import { v } from "convex/values";
 import { Doc, Id } from "../_generated/dataModel";
 import { api } from "../_generated/api";
 import { internal } from "../_generated/api";
-import {
-  notificationTypes,
-  orderStatus,
-} from "../validators";
+import { notificationTypes, orderStatus } from "../validators";
 
 /**
  * Central helpers & unified push notification sending
@@ -22,10 +19,7 @@ import {
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 type BaseNotificationType =
-  | "order_update"
-  | "delivery"
-  | "promotion"
-  | "system";
+  "order_update" | "delivery" | "promotion" | "system";
 
 interface UnifiedNotifyArgs {
   userId: Id<"users">;
@@ -428,9 +422,12 @@ export const notifyVendorPickers = action({
     vendorId?: Id<"vendors">;
   }> => {
     // Get order details first
-    const orderDetails = await ctx.runQuery(api.data.orders.getOrderWithItems, {
-      orderId: args.orderId,
-    });
+    const orderDetails = await ctx.runQuery(
+      internal.data.orders.getOrderWithItems,
+      {
+        orderId: args.orderId,
+      },
+    );
     if (!orderDetails) {
       console.log("Order not found:", args.orderId);
       return { success: false, reason: "order_not_found" };
@@ -457,9 +454,12 @@ export const notifyVendorPickers = action({
       return { success: false, reason: "picker_role_not_found" };
     }
 
-    const allPickers = await ctx.runQuery(api.user.users.getUsersWithPushTokens, {
-      roleId: pickerRole._id,
-    });
+    const allPickers = await ctx.runQuery(
+      api.user.users.getUsersWithPushTokens,
+      {
+        roleId: pickerRole._id,
+      },
+    );
 
     // Filter for pickers assigned to this vendor and active status
     const vendorPickers = [];
@@ -488,22 +488,25 @@ export const notifyVendorPickers = action({
     const pickerIds = vendorPickers.map((p) => p._id as Id<"users">);
     const title = "📋 New Order Available!";
     const message = `Order #${orderDetails.reference} for ${orderDetails.customer_name}\n${orderDetails.items_count} items ready to pick`;
-    const batchResult = await ctx.runAction(api.data.notifications.notifyUsers, {
-      userIds: pickerIds,
-      type: "order_update",
-      title,
-      message,
-      data: {
-        type: "order_assigned",
-        orderId: args.orderId,
-        customData: {
-          orderRef: orderDetails.reference,
-          customerName: orderDetails.customer_name,
-          itemCount: orderDetails.items_count,
+    const batchResult = await ctx.runAction(
+      api.data.notifications.notifyUsers,
+      {
+        userIds: pickerIds,
+        type: "order_update",
+        title,
+        message,
+        data: {
+          type: "order_assigned",
+          orderId: args.orderId,
+          customData: {
+            orderRef: orderDetails.reference,
+            customerName: orderDetails.customer_name,
+            itemCount: orderDetails.items_count,
+          },
+          route: "/orders",
         },
-        route: "/orders",
       },
-    });
+    );
     return {
       success: true,
       result: batchResult,
@@ -540,9 +543,12 @@ export const notifyPickerAssignment = action({
       return { success: false, reason: "picker_not_found" };
     }
 
-    const orderDetails = await ctx.runQuery(api.data.orders.getOrderWithItems, {
-      orderId: args.orderId,
-    });
+    const orderDetails = await ctx.runQuery(
+      internal.data.orders.getOrderWithItems,
+      {
+        orderId: args.orderId,
+      },
+    );
     if (!orderDetails) {
       console.log("Order not found:", args.orderId);
       return { success: false, reason: "order_not_found" };
@@ -606,9 +612,12 @@ export const notifyStatusUpdate = action({
     });
     if (!user) return { success: false, reason: "user_not_found" };
 
-    const orderDetails = await ctx.runQuery(api.data.orders.getOrderWithItems, {
-      orderId: args.orderId,
-    });
+    const orderDetails = await ctx.runQuery(
+      internal.data.orders.getOrderWithItems,
+      {
+        orderId: args.orderId,
+      },
+    );
     if (!orderDetails) {
       console.log("Order not found:", args.orderId);
       return { success: false, reason: "order_not_found" };
@@ -690,7 +699,7 @@ export const triggerOrderStatusNotification = action({
   },
   handler: async (ctx, args) => {
     try {
-      const order = await ctx.runQuery(api.data.orders.getOrderWithItems, {
+      const order = await ctx.runQuery(internal.data.orders.getOrderWithItems, {
         orderId: args.orderId,
       });
       if (!order) return { success: false, error: "order_not_found" };
@@ -717,9 +726,12 @@ export const triggerOrderStatusNotification = action({
           });
 
           try {
-            const freshOrder = await ctx.runQuery(api.data.orders.getOrderById, {
-              orderId: args.orderId,
-            });
+            const freshOrder = await ctx.runQuery(
+              api.data.orders.getOrderById,
+              {
+                orderId: args.orderId,
+              },
+            );
             if (freshOrder && freshOrder.payment_mode === "pay_now") {
               const needsCode =
                 !freshOrder.delivery_code ||
@@ -730,16 +742,22 @@ export const triggerOrderStatusNotification = action({
                   { orderId: args.orderId },
                 );
                 try {
-                  await ctx.runMutation(internal.data.orders.generateDeliveryCode, {
-                    orderId: args.orderId,
-                  });
+                  await ctx.runMutation(
+                    internal.data.orders.generateDeliveryCode,
+                    {
+                      orderId: args.orderId,
+                    },
+                  );
                 } catch (genErr) {
                   console.warn("Delivery code generation skipped", genErr);
                 }
               }
-              const codedOrder = await ctx.runQuery(api.data.orders.getOrderById, {
-                orderId: args.orderId,
-              });
+              const codedOrder = await ctx.runQuery(
+                api.data.orders.getOrderById,
+                {
+                  orderId: args.orderId,
+                },
+              );
               if (
                 codedOrder?.delivery_code &&
                 !codedOrder.delivery_code_verified
@@ -919,14 +937,17 @@ export const sendDeliveryCode = action({
         resend: !!args.resend,
         route: `/order-details/${order._id}`,
       };
-      const pushResult = await ctx.runAction(api.data.notifications.notifyUser, {
-        userId: args.userId,
-        type: "delivery",
-        title,
-        message,
-        data,
-        sendPush: true,
-      });
+      const pushResult = await ctx.runAction(
+        api.data.notifications.notifyUser,
+        {
+          userId: args.userId,
+          type: "delivery",
+          title,
+          message,
+          data,
+          sendPush: true,
+        },
+      );
       return {
         success: true,
         result: { notificationId: notificationResult, push: pushResult },
