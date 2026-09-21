@@ -28,7 +28,11 @@ function Input({
       ) : null}
       <View
         className={cn(
-          "h-control flex-row items-center gap-space-3 rounded-md border-hairline bg-card px-space-4",
+          // A real 1px border, not `border-hairline` (RN's sub-pixel
+          // StyleSheet.hairlineWidth, ~0.33px on most screens): a field's
+          // border is the only thing telling a user where to type, and a
+          // hairline in a light neutral tone anti-aliased away to nothing.
+          "h-control flex-row items-center gap-space-3 rounded-md border bg-card px-space-4",
           error ? "border-destructive" : "border-input",
           !editable && "opacity-60",
         )}

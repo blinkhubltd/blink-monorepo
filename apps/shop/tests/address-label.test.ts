@@ -5,22 +5,22 @@ import { pickAddressLabel } from "../lib/address-label";
 const POINT = { lat: -1.2921, lng: 36.8219 };
 
 describe("pickAddressLabel", () => {
-  it("prefers a saved default address over everything else", () => {
+  it("prefers a saved default address's own name over everything else", () => {
     expect(
       pickAddressLabel({
-        defaultAddressLine: "Waiyaki Way, Nairobi",
+        defaultAddressLabel: "Home",
         geocoded: "Some other geocoded street",
         denied: false,
         loading: false,
         point: POINT,
       }),
-    ).toEqual({ label: "Waiyaki Way, Nairobi", state: "resolved" });
+    ).toEqual({ label: "Home", state: "resolved" });
   });
 
   it("falls back to the reverse-geocoded address when there is no default", () => {
     expect(
       pickAddressLabel({
-        defaultAddressLine: null,
+        defaultAddressLabel: null,
         geocoded: "Kimathi Street, Nairobi",
         denied: false,
         loading: false,
@@ -32,7 +32,7 @@ describe("pickAddressLabel", () => {
   it("reports denied permission distinctly from loading", () => {
     expect(
       pickAddressLabel({
-        defaultAddressLine: null,
+        defaultAddressLabel: null,
         geocoded: null,
         denied: true,
         loading: false,
@@ -44,7 +44,7 @@ describe("pickAddressLabel", () => {
   it("shows a loading label while nothing has resolved yet", () => {
     expect(
       pickAddressLabel({
-        defaultAddressLine: null,
+        defaultAddressLabel: null,
         geocoded: null,
         denied: false,
         loading: true,
@@ -56,7 +56,7 @@ describe("pickAddressLabel", () => {
   it("falls back to raw coordinates only once a point exists but nothing has geocoded", () => {
     expect(
       pickAddressLabel({
-        defaultAddressLine: null,
+        defaultAddressLabel: null,
         geocoded: null,
         denied: false,
         loading: false,
@@ -68,7 +68,7 @@ describe("pickAddressLabel", () => {
   it("has no address, no point, and nothing loading as the true empty state", () => {
     expect(
       pickAddressLabel({
-        defaultAddressLine: null,
+        defaultAddressLabel: null,
         geocoded: null,
         denied: false,
         loading: false,
@@ -80,7 +80,7 @@ describe("pickAddressLabel", () => {
   it("rejects an unusable point (0,0) the same as no point at all", () => {
     expect(
       pickAddressLabel({
-        defaultAddressLine: null,
+        defaultAddressLabel: null,
         geocoded: null,
         denied: false,
         loading: false,
