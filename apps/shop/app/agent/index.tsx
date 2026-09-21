@@ -514,6 +514,8 @@ export default function AgentDashboardScreen() {
               ) : null}
               <Button
                 label="Request payout"
+                size="cta"
+                full
                 loading={busy}
                 disabled={!amountValid || busy}
                 onPress={() => void submit()}
