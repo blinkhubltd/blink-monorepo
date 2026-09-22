@@ -11,9 +11,24 @@ import { api } from "@repo/backend";
 
 import { Icon } from "../icon";
 import { useTokenColors } from "../../lib/token-colors";
+import {
+  DEFAULT_DIAL_CODE,
+  DIAL_CODES,
+  formatPhone,
+  joinPhone,
+  splitPhone,
+} from "../../lib/phone";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
+
+/*
+  Re-exported so the screens that already import these from here keep
+  working. They live in `lib/phone.ts` now because this file is JSX and a
+  unit test cannot import it — and the split/join round trip needed covering
+  once `/edit-profile` started deciding "has anything changed?" with it.
+*/
+export { formatPhone, joinPhone, splitPhone } from "../../lib/phone";
 
 /**
  * The individual sections of checkout.
@@ -69,52 +84,6 @@ export function FieldInput({
       {...props}
     />
   );
-}
-
-/**
- * The dialling codes this app actually delivers against, plus the handful a
- * customer is likely to be reachable on from abroad.
- *
- * A list, not a full ISO table: the field's job is to keep the code out of the
- * number so `+254` is not retyped (and mistyped) on every order, and a 200-row
- * picker would be a worse version of typing it.
- */
-const DIAL_CODES = [
-  { code: "+254", flag: "🇰🇪", name: "Kenya" },
-  { code: "+256", flag: "🇺🇬", name: "Uganda" },
-  { code: "+255", flag: "🇹🇿", name: "Tanzania" },
-  { code: "+250", flag: "🇷🇼", name: "Rwanda" },
-  { code: "+251", flag: "🇪🇹", name: "Ethiopia" },
-  { code: "+211", flag: "🇸🇸", name: "South Sudan" },
-  { code: "+252", flag: "🇸🇴", name: "Somalia" },
-  { code: "+44", flag: "🇬🇧", name: "United Kingdom" },
-  { code: "+1", flag: "🇺🇸", name: "United States" },
-] as const;
-
-const DEFAULT_DIAL_CODE = "+254";
-
-/**
- * Split a stored number into a dialling code and the rest.
- *
- * Longest code first, so `+250` is not read as `+25` + `0`. A number with no
- * recognised prefix keeps the default code and is shown whole, rather than
- * being silently truncated into a number nobody can call.
- */
-export function splitPhone(stored: string): { dial: string; national: string } {
-  const cleaned = stored.replace(/[\s-]/g, "");
-  const match = [...DIAL_CODES]
-    .sort((a, b) => b.code.length - a.code.length)
-    .find((entry) => cleaned.startsWith(entry.code));
-  // No code: a local number, most likely `07…` typed into the old single
-  // field. Its trunk `0` is dropped so it reads as the national part.
-  if (!match)
-    return { dial: DEFAULT_DIAL_CODE, national: cleaned.replace(/^0+/, "") };
-  return { dial: match.code, national: cleaned.slice(match.code.length) };
-}
-
-/** The E.164 number the record stores: code and national part, no spaces. */
-export function joinPhone(dial: string, national: string): string {
-  return `${dial}${national.replace(/[\s-]/g, "").replace(/^0+/, "")}`;
 }
 
 /**
@@ -358,20 +327,6 @@ export function PhoneSection({
       ) : null}
     </SectionCard>
   );
-}
-
-/**
- * `+254741773276` → `+254 741 773 276`, for reading only; the record keeps the
- * unspaced form. Only a 9-digit national part — the East African shape this
- * app mostly holds — is grouped; anything else is shown as stored rather than
- * split at the wrong places.
- */
-export function formatPhone(stored: string): string {
-  const { dial, national } = splitPhone(stored);
-  const grouped = /^\d{9}$/.test(national)
-    ? national.replace(/(\d{3})(\d{3})(\d{3})/, "$1 $2 $3")
-    : national;
-  return `${dial} ${grouped}`.trim();
 }
 
 export interface AddressForDisplay {
