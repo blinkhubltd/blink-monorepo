@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
@@ -15,6 +16,7 @@ import {
   CategoryCardSkeleton,
 } from "../../../components/category-card";
 import { BrandHeader } from "../../../components/brand-header";
+import { BannerCarousel } from "../../../components/banner-carousel";
 
 /**
  * The first screen: top-level categories.
@@ -62,41 +64,66 @@ export default function CategoriesScreen() {
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
   });
+  // Two renders per scroll gesture, which is what it costs to tell the
+  // carousel to stop advancing itself while the page is moving. Its own
+  // touch handler only sees touches on the carousel, so it cannot know.
+  const [scrolling, setScrolling] = useState(false);
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
-        showLocation
-        showSearchButton
-        sweep
-        logoRow
-        banners
-        scrollY={scrollY}
-      />
+      {/*
+        No `sweep`: the rounded bottom now belongs to the banner block below,
+        which scrolls. At rest the two are one continuous yellow shape; once
+        scrolled, the band is what remains.
+      */}
+      <BrandHeader showLocation showSearchButton logoRow />
 
       {tree.loading ? (
-        <CategoryListSkeleton />
+        // The banner does not wait for the catalogue — it is its own query,
+        // and this branch renders instead of the list rather than inside it.
+        // No bleed wrapper here: nothing is padding it.
+        <>
+          <BannerCarousel />
+          <CategoryListSkeleton />
+        </>
       ) : (
         <AnimatedFlashList
           onScroll={onScroll}
+          onScrollBeginDrag={() => setScrolling(true)}
+          onScrollEndDrag={() => setScrolling(false)}
+          onMomentumScrollEnd={() => setScrolling(false)}
           scrollEventThrottle={16}
+          // Nothing here needs its content anchored, and leaving it on lets
+          // FlashList correct the scroll offset in response to a layout
+          // change — one half of the feedback loop the banner used to sit in.
+          maintainVisibleContentPosition={{ disabled: true }}
           data={tree.level1}
           keyExtractor={(item) => item._id}
           contentContainerClassName="px-screen pb-space-8"
           ItemSeparatorComponent={() => <View className="h-space-4" />}
           ListHeaderComponent={
-            <View className="pb-space-6 pt-space-6">
-              <Text variant="heading" size="h2">
-                What are you shopping for today?
-              </Text>
-              <Text
-                variant="muted"
-                size="base"
-                className="mt-space-2"
-              >
-                Choose a category to get started
-              </Text>
-            </View>
+            <>
+              {/*
+                The banner is content, not chrome. FlashList does not read
+                `contentContainerClassName` (NativeWind registers that prop for
+                ScrollView/FlatList/VirtualizedList only), so the content
+                container is unpadded and this reaches both screen edges on its
+                own — no negative margin needed.
+              */}
+              <BannerCarousel scrollY={scrollY} paused={scrolling} />
+              <View className="pb-space-6 pt-space-6">
+                <Text variant="heading" size="h2">
+                  What are you shopping for today?
+                </Text>
+                <Text
+                  variant="muted"
+                  size="base"
+                  className="mt-space-2"
+                >
+                  Choose a category to get started
+                </Text>
+              </View>
+            </>
           }
           renderItem={({ item }) => (
             <CategoryCard

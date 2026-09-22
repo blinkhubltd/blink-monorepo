@@ -1,5 +1,6 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Tabs } from "expo-router";
+import type { BottomTabBarButtonProps } from "expo-router/js-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColorScheme } from "nativewind";
 
@@ -66,6 +67,43 @@ import { tokenColors } from "../../lib/token-colors";
  * is `useScrollToTop` in the screen — not a navigation override here.
  */
 
+/**
+ * A tab button with no ripple.
+ *
+ * Expo Router's own `BottomTabItem` renders `PlatformPressable` with
+ * `android_ripple: { borderless: true }` and no `pressColor`, and
+ * `PlatformPressable` then defaults the colour to `rgba(0, 0, 0, .32)`. That
+ * is the dark blob that flashes on a tap and fades — borderless, so it bleeds
+ * past the button's own bounds, which is why it reads as a shadow rather than
+ * a tint. This navigator has no `tabBarPressColor` option, so replacing the
+ * button is the only way to reach it.
+ *
+ * The pill behind the glyph already carries focus (see `TabGlyph`), so there
+ * is nothing to replace the ripple with.
+ *
+ * Everything else is forwarded untouched — in particular `onPress` and
+ * `onLongPress`, which is what preserves the pop-to-root behaviour described
+ * under "No tabPress hijack" below, and `style`, which is where the item's
+ * own flex layout arrives.
+ *
+ * The props destructured away are `PlatformPressable`'s alone and a plain
+ * `Pressable` has no use for them. `ref` goes too: it is in the type only
+ * because the type is derived from `PlatformPressable`'s props — `BottomTabItem`
+ * calls this as a plain function and never passes one, and forwarding it
+ * fails to type-check because that ref admits a `LegacyRef` the RN
+ * `Pressable` does not.
+ */
+function TabButton({
+  android_ripple: _ripple,
+  pressColor: _pressColor,
+  pressOpacity: _pressOpacity,
+  hoverEffect: _hoverEffect,
+  ref: _ref,
+  ...rest
+}: BottomTabBarButtonProps) {
+  return <Pressable {...rest} android_ripple={null} />;
+}
+
 /** Glyph size inside the pill. */
 const GLYPH = 30;
 
@@ -126,6 +164,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarButton: TabButton,
         // The label, not the glyph: the glyph's colour is baked into the SVG.
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.subtle,
