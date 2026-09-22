@@ -16,6 +16,7 @@ import { BrandHeader } from "../../components/brand-header";
 import { MenuRow, MenuSection } from "../../components/menu-list";
 import { useCart } from "../../providers/CartProvider";
 import { useAddressLabel } from "../../lib/use-address-label";
+import { initialsOf } from "../../lib/initials";
 import {
   LEGAL_DOC_META,
   isLegalConfigured,
@@ -395,19 +396,4 @@ function HeaderPill({
       <Icon name={icon} size={18} tone="onBrandPill" />
     </Pressable>
   );
-}
-
-/**
- * Up to two letters, from the name if there is one and the email if not.
- *
- * The email fallback takes the part before the `@`: an initial of "c" for
- * charles@… is at least their initial, where the whole address would not fit
- * and "?" says nothing.
- */
-function initialsOf(name: string, email: string): string {
-  const source = name.trim() || email.split("@")[0]?.trim() || "";
-  const words = source.split(/[\s._-]+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
-  return (words[0]![0]! + words[1]![0]!).toUpperCase();
 }

@@ -212,6 +212,7 @@ export default function RootLayout() {
                   <Stack.Screen name="search" />
                   <Stack.Screen name="cart" />
                   <Stack.Screen name="settings" />
+                  <Stack.Screen name="change-password" />
                   <Stack.Screen name="checkout" />
                   <Stack.Screen name="order/[orderId]" />
                   {/*
