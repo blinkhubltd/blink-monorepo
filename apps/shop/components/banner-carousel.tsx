@@ -271,21 +271,35 @@ export function BannerCarousel({
   if (!banners || banners.length === 0) return null;
 
   return (
-    // The yellow carries on from the header band above, and this block owns
-    // the rounded bottom that used to sit on the band itself — so at rest the
-    // two read as one shape, and scrolling slides that shape up and away.
+    // `Animated.View` carries ONLY `style` here, never `className`: NativeWind
+    // translates `className` through a registration map keyed by component
+    // identity (`interopComponents.get(type) ?? type` in
+    // react-native-css-interop's `wrap-jsx.js`), and nothing in this app or in
+    // Reanimated itself ever registers `Animated.View`. A class on it is not a
+    // partial effect, it is silently nothing — which is what made an earlier
+    // version of this block look inset rather than full-bleed: the
+    // `-mx-screen` meant to cancel the list's gutter was never applied at all,
+    // and neither was the yellow background or the rounding.
     //
-    // `-mx-screen px-screen` cancels the list content container's 16px gutter
-    // and then puts it back on the inside: the BACKGROUND spans the full screen
-    // width, as the header band above it does, while the artwork keeps the same
-    // 16px inset it had when this lived inside the band. Without the negative
-    // margin the yellow would stop 16px short of each edge and the header would
-    // read as two separate shapes.
-    <Animated.View
-      style={fade}
-      className="bg-brand-surface -mx-screen px-screen rounded-b-2xl pb-[18px]"
-    >
-      <View className="gap-space-3">
+    // Every other `Animated.View` in this app (`basket-line.tsx`,
+    // `sheet-backdrop.tsx`, `ToastProvider.tsx`) already avoids this by
+    // keeping the animated node bare and putting classes on a nested plain
+    // `View`, which IS registered. This follows the same pattern.
+    <Animated.View style={fade}>
+      {/*
+        The yellow carries on from the header band above, and this block owns
+        the rounded bottom that used to sit on the band itself — so at rest
+        the two read as one shape, and scrolling slides that shape up and
+        away.
+
+        `-mx-screen px-screen` cancels the list content container's 16px
+        gutter and then puts it back on the inside: the BACKGROUND spans the
+        full screen width, as the header band above it does, while the
+        artwork keeps the same 16px inset it had when this lived inside the
+        band. Without the negative margin the yellow would stop 16px short of
+        each edge and the header would read as two separate shapes.
+      */}
+      <View className="bg-brand-surface -mx-screen px-screen rounded-b-2xl pb-[18px] gap-space-3">
         <View onLayout={handleLayout} className="overflow-hidden rounded-lg">
           {width > 0 ? (
             <ScrollView

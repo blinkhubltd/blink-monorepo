@@ -43,16 +43,28 @@ export function DeliveryBadge({ minutes = 10 }: { minutes?: number }) {
   return (
     <View className="h-[18px] bg-on-brand-pill rounded-pill flex-row items-center gap-[3px] px-[6px]">
       <BlinkRiderMark height={13} />
+      {/*
+        Uppercased in JS, not through the `uppercase` class. `textTransform`
+        is a paint-time style on native: Yoga measures the RAW string, and
+        with `numberOfLines={1}` that measurement is also the clip box. Real
+        uppercase glyphs run wider than the lowercase string that was
+        measured — this italic face more so, since the slant pushes the last
+        glyph's ink further right again — so the trailing letter (the "Y")
+        was being clipped by a box sized for text that was never actually
+        drawn. Uppercasing the string itself makes the measured and painted
+        text identical, which is the only way for `numberOfLines` to size a
+        box the rendered glyphs actually fit in.
+      */}
       <Text
         numberOfLines={1}
-        className="uppercase tracking-label text-[#FFFFFF]"
+        className="tracking-label text-[#FFFFFF]"
         style={{
           fontFamily: "Inter_700Bold_Italic",
           fontSize: 10,
           lineHeight: 12,
         }}
       >
-        {minutes} minutes delivery
+        {`${minutes} minutes delivery`.toUpperCase()}
       </Text>
     </View>
   );

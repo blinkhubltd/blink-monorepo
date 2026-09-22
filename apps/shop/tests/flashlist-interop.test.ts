@@ -84,3 +84,26 @@ describe("FlashList NativeWind registration", () => {
     }
   });
 });
+
+describe("Animated.View never carries className", () => {
+  // The same silent-drop failure mode as FlashList's, but worse: nothing in
+  // this app or in react-native-reanimated ever registers `Animated.View`
+  // with NativeWind (`interopComponents.get(type) ?? type` in
+  // react-native-css-interop's `wrap-jsx.js`), so a class on it is not a
+  // partial effect, it is nothing at all — background, padding, radius,
+  // margin, all of it. A class that LOOKS applied because a sibling or child
+  // happens to render something similar is how this regresses unnoticed; see
+  // `components/banner-carousel.tsx`'s history for exactly that.
+  it("has no `className` prop on any `<Animated.View`", () => {
+    for (const file of FILES) {
+      const source = readFileSync(file, "utf8");
+      for (const match of source.matchAll(/<Animated\.View\b([^>]*)>/gs)) {
+        expect(
+          match[1],
+          `${file}: <Animated.View> has className — it is silently dropped, ` +
+            "move it onto a nested plain View instead",
+        ).not.toMatch(/\bclassName=/);
+      }
+    }
+  });
+});
