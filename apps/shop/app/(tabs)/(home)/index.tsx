@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { remapProps } from "nativewind";
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
@@ -58,6 +59,15 @@ const AnimatedFlashList = Animated.createAnimatedComponent(
   FlashList,
 ) as unknown as typeof FlashList;
 
+// NativeWind keys its registrations by component IDENTITY, and the animated
+// wrapper is a different component from the FlashList registered in
+// `lib/flashlist-interop.ts`. Without this line THIS screen alone would go
+// back to dropping `contentContainerClassName` on the floor.
+remapProps(AnimatedFlashList, {
+  className: "style",
+  contentContainerClassName: "contentContainerStyle",
+});
+
 export default function CategoriesScreen() {
   const tree = useCategoryTree();
   const scrollY = useSharedValue(0);
@@ -104,11 +114,11 @@ export default function CategoriesScreen() {
           ListHeaderComponent={
             <>
               {/*
-                The banner is content, not chrome. FlashList does not read
-                `contentContainerClassName` (NativeWind registers that prop for
-                ScrollView/FlatList/VirtualizedList only), so the content
-                container is unpadded and this reaches both screen edges on its
-                own — no negative margin needed.
+                The banner is content, not chrome — but it is also the bottom
+                of the yellow header, so its background has to reach both
+                screen edges while everything else on this list stays on the
+                16px gutter. The block cancels the content container's own
+                padding with `-mx-screen`; see the note on its wrapper.
               */}
               <BannerCarousel scrollY={scrollY} paused={scrolling} />
               <View className="pb-space-6 pt-space-6">

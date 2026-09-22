@@ -1,4 +1,8 @@
 import "../global.css";
+// Side effect only: teaches NativeWind about FlashList, whose
+// `contentContainerClassName` is otherwise dropped on the floor. Must run
+// before any screen renders, which is why it is here and not in a screen.
+import "../lib/flashlist-interop";
 
 import { useEffect } from "react";
 import { Stack } from "expo-router";

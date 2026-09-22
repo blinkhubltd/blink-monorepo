@@ -274,11 +274,16 @@ export function BannerCarousel({
     // The yellow carries on from the header band above, and this block owns
     // the rounded bottom that used to sit on the band itself — so at rest the
     // two read as one shape, and scrolling slides that shape up and away.
-    // The caller cancels its own horizontal padding so this bleeds to both
-    // edges; see the note at its call site.
+    //
+    // `-mx-screen px-screen` cancels the list content container's 16px gutter
+    // and then puts it back on the inside: the BACKGROUND spans the full screen
+    // width, as the header band above it does, while the artwork keeps the same
+    // 16px inset it had when this lived inside the band. Without the negative
+    // margin the yellow would stop 16px short of each edge and the header would
+    // read as two separate shapes.
     <Animated.View
       style={fade}
-      className="bg-brand-surface px-screen rounded-b-2xl pb-[18px]"
+      className="bg-brand-surface -mx-screen px-screen rounded-b-2xl pb-[18px]"
     >
       <View className="gap-space-3">
         <View onLayout={handleLayout} className="overflow-hidden rounded-lg">
