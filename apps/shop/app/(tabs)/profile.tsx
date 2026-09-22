@@ -249,6 +249,18 @@ export default function ProfileScreen() {
             onPress={() => router.push("/orders")}
           />
           <MenuRow
+            icon="basket-outline"
+            label="My cart"
+            meta={
+              cart.loading
+                ? undefined
+                : cart.count === 0
+                  ? "Nothing in it yet"
+                  : `${cart.count} ${cart.count === 1 ? "item" : "items"}`
+            }
+            onPress={() => router.push("/cart")}
+          />
+          <MenuRow
             icon="heart-outline"
             label="Wishlist"
             meta={
@@ -310,15 +322,22 @@ export default function ProfileScreen() {
             external
             icon="document-text-outline"
             label={LEGAL_DOC_META.terms.title}
-            meta="Opens the website"
+            meta="Review our terms of service"
             onPress={() => void openLegal("terms")}
           />
           <MenuRow
             external
             icon="shield-checkmark-outline"
             label={LEGAL_DOC_META.privacy.title}
-            meta="Opens the website"
+            meta="Review our privacy policy"
             onPress={() => void openLegal("privacy")}
+          />
+          <MenuRow
+            external
+            icon="reader-outline"
+            label={LEGAL_DOC_META.eula.title}
+            meta="Review our licence terms"
+            onPress={() => void openLegal("eula")}
           />
         </MenuSection>
 
