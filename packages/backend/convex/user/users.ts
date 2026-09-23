@@ -862,21 +862,62 @@ export const getUsers = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
+    /**
+     * A role NAME ("Customer", "Rider", …), not a role id — every caller of
+     * this query knows roles by name (it is what the nav links and the page
+     * itself think in), so resolving it here keeps that lookup in one place
+     * rather than every caller doing its own `getRoleIdByName` round trip
+     * first. Case-insensitive, same as `getRoleIdByName` itself.
+     *
+     * Omitted, this returns every user regardless of role — which is what a
+     * platform-wide search still needs. The "Customers" page is the one
+     * caller that always passes `role: "Customer"`; without a role filter it
+     * showed staff and super admins in a table titled "Customers" because
+     * this query had no way to exclude them.
+     */
+    role: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit));
     const search = args.search?.trim();
     const status = args.status;
 
+    const roleId = args.role
+      ? await getRoleIdByName(ctx, args.role)
+      : undefined;
+    // A role name that does not resolve must exclude everything, not fall
+    // back to unfiltered — otherwise the Customers page would start showing
+    // every user in the platform the moment that role was renamed or
+    // deleted, which is a worse failure than an empty table.
+    if (args.role && !roleId) {
+      return {
+        data: [],
+        pagination: {
+          limit,
+          total: 0,
+          totalPages: 1,
+          hasNext: false,
+          cursor: null,
+        },
+      };
+    }
+
     const buildListQuery = () => {
-      const base =
-        search && search.length > 0
-          ? ctx.db
-              .query("users")
-              .withSearchIndex("search_text", (q) =>
-                q.search("searchText", search),
-              )
-          : ctx.db.query("users");
+      if (search && search.length > 0) {
+        return ctx.db
+          .query("users")
+          .withSearchIndex("search_text", (q) => {
+            const sq = q.search("searchText", search);
+            const scoped = roleId ? sq.eq("role_id", roleId) : sq;
+            return status ? scoped.eq("status", status) : scoped;
+          });
+      }
+
+      const base = roleId
+        ? ctx.db
+            .query("users")
+            .withIndex("by_role_id", (q) => q.eq("role_id", roleId))
+        : ctx.db.query("users");
 
       if (status) {
         return base.filter((q) => q.eq(q.field("status"), status));

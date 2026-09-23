@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import type { MutationCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
+import { generateOrderReference } from "../lib/order_reference";
 
 /**
  * Writing orders from a stored quote. The one place it happens.
@@ -97,9 +98,11 @@ export async function writeOrdersFromQuote(
 
   for (const leg of quote.legs) {
     const orderId = await ctx.db.insert("orders", {
-      // One reference per basket, suffixed per delivery, so a customer with
-      // three deliveries can tell a support agent which one they mean.
-      reference: `${reference}-${orderIds.length + 1}`,
+      // Ten digits, freshly minted per delivery — see `generateOrderReference`
+      // for why this is independent of `payment_reference`/`idempotency_key`
+      // below, which still carry the `${reference}` this basket checked out
+      // with.
+      reference: generateOrderReference(),
       order_date: now,
       vendor_id: leg.vendorId,
       user_id: userId,
