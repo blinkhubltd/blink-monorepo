@@ -4,8 +4,9 @@ import "../global.css";
 // before any screen renders, which is why it is here and not in a screen.
 import "../lib/flashlist-interop";
 
-import { useEffect } from "react";
-import { Stack } from "expo-router";
+import { useEffect, useRef } from "react";
+import { router, Stack, useRootNavigationState } from "expo-router";
+import { useAuth } from "@clerk/clerk-expo";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
@@ -55,6 +56,11 @@ import {
 } from "../lib/paystack-config";
 import { useInstallAttribution } from "../lib/use-install-attribution";
 import { applyStoredTheme } from "../lib/theme-preference";
+import { hasSeenOnboarding } from "../lib/onboarding";
+import {
+  clearRememberSession,
+  shouldRememberSession,
+} from "../lib/auth/remember-session";
 
 /**
  * Renders nothing. Exists only because `useInstallAttribution` needs
@@ -64,6 +70,64 @@ import { applyStoredTheme } from "../lib/theme-preference";
  */
 function InstallAttribution() {
   useInstallAttribution();
+  return null;
+}
+
+/**
+ * First launch shows the onboarding carousel, once.
+ *
+ * A push rather than a different initial route: the catalogue stays mounted
+ * underneath, so dismissing onboarding — by finishing it, or by the Android
+ * back gesture — lands on a screen that is already there rather than one that
+ * has to boot. That also keeps the "no route's job is to redirect you
+ * elsewhere" property this layout's own comment is about; this is an overlay
+ * on first run, not a gate on every run.
+ *
+ * The read is synchronous (see `lib/storage.ts`), so the decision is made on
+ * the first frame rather than after a visible beat of catalogue.
+ *
+ * `useRootNavigationState().key` is the readiness guard, and it is load-bearing
+ * rather than defensive: this component is a sibling of the `<Stack>` below, so
+ * its effect can run before the root navigator has registered, and navigating
+ * then throws "Attempted to navigate before mounting the Root Layout
+ * component" — on first launch only, which is the one launch nobody re-tests.
+ */
+function FirstRun() {
+  const navigationState = useRootNavigationState();
+  const acted = useRef(false);
+
+  useEffect(() => {
+    if (!navigationState?.key || acted.current) return;
+    acted.current = true;
+    if (!hasSeenOnboarding()) router.push("/onboarding");
+  }, [navigationState?.key]);
+
+  return null;
+}
+
+/**
+ * Honours an unchecked "Remember me" from the last session.
+ *
+ * Clerk's Expo SDK persists a session unconditionally, so this is the half
+ * that makes the checkbox mean what it says — on a cold start, and only on a
+ * cold start. See `lib/auth/remember-session.ts` for why backgrounding is
+ * deliberately not treated as leaving.
+ */
+function RememberSessionGuard() {
+  const { isLoaded, isSignedIn, signOut } = useAuth();
+  const acted = useRef(false);
+
+  useEffect(() => {
+    if (!isLoaded || acted.current) return;
+    acted.current = true;
+    if (isSignedIn && !shouldRememberSession()) {
+      // Cleared first: if the sign-out itself fails, the next launch should
+      // not keep trying to end a session the customer has gone on using.
+      clearRememberSession();
+      void signOut();
+    }
+  }, [isLoaded, isSignedIn, signOut]);
+
   return null;
 }
 
@@ -179,6 +243,8 @@ export default function RootLayout() {
               >
                 <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
                 <InstallAttribution />
+                <RememberSessionGuard />
+                <FirstRun />
                 {/*
               headerShown off for the whole app; screens render their own
               headers. The catalogue's collapsing headers cannot be expressed as
@@ -187,6 +253,17 @@ export default function RootLayout() {
             */}
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" />
+                  {/*
+                    First launch only, pushed over the catalogue by `FirstRun`
+                    above. `fade` rather than a slide: it is not somewhere you
+                    navigated to, it is the app introducing itself, and a
+                    push animation would imply a back button that the design
+                    deliberately does not have.
+                  */}
+                  <Stack.Screen
+                    name="onboarding"
+                    options={{ animation: "fade", gestureEnabled: false }}
+                  />
                   {/*
                     A bottom sheet (via @gorhom/bottom-sheet inside the
                     screen), not a pushed page — `transparentModal` is what

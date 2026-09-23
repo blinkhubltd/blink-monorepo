@@ -220,4 +220,17 @@ export const StorageKeys = {
    * flashing the default and correcting itself a frame later.
    */
   theme: "shop:theme:v1",
+  /**
+   * Whether the onboarding carousel has been shown. Set the moment it is left
+   * — by "Get started", by "Sign in", or by the back gesture — so the three
+   * photos are a first-launch event rather than a toll on every open.
+   */
+  onboardingSeen: "shop:onboardingSeen:v1",
+  /**
+   * The "Remember me" choice from the auth screens. "false" ends the session
+   * on the next cold start; anything else, including unset (which is every
+   * account signed in before this shipped), keeps it. See
+   * `lib/auth/remember-session.ts`.
+   */
+  rememberSession: "shop:rememberSession:v1",
 } as const;
