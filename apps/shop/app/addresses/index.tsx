@@ -166,7 +166,7 @@ export default function AddressBookScreen() {
                         {address.label}
                       </Text>
                       {address.is_default ? (
-                        <Badge variant="success" label="Default" />
+                        <Badge size="sm" variant="success" label="Default" />
                       ) : null}
                     </View>
                     <Text size="sm" variant="muted">
@@ -206,7 +206,7 @@ export default function AddressBookScreen() {
                     hitSlop={8}
                     className="size-control-sm items-center justify-center rounded-md active:opacity-70"
                   >
-                    <Icon name="trash-outline" size={18} tone="subtle" />
+                    <Icon name="trash-outline" size={18} tone="destructive" />
                   </Pressable>
                 </View>
               </View>
@@ -220,7 +220,6 @@ export default function AddressBookScreen() {
           full
           size="cta"
           label="Add an address"
-          icon={<Icon name="add" size={18} tone="onBrand" />}
           onPress={() => router.push("/addresses/new")}
         />
       </View>

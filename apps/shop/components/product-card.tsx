@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, View, type NativeSyntheticEvent, type NativeScrollEvent } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  View,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
+} from "react-native";
 import { Icon } from "./icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -145,9 +151,7 @@ export function ProductCard({
     e: NativeSyntheticEvent<NativeScrollEvent>,
   ) => {
     if (imageWidth === 0) return;
-    setActiveImage(
-      Math.round(e.nativeEvent.contentOffset.x / imageWidth),
-    );
+    setActiveImage(Math.round(e.nativeEvent.contentOffset.x / imageWidth));
   };
 
   useEffect(() => {
@@ -249,7 +253,7 @@ export function ProductCard({
                 : `Save ${product.name}`
             }
             hitSlop={6}
-            className="right-space-2 top-space-2 bg-card size-[34px] rounded-pill shadow-xs absolute items-center justify-center opacity-90 active:opacity-70"
+            className="right-space-2 top-space-2 bg-card rounded-pill absolute size-[34px] items-center justify-center opacity-90 shadow-xs active:opacity-70"
           >
             {/*
               A different glyph, not a `fill` prop: Ionicons has no fill, so
@@ -267,62 +271,54 @@ export function ProductCard({
               name={saved === true ? "heart" : "heart-outline"}
               size={17}
               tone={
-                saved === true ? "destructive" : saved === false ? "body" : "subtle"
+                saved === true
+                  ? "destructive"
+                  : saved === false
+                    ? "body"
+                    : "subtle"
               }
             />
           </Pressable>
         ) : null}
 
-        {/* At most one badge, by priority. */}
+        {/*
+          At most one badge, by priority — and nothing at all when the item is
+          out of stock, because the control in the opposite corner now says
+          so in as many words. Two "Out of stock" labels on a 170px card is
+          the same fact twice.
+        */}
         <View className="left-space-2 top-space-2 absolute">
-          {outOfStock ? (
-            <Badge variant="secondary" label="Out of stock" />
-          ) : lowStock ? (
+          {!outOfStock && lowStock ? (
             <Badge
+              size="sm"
               variant="warning"
               label={`Only ${product.quantity} left`}
-              className="px-space-2 py-0"
             />
           ) : null}
         </View>
 
         {/*
-          The brand's mark, bottom-LEFT — the one corner of the image not
-          already spoken for (stock badge top-left, save top-right, add
-          bottom-right), so it collides with nothing and costs no vertical
-          space in the card body.
-
-          Rendered only when the brand actually has a logo. A brand with none
-          gets nothing rather than an empty circle or its initials: an empty
-          plate on every card would read as a loading state that never
-          resolves, and the card already names the product.
-
-          `pointerEvents="none"` so it cannot swallow a tap meant for the
-          card. It is a mark, not a link — the way to a brand's page is the
-          home banner, and putting a second tap target inside a card whose
-          whole surface is already a button is how you get mis-taps.
-        */}
-        {showBrand && product.brand?.logoUrl ? (
-          <View
-            pointerEvents="none"
-            className="bottom-space-2 left-space-2 bg-card size-[28px] rounded-pill shadow-xs absolute items-center justify-center overflow-hidden opacity-95"
-          >
-            <OptimizedImage
-              source={{ uri: product.brand.logoUrl }}
-              contentFit="contain"
-              className="size-[22px] rounded-none bg-transparent"
-              accessibilityLabel={product.brand.name}
-              accessibilityIgnoresInvertColors
-            />
-          </View>
-        ) : null}
-
-        {/*
           The add control lives HERE — over the image, never in the price row.
           Collapsed it is a 34px circle; expanded it is a stepper of the same
           height, still inside the image bounds, so nothing below it moves.
+
+          Out of stock, the same corner carries the reason instead of an add
+          button that would do nothing. It is a statement, not a control: no
+          `Pressable`, since there is nothing to press. The card itself stays
+          tappable, because an out-of-stock product is still worth opening —
+          the detail screen is where the pack size, the price and the rest of
+          it live.
         */}
-        {!outOfStock ? (
+        {outOfStock ? (
+          <View className="bottom-space-2 right-space-2 absolute">
+            <Badge
+              size="sm"
+              variant="warning"
+              label="Out of stock"
+              icon={<Icon name="alert-circle" size={12} tone="warning" />}
+            />
+          </View>
+        ) : (
           <View className="bottom-space-2 right-space-2 absolute">
             {showStepper ? (
               <View className="h-control-sm gap-space-1 rounded-pill bg-primary px-space-1 flex-row items-center">
@@ -367,7 +363,7 @@ export function ProductCard({
               </Pressable>
             )}
           </View>
-        ) : null}
+        )}
       </View>
 
       <View className="gap-space-1 p-space-3">
@@ -380,8 +376,10 @@ export function ProductCard({
             {gallery.map((_, index) => (
               <View
                 key={index}
-                className={`h-[4px] rounded-pill ${
-                  index === activeImage ? "w-[10px] bg-strong" : "w-[4px] bg-border"
+                className={`rounded-pill h-[4px] ${
+                  index === activeImage
+                    ? "bg-strong w-[10px]"
+                    : "bg-border w-[4px]"
                 }`}
               />
             ))}
@@ -400,9 +398,39 @@ export function ProductCard({
         >
           {product.name}
         </Text>
-        <Text size="caption" variant="subtle" numberOfLines={1}>
-          {unit ?? " "}
-        </Text>
+        {/*
+          The brand's mark sits here, among the product's own details, rather
+          than overlaid on the image where it used to be. On the image it was
+          one of four things competing for the four corners and it read as a
+          control, which it is not — it is a detail about the product, and
+          this is the line the other details are on.
+
+          Rendered only when the brand actually has a logo. A brand with none
+          gets nothing rather than an empty circle or its initials: an empty
+          plate on every card would read as a loading state that never
+          resolves, and the card already names the product.
+        */}
+        <View className="gap-space-2 flex-row items-center">
+          {showBrand && product.brand?.logoUrl ? (
+            <View className="border-hairline border-border bg-card rounded-pill size-[18px] items-center justify-center overflow-hidden">
+              <OptimizedImage
+                source={{ uri: product.brand.logoUrl }}
+                contentFit="contain"
+                className="size-[13px] rounded-none bg-transparent"
+                accessibilityLabel={product.brand.name}
+                accessibilityIgnoresInvertColors
+              />
+            </View>
+          ) : null}
+          <Text
+            size="caption"
+            variant="subtle"
+            numberOfLines={1}
+            className="flex-1"
+          >
+            {unit ?? " "}
+          </Text>
+        </View>
 
         {/* The inviolate row. Price is always here, basket or no basket. */}
         <View className="gap-space-2 flex-row items-center justify-between">

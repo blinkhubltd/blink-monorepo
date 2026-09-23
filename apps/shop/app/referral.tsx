@@ -8,7 +8,7 @@ import { api } from "@repo/backend";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
-import { Input } from "@repo/mobile-ui/components/ui/input";
+import { Input } from "../components/form-field";
 
 import { ScreenHeader } from "../components/screen-header";
 import { SectionCard } from "../components/checkout/sections";

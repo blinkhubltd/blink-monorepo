@@ -103,10 +103,11 @@ export default function ProfileScreen() {
 
   if (!isSignedIn) {
     return (
-      <SafeAreaView edges={["top"]} className="bg-background flex-1">
+      <SafeAreaView edges={["left", "right"]} className="bg-background flex-1">
         <BrandHeader
           title="Profile"
           titleSize="h2"
+          fillStatusBar
           sweep
           showCart={false}
           showBack={false}
@@ -146,11 +147,12 @@ export default function ProfileScreen() {
             .join(" · ");
 
   return (
-    <SafeAreaView edges={["top"]} className="bg-background flex-1">
+    <SafeAreaView edges={["left", "right"]} className="bg-background flex-1">
       <BrandHeader
         title="Profile"
         titleSize="h2"
         inlineTitle
+        fillStatusBar
         sweep
         showBack={false}
         right={

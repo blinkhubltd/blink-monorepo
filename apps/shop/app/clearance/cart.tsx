@@ -257,7 +257,7 @@ export default function ClearanceCartScreen() {
                     hitSlop={8}
                     className="gap-space-1 pt-space-1 flex-row items-center active:opacity-70"
                   >
-                    <Icon name="trash-outline" size={14} tone="subtle" />
+                    <Icon name="trash-outline" size={14} tone="destructive" />
                     <Text size="caption" variant="subtle">
                       Remove
                     </Text>

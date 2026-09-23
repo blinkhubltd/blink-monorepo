@@ -15,8 +15,7 @@ import { Icon } from "../../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
-import { Input } from "@repo/mobile-ui/components/ui/input";
-import { Label } from "@repo/mobile-ui/components/ui/label";
+import { Input, Label } from "../../components/form-field";
 import { Switch } from "@repo/mobile-ui/components/ui/switch";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";

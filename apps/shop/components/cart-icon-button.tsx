@@ -40,8 +40,8 @@ export function CartIconButton({ plain = false }: { plain?: boolean }) {
           style={{
             right: -4,
             top: -4,
-            minWidth: 16,
-            height: 16,
+            minWidth: 14,
+            height: 14,
             paddingHorizontal: count > 9 ? 4 : 0,
           }}
         >
@@ -58,7 +58,7 @@ export function CartIconButton({ plain = false }: { plain?: boolean }) {
           <Text
             weight="bold"
             className="text-destructive-foreground"
-            style={{ fontSize: 10, lineHeight: 12 }}
+            style={{ fontSize: 9, lineHeight: 12 }}
           >
             {count > 99 ? "99+" : count}
           </Text>

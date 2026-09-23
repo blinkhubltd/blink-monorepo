@@ -79,13 +79,13 @@ export default function CategoriesScreen() {
   const [scrolling, setScrolling] = useState(false);
 
   return (
-    <SafeAreaView edges={["top"]} className="bg-background flex-1">
+    <SafeAreaView edges={["left", "right"]} className="bg-background flex-1">
       {/*
         No `sweep`: the rounded bottom now belongs to the banner block below,
         which scrolls. At rest the two are one continuous yellow shape; once
         scrolled, the band is what remains.
       */}
-      <BrandHeader showLocation showSearchButton logoRow />
+      <BrandHeader showLocation showSearchButton logoRow fillStatusBar />
 
       {tree.loading ? (
         // The banner does not wait for the catalogue — it is its own query,

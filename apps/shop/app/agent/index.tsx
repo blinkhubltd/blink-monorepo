@@ -13,7 +13,7 @@ import * as Sharing from "expo-sharing";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
-import { Input } from "@repo/mobile-ui/components/ui/input";
+import { Input } from "../../components/form-field";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 

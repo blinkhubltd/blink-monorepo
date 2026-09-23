@@ -8,6 +8,7 @@ import type {
   AttemptSecondFactorParams,
   SignInFirstFactor,
   SignInResource,
+  SignInSecondFactor,
   SignUpResource,
 } from "@clerk/types";
 import {
@@ -97,8 +98,39 @@ function rejectsNameParams(error: unknown): boolean {
   );
 }
 
+/**
+ * Sends the code for the second factor Clerk actually offered, addressed to
+ * the email or phone it named. Property 2 again: the strategy comes from the
+ * attempt, never from here.
+ */
+function prepareSecondFactor(
+  signIn: SignInResource,
+  factor: SignInSecondFactor,
+): Promise<SignInResource> {
+  if (factor.strategy === "email_code") {
+    return signIn.prepareSecondFactor({
+      strategy: "email_code",
+      emailAddressId: factor.emailAddressId,
+    });
+  }
+  if (factor.strategy === "phone_code") {
+    return signIn.prepareSecondFactor({
+      strategy: "phone_code",
+      phoneNumberId: factor.phoneNumberId,
+    });
+  }
+  // TOTP and backup codes are not sent; nothing to prepare.
+  return Promise.resolve(signIn);
+}
+
 interface State {
   step: AuthStep;
+  /**
+   * Which verification the code step answers. Not derivable from the strategy:
+   * an emailed code is a FIRST factor on a passwordless instance and a SECOND
+   * factor for Clerk's new-device check after a correct password.
+   */
+  factor: "first" | "second";
   name: string;
   email: string;
   password: string;
@@ -118,6 +150,7 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
 
   const [state, setState] = useState<State>({
     step: "form",
+    factor: "first",
     name: "",
     email: "",
     password: "",
@@ -165,9 +198,7 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
 
   /** The session exists. Record the "remember me" choice and get out of the way. */
   const finish = useCallback(
-    async (
-      activate: () => Promise<void>,
-    ): Promise<void> => {
+    async (activate: () => Promise<void>): Promise<void> => {
       setRememberSession(state.remember);
       await activate();
       patch({ busy: false });
@@ -185,15 +216,26 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
       }
 
       if (attempt.status === "needs_second_factor") {
-        const strategy =
-          attempt.supportedSecondFactors?.[0]?.strategy ?? "totp";
-        const prompt = describeSecondFactor(strategy);
-        if (prompt.resendable && signIn) {
-          await signIn.prepareSecondFactor({ strategy: "phone_code" });
+        // On this instance no MFA is configured, so the second factor Clerk
+        // asks for here is its new-device check ("Client Trust"): an emailed
+        // code. Hard-coding "phone_code" is what produced "phone_code does not
+        // match one of the allowed values for parameter strategy".
+        const factor = attempt.supportedSecondFactors?.[0];
+        const described = describeSecondFactor(factor?.strategy ?? "totp");
+        const prompt =
+          described.strategy === "email_code"
+            ? {
+                ...described,
+                helper: `We sent a 6-digit code to ${normaliseEmail(state.email)}.`,
+              }
+            : described;
+        if (prompt.resendable && factor) {
+          await prepareSecondFactor(attempt, factor);
         }
         submittedFor.current = null;
         patch({
           step: "code",
+          factor: "second",
           prompt,
           code: "",
           busy: false,
@@ -209,8 +251,7 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
         const factors = (attempt.supportedFirstFactors ??
           []) as SignInFirstFactor[];
         const emailFactor = factors.find((f) => f.strategy === "email_code") as
-          | Extract<SignInFirstFactor, { strategy: "email_code" }>
-          | undefined;
+          Extract<SignInFirstFactor, { strategy: "email_code" }> | undefined;
 
         if (emailFactor && signIn) {
           await signIn.prepareFirstFactor({
@@ -220,6 +261,7 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
           submittedFor.current = null;
           patch({
             step: "code",
+            factor: "first",
             prompt: {
               strategy: "email_code",
               title: "Check your email",
@@ -385,7 +427,7 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
 
         if (!signIn) return;
         const attempt =
-          state.prompt && state.prompt.strategy !== "email_code"
+          state.factor === "second" && state.prompt
             ? await signIn.attemptSecondFactor({
                 // Property 2: passed through, never cast.
                 strategy: state.prompt.strategy,
@@ -403,6 +445,7 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
     },
     [
       state.code,
+      state.factor,
       state.prompt,
       mode,
       signIn,
@@ -422,20 +465,22 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
         await signUp?.prepareEmailAddressVerification({
           strategy: "email_code",
         });
+      } else if (state.factor === "second" && signIn) {
+        const factor = signIn.supportedSecondFactors?.find(
+          (f) => f.strategy === state.prompt?.strategy,
+        );
+        if (factor) await prepareSecondFactor(signIn, factor);
       } else if (state.prompt?.strategy === "email_code" && signIn) {
         const factors = (signIn.supportedFirstFactors ??
           []) as SignInFirstFactor[];
         const emailFactor = factors.find((f) => f.strategy === "email_code") as
-          | Extract<SignInFirstFactor, { strategy: "email_code" }>
-          | undefined;
+          Extract<SignInFirstFactor, { strategy: "email_code" }> | undefined;
         if (emailFactor) {
           await signIn.prepareFirstFactor({
             strategy: "email_code",
             emailAddressId: emailFactor.emailAddressId,
           });
         }
-      } else if (signIn) {
-        await signIn.prepareSecondFactor({ strategy: "phone_code" });
       }
       submittedFor.current = null;
       patch({
@@ -447,7 +492,16 @@ export function useEmailPasswordAuth(mode: AuthMode, onDone: () => void) {
     } catch (err) {
       fail(err, "Could not send another code just yet.");
     }
-  }, [state.resendIn, state.prompt, mode, signIn, signUp, patch, fail]);
+  }, [
+    state.resendIn,
+    state.factor,
+    state.prompt,
+    mode,
+    signIn,
+    signUp,
+    patch,
+    fail,
+  ]);
 
   /** Back to the form from the code step, keeping what was typed. */
   const restart = useCallback(() => {

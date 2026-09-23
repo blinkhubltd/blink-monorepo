@@ -245,7 +245,7 @@ export default function NotificationsScreen() {
                     accessibilityLabel={`Remove ${item.title}`}
                     hitSlop={8}
                   >
-                    <Icon name="trash-outline" size={16} tone="subtle" />
+                    <Icon name="trash-outline" size={16} tone="destructive" />
                   </Pressable>
                 )}
               </Pressable>

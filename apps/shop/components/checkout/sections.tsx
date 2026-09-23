@@ -64,8 +64,17 @@ export function SectionCard({
 }
 
 /**
- * The checkout design's field: 1.5px border, 14px radius, 13/14px padding. No
- * fixed height and no wrapper, so the placeholder is the same size as the text.
+ * Checkout's field.
+ *
+ * It was the checkout design's own — 1.5px border, 14px radius, no fixed
+ * height — and is now the app's capsule, because every other form in the shop
+ * is. See the shape rules in the className below, and the spec itself in
+ * `components/form-field.tsx`.
+ *
+ * Still a bare `TextInput` rather than that file's `Input`: this one has no
+ * label and no error line of its own (the checkout sections draw both), and
+ * passing `className` straight through to the input is what lets `PhoneField`
+ * put it in a flex row beside the dialling code.
  */
 export function FieldInput({
   multiline,
@@ -78,8 +87,21 @@ export function FieldInput({
       placeholderTextColor={colors.subtle}
       multiline={multiline}
       textAlignVertical={multiline ? "top" : "center"}
-      className={`border-border bg-card text-foreground rounded-[14px] border-[1.5px] px-[14px] py-[13px] font-sans ${
-        multiline ? "min-h-[96px] text-[14px] leading-[21px]" : "text-[16px]"
+      /*
+        Single-line fields carry the app's capsule — same 52px, same 18px
+        gutter, same 15px text as `components/form-field.tsx`, which is where
+        that spec is written down and explained.
+
+        Multiline deliberately does NOT. A 999px radius on a 96px-tall box is
+        a stadium, not a field: the corners eat the first and last line of
+        what is typed into them. "Full-rounded inputs" is a statement about
+        the field shape this app uses, and a notes box is the one control
+        that shape does not describe, so it keeps the 14px card radius.
+      */
+      className={`bg-card text-foreground font-sans ${
+        multiline
+          ? "border-border min-h-[96px] rounded-[14px] border-[1.5px] px-[14px] py-[13px] text-[14px] leading-[21px]"
+          : "border-ink-200 h-control-lg text-body rounded-pill border px-[18px]"
       } ${className}`}
       {...props}
     />
@@ -117,7 +139,10 @@ export function PhoneField({
           accessibilityRole="button"
           accessibilityLabel={`Country code, ${selected.name} ${selected.code}`}
           accessibilityState={{ expanded: picking }}
-          className="border-border bg-card flex-row items-center gap-[6px] rounded-[14px] border-[1.5px] px-[12px] py-[13px] active:opacity-70"
+          // Matches the capsule beside it: same height, same radius, same
+          // border weight. A 14px-radius box next to a pill reads as two
+          // different controls rather than one field split in two.
+          className="border-ink-200 bg-card h-control-lg rounded-pill flex-row items-center gap-[6px] border px-[14px] active:opacity-70"
         >
           <RNText className="text-[15px]">{selected.flag}</RNText>
           <RNText className="text-foreground font-sans text-[15px] leading-[20px]">

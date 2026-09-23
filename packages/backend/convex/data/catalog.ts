@@ -5,6 +5,7 @@ import { haversineMetres } from "../lib/geo";
 import { breadcrumbOf, depthOf, indexById } from "../lib/category_tree";
 import { resolveLeafCategoryIds } from "../lib/catalog_scope";
 import { VENDOR_SERVICE_RADIUS_LIMIT_KEY } from "./platform_settings";
+import { productTags } from "../validators";
 
 /**
  * The customer catalogue — category tree and product listings for `apps/shop`.
@@ -84,9 +85,7 @@ function vendorOrigin(vendor: Doc<"vendors">) {
 async function readRadiusLimit(ctx: QueryCtx): Promise<number | null> {
   const row = await ctx.db
     .query("platform_settings")
-    .withIndex("by_key", (q) =>
-      q.eq("key", VENDOR_SERVICE_RADIUS_LIMIT_KEY),
-    )
+    .withIndex("by_key", (q) => q.eq("key", VENDOR_SERVICE_RADIUS_LIMIT_KEY))
     .first();
   if (!row) return null;
   const parsed = Number.parseFloat(row.value);
@@ -199,9 +198,7 @@ async function resolveBrands(
     }),
   );
 
-  return new Map(
-    entries.filter((e): e is NonNullable<typeof e> => e !== null),
-  );
+  return new Map(entries.filter((e): e is NonNullable<typeof e> => e !== null));
 }
 
 /**
@@ -263,6 +260,13 @@ export const productsInCategoryTreeByCoverage = query({
     lat: v.float64(),
     lng: v.float64(),
     l3CategoryId: v.optional(v.id("categories")),
+    /**
+     * One of `productTags` — "Featured", "Offer", "Hot". Narrows the listing
+     * to products carrying it. Validated against the same source the admin
+     * writes through, so a tag that is not a real one is rejected at the edge
+     * rather than quietly matching nothing.
+     */
+    tag: v.optional(v.union(...productTags.map((t) => v.literal(t)))),
     limit: v.optional(v.number()),
     offset: v.optional(v.number()),
     includeImages: v.optional(v.boolean()),
@@ -296,6 +300,7 @@ export const productsInCategoryTreeByCoverage = query({
         total: 0,
         totalIsExact: true,
         leafCategoryIds: leafIds,
+        availableTags: [],
         vendorCount: 0,
         coverageEmpty: true,
       };
@@ -310,7 +315,7 @@ export const productsInCategoryTreeByCoverage = query({
 
     // ── 3. Products: indexed per leaf, capped, never collected. ──
     const perLeafCap = Math.min(offset + limit + 1, MAX_PER_LEAF);
-    const matched: Array<Doc<"products">> = [];
+    let matched: Array<Doc<"products">> = [];
     let scanned = 0;
     let truncated = false;
 
@@ -341,6 +346,30 @@ export const productsInCategoryTreeByCoverage = query({
         if (!distanceByVendor.has(row.vendor_id)) continue;
         matched.push(row);
       }
+    }
+
+    // ── 3b. Which tags this category actually has, then the tag filter. ──
+    //
+    // Counted BEFORE filtering, so selecting a tag does not make the other
+    // tags' pills vanish — a filter row that empties itself as you use it
+    // leaves no way back except the browser's.
+    //
+    // These counts describe what was scanned, not the whole category: the
+    // per-leaf cap above is a real bound, and `truncated` already says the
+    // reading is partial. A pill is a "there is something here" signal, and
+    // that much is true whenever the count is above zero.
+    const tagCounts: Record<string, number> = {};
+    for (const row of matched) {
+      for (const tag of row.tags ?? []) {
+        tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
+      }
+    }
+    const availableTags = productTags
+      .filter((tag) => (tagCounts[tag] ?? 0) > 0)
+      .map((tag) => ({ tag, count: tagCounts[tag]! }));
+
+    if (args.tag) {
+      matched = matched.filter((row) => (row.tags ?? []).includes(args.tag!));
     }
 
     // ── 4. Deterministic order. ──
@@ -406,6 +435,7 @@ export const productsInCategoryTreeByCoverage = query({
       total: offset === 0 ? matched.length : null,
       totalIsExact: !truncated,
       leafCategoryIds: leafIds,
+      availableTags,
       vendorCount: covering.length,
       coverageEmpty: false,
     };
@@ -550,34 +580,42 @@ export const productsByIds = query({
   handler: async (ctx, args) => {
     const ids = args.ids.slice(0, MAX_BY_IDS);
     const rows = await Promise.all(ids.map((id) => ctx.db.get(id)));
+    const found = rows.filter((r): r is Doc<"products"> => !!r);
+    // One read per distinct brand across the whole set, not per product — the
+    // same helper the category listing uses, for the same reason.
+    const brands = await resolveBrands(ctx, found);
 
     return Promise.all(
-      rows
-        .filter((r): r is Doc<"products"> => !!r)
-        .map(async (product) => {
-          const images = await Promise.all(
-            (product.images ?? []).map((id) => ctx.storage.getUrl(id)),
-          );
-          return {
-            _id: product._id,
-            name: product.name,
-            slug: product.slug,
-            price: product.price,
-            quantity: product.quantity,
-            status: product.status,
-            unit_value: product.unit_value,
-            unit_type: product.unit_type,
-            requires_prescription: product.requires_prescription ?? false,
-            category_id: product.category_id,
-            vendor_id: product.vendor_id,
-            imageUrl: images.find((u): u is string => !!u) ?? null,
-            images: images.filter((u): u is string => !!u),
-            // Purchasability is decided here rather than in the client, so the
-            // cart screen and the checkout gate cannot disagree about whether a
-            // line is orderable.
-            isPurchasable: product.status === "Active" && product.quantity > 0,
-          };
-        }),
+      found.map(async (product) => {
+        const images = await Promise.all(
+          (product.images ?? []).map((id) => ctx.storage.getUrl(id)),
+        );
+        return {
+          _id: product._id,
+          name: product.name,
+          slug: product.slug,
+          price: product.price,
+          quantity: product.quantity,
+          status: product.status,
+          unit_value: product.unit_value,
+          unit_type: product.unit_type,
+          requires_prescription: product.requires_prescription ?? false,
+          category_id: product.category_id,
+          vendor_id: product.vendor_id,
+          imageUrl: images.find((u): u is string => !!u) ?? null,
+          images: images.filter((u): u is string => !!u),
+          // The wishlist renders the same card as the catalogue, and a card
+          // with no brand where the grid shows one reads as a different,
+          // lesser product rather than the same one saved.
+          brand: product.brand_id
+            ? (brands.get(product.brand_id) ?? null)
+            : null,
+          // Purchasability is decided here rather than in the client, so the
+          // cart screen and the checkout gate cannot disagree about whether a
+          // line is orderable.
+          isPurchasable: product.status === "Active" && product.quantity > 0,
+        };
+      }),
     );
   },
 });
@@ -646,7 +684,10 @@ export const searchProductsByCoverage = query({
   },
   handler: async (ctx, args) => {
     const term = args.term.trim();
-    const limit = Math.min(Math.max(args.limit ?? SEARCH_LIMIT, 1), SEARCH_LIMIT);
+    const limit = Math.min(
+      Math.max(args.limit ?? SEARCH_LIMIT, 1),
+      SEARCH_LIMIT,
+    );
 
     const empty = {
       products: [] as SearchResult[],

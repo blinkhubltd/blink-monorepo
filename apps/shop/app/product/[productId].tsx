@@ -98,6 +98,8 @@ export default function ProductDetailScreen() {
   const cart = useCart();
   const wishlist = useWishlist();
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  /** The pinned footer's real height, so the scroll can clear it. See its use. */
+  const [footerHeight, setFooterHeight] = useState(0);
   const colors = useTokenColors();
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["92%"], []);
@@ -128,9 +130,7 @@ export default function ProductDetailScreen() {
   const sellable = product
     ? product.status === "Active" && product.quantity > 0
     : false;
-  const inBasket = product
-    ? cart.quantityOf(product._id as Id<"products">)
-    : 0;
+  const inBasket = product ? cart.quantityOf(product._id as Id<"products">) : 0;
   const images = product
     ? (product.images ?? []).filter(
         (u): u is string => typeof u === "string" && u.length > 0,
@@ -186,13 +186,31 @@ export default function ProductDetailScreen() {
             onPress={handleClose}
             accessibilityRole="button"
             accessibilityLabel="Close"
-            className="size-control-sm rounded-pill bg-gray-200 items-center justify-center active:opacity-80"
+            className="size-control-sm rounded-pill items-center justify-center bg-gray-200 active:opacity-80"
           >
             <Icon name="close" size={18} tone="neutralIcon" />
           </Pressable>
         </View>
 
-        <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 44 }}>
+        {/*
+          Padded by the footer's own measured height, not a constant.
+
+          The constant here was 44, and the pinned footer is taller than that
+          — a 48px control inside 12px of padding and a border, plus whatever
+          the device's bottom inset adds. The difference was simply hidden
+          underneath the bar: it clipped the bottom of the related-product
+          cards, and with the description expanded it pushed the whole
+          related rail into that dead zone, where it could not be scrolled
+          into view at all and so looked like it had not rendered.
+
+          Measuring is the fix rather than a bigger constant, because the
+          footer's height is not a constant: it changes with the safe-area
+          inset and with whether the basket control or the add button is in
+          it. `|| 96` covers the first frame, before the footer has laid out.
+        */}
+        <BottomSheetScrollView
+          contentContainerStyle={{ paddingBottom: (footerHeight || 96) + 24 }}
+        >
           <View className="gap-space-1 px-screen pb-space-3">
             {product.vendor ? (
               <Text
@@ -271,7 +289,7 @@ export default function ProductDetailScreen() {
               accessibilityRole="button"
               accessibilityLabel="Share this product"
               hitSlop={8}
-              className="right-space-4 top-space-4 bg-gray-200 size-control rounded-pill absolute items-center justify-center opacity-90 active:opacity-70"
+              className="right-space-4 top-space-4 size-control rounded-pill absolute items-center justify-center bg-gray-200 opacity-90 active:opacity-70"
             >
               <Icon name="share-social-outline" size={20} tone="neutralIcon" />
             </Pressable>
@@ -283,8 +301,10 @@ export default function ProductDetailScreen() {
               {images.map((_, index) => (
                 <View
                   key={index}
-                  className={`h-[4px] rounded-pill ${
-                    index === activeImage ? "w-[10px] bg-strong" : "w-[4px] bg-border"
+                  className={`rounded-pill h-[4px] ${
+                    index === activeImage
+                      ? "bg-strong w-[10px]"
+                      : "bg-border w-[4px]"
                   }`}
                 />
               ))}
@@ -303,7 +323,11 @@ export default function ProductDetailScreen() {
           <View className="gap-space-5 px-screen pt-space-5">
             <View className="gap-space-1">
               <View className="gap-space-2 flex-row flex-wrap items-center">
-                <Text size="priceLg" weight="bold" style={{ color: colors.strong }}>
+                <Text
+                  size="priceLg"
+                  weight="bold"
+                  style={{ color: colors.strong }}
+                >
                   {formatKES(product.price)}
                 </Text>
                 {product.hasDiscount ? (
@@ -358,8 +382,8 @@ export default function ProductDetailScreen() {
                   This item needs a valid prescription
                 </Text>
                 <Text size="sm">
-                  You will be asked to upload one at checkout before it can
-                  be dispatched.
+                  You will be asked to upload one at checkout before it can be
+                  dispatched.
                 </Text>
               </View>
             ) : null}
@@ -477,9 +501,7 @@ export default function ProductDetailScreen() {
                             // without bound.
                             router.replace(`/product/${item._id}`)
                           }
-                          onAdd={() =>
-                            cart.add(item._id as Id<"products">, 1)
-                          }
+                          onAdd={() => cart.add(item._id as Id<"products">, 1)}
                           onIncrement={() =>
                             cart.increment(item._id as Id<"products">)
                           }
@@ -510,22 +532,37 @@ export default function ProductDetailScreen() {
         */}
         <View
           className="border-hairline px-screen py-space-4 flex-row items-center"
+          onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}
           style={{
             backgroundColor: colors.card,
             borderTopColor: colors.border,
           }}
         >
           {!sellable ? (
-            <Button size="cta" full disabled label="Unavailable" />
+            /*
+              Not a disabled button. A greyed-out control says "you may not do
+              this" and leaves the customer to work out why; this says which
+              of the two reasons it is. Same pill geometry as the `cta` Button
+              so the bar does not change shape, in the warning surface rather
+              than the brand one — it is a state, not something to press.
+            */
+            <View className="gap-space-2 bg-warning-soft h-12 flex-1 flex-row items-center justify-center rounded-[999px]">
+              <Icon name="alert-circle" size={18} tone="warning" />
+              <Text
+                size="base"
+                weight="semibold"
+                className="text-warning-foreground"
+              >
+                {product.quantity <= 0 ? "Out of stock" : "Unavailable"}
+              </Text>
+            </View>
           ) : inBasket > 0 ? (
             // Same pill geometry as the "cta" Button size (h-12,
             // rounded-[999px]) so the control does not change shape when it
             // toggles between this and the plain Add button below.
-            <View className="h-12 gap-space-3 bg-primary px-space-3 flex-1 flex-row items-center justify-between rounded-[999px]">
+            <View className="gap-space-3 bg-primary px-space-3 h-12 flex-1 flex-row items-center justify-between rounded-[999px]">
               <Pressable
-                onPress={() =>
-                  cart.decrement(product._id as Id<"products">)
-                }
+                onPress={() => cart.decrement(product._id as Id<"products">)}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove one ${product.name}`}
                 hitSlop={8}
@@ -537,9 +574,7 @@ export default function ProductDetailScreen() {
                 {inBasket} in basket · {formatKES(product.price * inBasket)}
               </Text>
               <Pressable
-                onPress={() =>
-                  cart.increment(product._id as Id<"products">)
-                }
+                onPress={() => cart.increment(product._id as Id<"products">)}
                 accessibilityRole="button"
                 accessibilityLabel={`Add another ${product.name}`}
                 hitSlop={8}

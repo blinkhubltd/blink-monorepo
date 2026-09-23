@@ -676,8 +676,10 @@ five `stock_reservation.*` mutations were unauthenticated. Closed in three
 commits (money/document surfaces, admin catalogue CRUD, picker/rider
 operational modules) — see the PR for the full breakdown.
 **Google and Apple sign-in are built.** Facebook was never asked for, and
-stays dropped. `lib/auth/use-social-sign-in.ts` uses Clerk's current `useSSO`
-(the old app used the now-deprecated `useOAuth`), one call for both providers.
+stays dropped. `lib/auth/use-social-sign-in.ts` runs Clerk's SSO sequence itself
+(not `useSSO`, which lost the callback to an Android race — see its header),
+one call for both providers. The callback is `<scheme>://sso-callback`, which
+`app/+native-intent.ts` keeps expo-router from navigating on.
 **Cannot be verified without Clerk dashboard access this repo does not have**
 — see §5's checklist: both providers need real OAuth credentials configured as
 SSO connections, and the native redirect URI needs to be an allowed redirect

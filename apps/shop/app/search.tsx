@@ -6,7 +6,7 @@ import type { Id } from "@repo/backend/dataModel";
 import { Icon } from "../components/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
-import { Input } from "@repo/mobile-ui/components/ui/input";
+import { Input } from "../components/form-field";
 
 import { useCart } from "../providers/CartProvider";
 import { useLocation } from "../providers/LocationProvider";

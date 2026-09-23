@@ -3,12 +3,21 @@ import { View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useQuery } from "convex/react";
+import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 
 import { useCategoryFromSlugs } from "../../../../../lib/catalogue";
-import { usePagedProducts } from "../../../../../lib/use-paged-products";
+import {
+  usePagedProducts,
+  type ProductTag,
+} from "../../../../../lib/use-paged-products";
+import { TagPillRow } from "../../../../../components/tag-pills";
+
+/** The tags a product can carry, for validating `?tag=` off the URL. */
+const PRODUCT_TAGS: ProductTag[] = ["Featured", "Offer", "Hot"];
 import { useLocation } from "../../../../../providers/LocationProvider";
 import { useCart } from "../../../../../providers/CartProvider";
 import {
@@ -22,10 +31,7 @@ import {
 import { ScreenHeader } from "../../../../../components/screen-header";
 import { CartIconButton } from "../../../../../components/cart-icon-button";
 import { useWishlist } from "../../../../../lib/use-wishlist";
-import {
-  SaveError,
-  SavePrompt,
-} from "../../../../../components/save-prompt";
+import { SaveError, SavePrompt } from "../../../../../components/save-prompt";
 import {
   CoverageEmptyState,
   NeedsLocationState,
@@ -57,10 +63,11 @@ import {
  * restore, which is the entire refresh-to-home bug.
  */
 export default function ProductsScreen() {
-  const { l1Slug, l2Slug, t } = useLocalSearchParams<{
+  const { l1Slug, l2Slug, t, tag } = useLocalSearchParams<{
     l1Slug: string;
     l2Slug: string;
     t?: string;
+    tag?: string;
   }>();
 
   const { loading, notFound, tree, level1, level2 } = useCategoryFromSlugs(
@@ -74,11 +81,26 @@ export default function ProductsScreen() {
   const pills = level2 ? tree.pillsFor(level2._id) : [];
   const activeL3 = t ? (pills.find((p) => p.slug === t) ?? null) : null;
 
+  // Validated rather than cast: `?tag=` is user-editable, and a value that is
+  // not a real tag must fall back to "no filter" rather than reach the query
+  // — the backend would reject it, taking the whole grid down with it.
+  const activeTag = PRODUCT_TAGS.find((candidate) => candidate === tag);
+
   const products = usePagedProducts({
     categoryId: level2?._id ?? null,
     l3CategoryId: activeL3?._id,
+    tag: activeTag,
     point,
   });
+
+  // Presence only — one row is enough to know whether to offer the pill, and
+  // the deals themselves live on their own screen.
+  const clearanceHere = useQuery(
+    api.data.clearance_products.getActiveByCoverage,
+    level2 && point
+      ? { lat: point.lat, lng: point.lng, category_id: level2._id, limit: 1 }
+      : "skip",
+  );
 
   const selectLevel2 = useCallback(
     (slug: string) => {
@@ -93,6 +115,12 @@ export default function ProductsScreen() {
     // setParams mutates the URL in place — no history entry, but a reload still
     // restores the filter.
     router.setParams({ t: slug });
+  }, []);
+
+  // Same mechanism as the level-3 row, for the same reason: a filter that a
+  // reload forgets is the refresh bug this screen was built to end.
+  const selectTag = useCallback((next: ProductTag | undefined) => {
+    router.setParams({ tag: next });
   }, []);
 
   // ── Guard order matters. `loading` first, always. ──
@@ -142,6 +170,18 @@ export default function ProductsScreen() {
           categories={pills}
           activeSlug={activeL3?.slug}
           onSelect={selectLevel3}
+        />
+        {/*
+          Below the category rows, not above: the tree says where you are, and
+          this narrows what you find there. It renders nothing at all in a
+          category with no tagged products and no deals.
+        */}
+        <TagPillRow
+          facets={products.availableTags}
+          activeTag={activeTag}
+          onSelectTag={selectTag}
+          showClearance={(clearanceHere?.products.length ?? 0) > 0}
+          onOpenClearance={() => router.push("/clearance")}
         />
       </View>
 

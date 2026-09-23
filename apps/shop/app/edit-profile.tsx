@@ -16,8 +16,7 @@ import { api } from "@repo/backend";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Button } from "@repo/mobile-ui/components/ui/button";
-import { Input } from "@repo/mobile-ui/components/ui/input";
-import { Label } from "@repo/mobile-ui/components/ui/label";
+import { Input, Label } from "../components/form-field";
 import { OptimizedImage } from "@repo/mobile-ui/components/ui/optimized-image";
 
 import { ScreenHeader } from "../components/screen-header";
