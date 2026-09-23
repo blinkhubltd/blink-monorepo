@@ -16,6 +16,7 @@ import { ScreenHeader } from "../../components/screen-header";
 import { formatKES } from "../../lib/format";
 import {
   ORDER_STAGE_FILTERS,
+  STAGE_FILTER_CHIP,
   STAGE_PILL,
   isLive,
   matchesStageFilter,
@@ -161,10 +162,15 @@ function OrderCard({ order }: { order: OrderRow }) {
         </RNText>
       </View>
 
+      {/*
+        No shop name here — which vendor fulfilled an order is a Blink detail,
+        not a customer-facing one. The item preview already identified the
+        order well enough that the heading it displaced was mostly redundant.
+      */}
       <Pressable
         onPress={() => router.push(`/order/${order._id}`)}
         accessibilityRole="button"
-        accessibilityLabel={`${order.vendorName ?? "Order"}, ${stage}. Open order`}
+        accessibilityLabel={`${order.previewNames.join(", ")}, ${stage}. Open order`}
         className="flex-row items-center gap-[8px] active:opacity-70"
       >
         <View className="min-w-0 flex-1 gap-[2px]">
@@ -172,14 +178,14 @@ function OrderCard({ order }: { order: OrderRow }) {
             className="text-foreground text-[15px] leading-[22px] font-semibold"
             numberOfLines={1}
           >
-            {order.vendorName ?? "Order"}
+            {order.previewNames.join(", ")}
+            {extra > 0 ? ` +${extra} more` : ""}
           </RNText>
           <RNText
             className="text-muted-foreground font-sans text-[13px] leading-[19px]"
             numberOfLines={1}
           >
-            {order.previewNames.join(", ")}
-            {extra > 0 ? ` +${extra} more` : ""}
+            {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
           </RNText>
         </View>
         <Icon name="chevron-forward" size={18} tone="body" />
@@ -206,28 +212,39 @@ function OrderCard({ order }: { order: OrderRow }) {
   );
 }
 
-/** A filter pill: ink when selected, outlined when not. */
+/**
+ * A filter pill: ink when "All" is selected, its stage's own colour
+ * otherwise — soft when unselected, solid when selected. See
+ * `STAGE_FILTER_CHIP` for why "All" alone keeps the plain ink treatment.
+ */
 function FilterChip({
   label,
   active,
   onPress,
 }: {
-  label: string;
+  label: OrderStageFilter;
   active: boolean;
   onPress: () => void;
 }) {
+  const chip = label === "All" ? null : STAGE_FILTER_CHIP[label];
+  const tone = chip ? (active ? chip.active : chip.inactive) : null;
+
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ selected: active }}
       className={`rounded-[999px] border-[1.5px] px-[16px] py-[8px] active:opacity-80 ${
-        active ? "border-inverse bg-inverse" : "border-border bg-transparent"
+        tone
+          ? `${tone.border} ${tone.bg}`
+          : active
+            ? "border-inverse bg-inverse"
+            : "border-border bg-transparent"
       }`}
     >
       <RNText
         className={`text-[13px] leading-[17px] font-semibold ${
-          active ? "text-inverse-foreground" : "text-foreground"
+          tone ? tone.fg : active ? "text-inverse-foreground" : "text-foreground"
         }`}
       >
         {label}

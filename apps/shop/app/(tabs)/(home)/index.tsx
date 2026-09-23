@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,8 +8,6 @@ import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
 } from "react-native-reanimated";
-import { Icon } from "../../../components/icon";
-
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { useCategoryTree } from "../../../lib/catalogue";
 import {
@@ -18,6 +16,7 @@ import {
 } from "../../../components/category-card";
 import { BrandHeader } from "../../../components/brand-header";
 import { BannerCarousel } from "../../../components/banner-carousel";
+import { ClearanceEntryCard } from "../../../components/clearance-entry-card";
 
 /**
  * The first screen: top-level categories.
@@ -142,30 +141,12 @@ export default function CategoriesScreen() {
 
                 Above the first category card, not below the last: clearance
                 is time-sensitive stock, and a side door worth noticing before
-                someone has already scrolled past it. `mb-space-4` stands in
-                for `ItemSeparatorComponent`, which only renders BETWEEN items
-                in `data` — nothing places a gap between the header and the
-                first card on its own.
+                someone has already scrolled past it. Its own `mb-space-4`
+                stands in for `ItemSeparatorComponent`, which only renders
+                BETWEEN items in `data` — nothing places a gap between the
+                header and the first card on its own.
               */}
-              <Pressable
-                onPress={() => router.push("/clearance")}
-                accessibilityRole="button"
-                accessibilityLabel="Clearance deals"
-                className="border-hairline border-border bg-card mb-space-4 gap-space-3 p-space-4 flex-row items-center rounded-lg active:opacity-90"
-              >
-                <View className="bg-primary size-control rounded-pill items-center justify-center">
-                  <Icon name="pricetag-outline" size={20} tone="onBrand" />
-                </View>
-                <View className="gap-space-1 flex-1">
-                  <Text size="base" weight="semibold">
-                    Clearance deals
-                  </Text>
-                  <Text size="caption" variant="subtle">
-                    Short-dated stock at a discount
-                  </Text>
-                </View>
-                <Icon name="chevron-forward" size={18} tone="subtle" />
-              </Pressable>
+              <ClearanceEntryCard />
             </>
           }
           renderItem={({ item }) => (

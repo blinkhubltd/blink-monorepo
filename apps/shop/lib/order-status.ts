@@ -183,3 +183,64 @@ export const STAGE_PILL = {
   Cancelled: { bg: "bg-destructive-soft", fg: "text-destructive" },
   Refunded: { bg: "bg-muted", fg: "text-foreground" },
 } satisfies Record<OrderStage, { bg: string; fg: string }>;
+
+/**
+ * The order list's filter chips, per stage — every stage but "All", which
+ * stays the plain ink/outline treatment because it has no status colour of
+ * its own to carry.
+ *
+ * Not `STAGE_PILL` reused as-is: a chip needs an UNSELECTED look too, and a
+ * pill's single soft colour read as identical to every other stage's chip
+ * before it was picked — which is the bug report, "all black and white",
+ * restated. Unselected borrows the pill's own soft background and tinted
+ * text, so the colour is visible before a tap; selected inverts to the solid
+ * colour so the active chip reads at a glance.
+ */
+export const STAGE_FILTER_CHIP = {
+  Confirmed: {
+    active: { bg: "bg-info", border: "border-info", fg: "text-info-foreground" },
+    inactive: { bg: "bg-info-soft", border: "border-info-soft", fg: "text-info" },
+  },
+  Preparing: {
+    active: {
+      bg: "bg-warning",
+      border: "border-warning",
+      fg: "text-warning-foreground",
+    },
+    inactive: {
+      bg: "bg-warning-soft",
+      border: "border-warning-soft",
+      fg: "text-blink-700",
+    },
+  },
+  "On the way": {
+    active: {
+      bg: "bg-warning",
+      border: "border-warning",
+      fg: "text-warning-foreground",
+    },
+    inactive: {
+      bg: "bg-warning-soft",
+      border: "border-warning-soft",
+      fg: "text-blink-700",
+    },
+  },
+  Delivered: {
+    active: {
+      bg: "bg-success",
+      border: "border-success",
+      fg: "text-success-foreground",
+    },
+    inactive: {
+      bg: "bg-success-soft",
+      border: "border-success-soft",
+      fg: "text-success",
+    },
+  },
+} satisfies Record<
+  Exclude<OrderStage, "Cancelled" | "Refunded">,
+  {
+    active: { bg: string; border: string; fg: string };
+    inactive: { bg: string; border: string; fg: string };
+  }
+>;

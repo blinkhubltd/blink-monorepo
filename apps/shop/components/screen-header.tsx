@@ -62,11 +62,7 @@ export function ScreenHeader({
         >
           <Icon name="chevron-back" size={18} tone="neutralIcon" />
         </Pressable>
-      ) : (
-        // A spacer, so a root screen's title still starts at the same inset
-        // a pushed screen's does, rather than jumping left with no back chip.
-        <View className="size-control-sm" />
-      )}
+      ) : null}
 
       <View className="gap-space-1 flex-1 shrink">
         {eyebrow ? (
@@ -97,8 +93,16 @@ export function ScreenHeader({
           </RNText>
         ) : null}
         <View className="gap-space-3 flex-row items-baseline justify-between">
+          {/*
+            h3 on a pushed screen, where the back chip already carries visual
+            weight and a title beside it reads as a label. A root/tab screen
+            (Wishlist, Orders — no back chip at all) has nothing else in the
+            header to anchor it, so the same size reads small for what is
+            meant to be the screen's own name; h2 matches the size Profile's
+            BrandHeader already uses for the same "root screen title" role.
+          */}
           <Text
-            size="h3"
+            size={showBack ? "h3" : "h2"}
             weight="bold"
             numberOfLines={1}
             className="text-strong shrink"

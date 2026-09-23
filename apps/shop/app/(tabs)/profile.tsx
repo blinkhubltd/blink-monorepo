@@ -236,11 +236,11 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <MenuSection title="Your shopping">
+        <MenuSection title="My shopping">
           <MenuRow
             first
             icon="cube-outline"
-            label="Your orders"
+            label="My orders"
             meta={
               orders && orders.length > 0
                 ? "Track and reorder"
@@ -262,7 +262,7 @@ export default function ProfileScreen() {
           />
           <MenuRow
             icon="heart-outline"
-            label="Wishlist"
+            label="My wishlist"
             meta={
               savedCount === null
                 ? undefined
@@ -371,20 +371,16 @@ export default function ProfileScreen() {
         </Pressable>
 
         {/*
-          The version, and the role when there is one. The design shows only
-          the version; the role line is kept because it is what staff and
-          support read back when an account behaves unexpectedly, and it
-          costs one muted line on a screen nobody scrolls to twice.
+          Just the version, matching the design. The "Signed in as {role}"
+          line this used to carry was an internal/staff detail — a customer's
+          own account role is not something they think of themselves as
+          having, and it read as a stray debug line on a screen otherwise
+          free of any.
         */}
         <View className="gap-space-1">
           <Text size="caption" variant="subtle">
             Blink v{Constants.expoConfig?.version ?? "—"}
           </Text>
-          {access && "roleName" in access && access.roleName ? (
-            <Text size="caption" variant="subtle">
-              Signed in as {access.roleName}
-            </Text>
-          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
