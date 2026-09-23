@@ -140,7 +140,6 @@ export default function TrackOrderScreen() {
         {order ? (
           <OrderDetails
             reference={order.reference}
-            vendorName={order.vendor?.name ?? "Your order"}
             total={order.total_amount}
             items={order.items.map((i) => `${i.quantity}× ${i.name}`)}
             place={
@@ -243,14 +242,12 @@ function JourneyStep({
 /** The order, folded away until asked for. */
 function OrderDetails({
   reference,
-  vendorName,
   total,
   items,
   place,
   onOpen,
 }: {
   reference: string;
-  vendorName: string;
   total: number;
   items: string[];
   place: string | null;
@@ -291,11 +288,12 @@ function OrderDetails({
             </RNText>
           </View>
           <View className="flex-row justify-between gap-[12px]">
+            {/* No vendor name — which shop fulfilled this is a Blink detail. */}
             <RNText
               numberOfLines={1}
               className="text-foreground shrink font-sans text-[15px] leading-[22px]"
             >
-              {vendorName}
+              Your order
             </RNText>
             <RNText className="text-foreground font-sans text-[15px] leading-[22px]">
               {formatKES(total)}

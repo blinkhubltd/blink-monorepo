@@ -192,19 +192,11 @@ export default function ClearanceDealScreen() {
             </>
           ) : null}
 
-          {deal.vendor ? (
-            <>
-              <Separator />
-              <View className="gap-space-1">
-                <Text size="caption" variant="eyebrow">
-                  Sold by
-                </Text>
-                <Text size="sm" weight="medium">
-                  {deal.vendor.name}
-                </Text>
-              </View>
-            </>
-          ) : null}
+          {/*
+            No "Sold by" block: which shop stocks a deal is a Blink detail,
+            not a customer-facing one — the same rule the order screens
+            follow.
+          */}
 
           {error ? (
             <View className="bg-destructive-soft p-space-3 rounded-md">

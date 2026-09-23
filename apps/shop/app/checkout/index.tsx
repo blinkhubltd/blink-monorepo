@@ -214,15 +214,6 @@ export default function CheckoutScreen() {
       : "skip",
   );
 
-  // Names only - every other vendor query returns commission, radius and bank
-  // details, which have no business on a customer device.
-  const vendorNames = useQuery(
-    api.data.vendors.getVendorNames,
-    vendorsNeedingRx.length > 0
-      ? { ids: vendorsNeedingRx as Id<"vendors">[] }
-      : "skip",
-  );
-
   const prescriptionStatus = prescriptionGate({
     vendorsNeeding: vendorsNeedingRx,
     // `undefined` from a skipped or in-flight query is "not answered yet", and
@@ -473,15 +464,21 @@ export default function CheckoutScreen() {
           <PhoneSection stored={myPhone} />
 
           <PrescriptionUploadSection
-            vendors={vendorsNeedingRx.map((vendorId) => {
+            vendors={vendorsNeedingRx.map((vendorId, index) => {
               const row = prescriptionRows?.find(
                 (candidate) => candidate.vendorId === vendorId,
               );
               return {
                 vendorId: vendorId as Id<"vendors">,
+                // Positional, not the vendor's registered name — that is a
+                // Blink detail, not a customer-facing one. A basket rarely
+                // splits across more than two shops needing paperwork, so
+                // "Shop 1" / "Shop 2" is enough to tell the upload rows apart
+                // without naming who is behind either of them.
                 name:
-                  vendorNames?.find((v) => v._id === vendorId)?.name ??
-                  "This shop",
+                  vendorsNeedingRx.length > 1
+                    ? `Shop ${index + 1}`
+                    : "This shop",
                 status: row?.status ?? null,
                 rejectionReasonId: row?.rejectionReasonId ?? null,
               };

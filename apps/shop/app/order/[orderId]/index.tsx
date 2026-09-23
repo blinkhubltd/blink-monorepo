@@ -91,11 +91,12 @@ export default function OrderScreen() {
 
   return (
     <SafeAreaView edges={["top"]} className="bg-card flex-1">
-      <ScreenHeader
-        eyebrow="Order"
-        code={order.reference}
-        title={order.vendor?.name ?? "Your order"}
-      />
+      {/*
+        Never the vendor's name: which shop fulfilled an order is a Blink
+        detail, and `code` (the reference) already identifies it precisely
+        enough for a support conversation.
+      */}
+      <ScreenHeader eyebrow="Order" code={order.reference} title="Your order" />
 
       <ScrollView
         className="bg-muted flex-1"
