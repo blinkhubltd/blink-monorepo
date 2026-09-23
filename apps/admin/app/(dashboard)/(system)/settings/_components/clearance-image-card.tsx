@@ -12,6 +12,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
+import { CLEARANCE_CARD_IMAGE_KEY } from "@repo/lib/utils";
 
 import { Button } from "@repo/ui/components/ui/button";
 import { Skeleton } from "@repo/ui/components/ui/skeleton";
@@ -19,7 +20,7 @@ import { toast } from "sonner";
 import { getConvexErrorMessage } from "@/lib/utils";
 import { PlainSection } from "./settings-ui";
 
-const KEY = "clearance_card_image";
+const KEY = CLEARANCE_CARD_IMAGE_KEY;
 const MAX_BYTES = 5 * 1024 * 1024;
 
 /**

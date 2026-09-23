@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { UserAdd01Icon } from "@hugeicons/core-free-icons";
 import { StaffTable } from "@/components/staff/StaffTable";
+import { InviteUserDialog } from "@/components/staff/InviteUserDialog";
 import { User, UsersPagination } from "@/components/users/types";
 import {
   Card,
@@ -10,12 +13,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/ui/card";
+import { Button } from "@repo/ui/components/ui/button";
 import { toast } from "sonner";
 import { getConvexErrorMessage } from "@/lib/utils";
 import { api } from "@repo/backend";
 import { useQuery, useMutation } from "convex/react";
 
 export default function StaffPage() {
+  const [inviteOpen, setInviteOpen] = useState(false);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -134,7 +140,13 @@ export default function StaffPage() {
             Manage staff roles and permissions across the platform
           </p>
         </div>
+        <Button onClick={() => setInviteOpen(true)}>
+          <HugeiconsIcon icon={UserAdd01Icon} className="w-4 h-4 mr-2" />
+          Invite
+        </Button>
       </div>
+
+      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

@@ -1,13 +1,13 @@
-import { Pressable, View } from "react-native";
+import { useState } from "react";
+import { View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { remapProps } from "nativewind";
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
 } from "react-native-reanimated";
-import { Icon } from "../../../components/icon";
-
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { useCategoryTree } from "../../../lib/catalogue";
 import {
@@ -15,6 +15,8 @@ import {
   CategoryCardSkeleton,
 } from "../../../components/category-card";
 import { BrandHeader } from "../../../components/brand-header";
+import { BannerCarousel } from "../../../components/banner-carousel";
+import { ClearanceEntryCard } from "../../../components/clearance-entry-card";
 
 /**
  * The first screen: top-level categories.
@@ -56,47 +58,96 @@ const AnimatedFlashList = Animated.createAnimatedComponent(
   FlashList,
 ) as unknown as typeof FlashList;
 
+// NativeWind keys its registrations by component IDENTITY, and the animated
+// wrapper is a different component from the FlashList registered in
+// `lib/flashlist-interop.ts`. Without this line THIS screen alone would go
+// back to dropping `contentContainerClassName` on the floor.
+remapProps(AnimatedFlashList, {
+  className: "style",
+  contentContainerClassName: "contentContainerStyle",
+});
+
 export default function CategoriesScreen() {
   const tree = useCategoryTree();
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
   });
+  // Two renders per scroll gesture, which is what it costs to tell the
+  // carousel to stop advancing itself while the page is moving. Its own
+  // touch handler only sees touches on the carousel, so it cannot know.
+  const [scrolling, setScrolling] = useState(false);
 
   return (
     <SafeAreaView edges={["top"]} className="bg-background flex-1">
-      <BrandHeader
-        showLocation
-        showSearchButton
-        sweep
-        logoRow
-        banners
-        scrollY={scrollY}
-      />
+      {/*
+        No `sweep`: the rounded bottom now belongs to the banner block below,
+        which scrolls. At rest the two are one continuous yellow shape; once
+        scrolled, the band is what remains.
+      */}
+      <BrandHeader showLocation showSearchButton logoRow />
 
       {tree.loading ? (
-        <CategoryListSkeleton />
+        // The banner does not wait for the catalogue — it is its own query,
+        // and this branch renders instead of the list rather than inside it.
+        // No bleed wrapper here: nothing is padding it.
+        <>
+          <BannerCarousel />
+          <CategoryListSkeleton />
+        </>
       ) : (
         <AnimatedFlashList
           onScroll={onScroll}
+          onScrollBeginDrag={() => setScrolling(true)}
+          onScrollEndDrag={() => setScrolling(false)}
+          onMomentumScrollEnd={() => setScrolling(false)}
           scrollEventThrottle={16}
+          // Nothing here needs its content anchored, and leaving it on lets
+          // FlashList correct the scroll offset in response to a layout
+          // change — one half of the feedback loop the banner used to sit in.
+          maintainVisibleContentPosition={{ disabled: true }}
           data={tree.level1}
           keyExtractor={(item) => item._id}
           contentContainerClassName="px-screen pb-space-8"
           ItemSeparatorComponent={() => <View className="h-space-4" />}
           ListHeaderComponent={
-            <View className="pb-space-6 pt-space-6">
-              <Text variant="heading" size="h2">
-                What are you shopping for today?
-              </Text>
-              <Text
-                variant="muted"
-                size="base"
-                className="mt-space-2"
-              >
-                Choose a category to get started
-              </Text>
-            </View>
+            <>
+              {/*
+                The banner is content, not chrome — but it is also the bottom
+                of the yellow header, so its background has to reach both
+                screen edges while everything else on this list stays on the
+                16px gutter. The block cancels the content container's own
+                padding with `-mx-screen`; see the note on its wrapper.
+              */}
+              <BannerCarousel scrollY={scrollY} paused={scrolling} />
+              <View className="pb-space-6 pt-space-6">
+                <Text variant="heading" size="h2">
+                  What are you shopping for today?
+                </Text>
+                <Text
+                  variant="muted"
+                  size="base"
+                  className="mt-space-2"
+                >
+                  Choose a category to get started
+                </Text>
+              </View>
+
+              {/*
+                The way into clearance. It is a separate catalogue with its own
+                stock, expiry and delivery rule, so it gets an entry point
+                rather than being mixed into the category grid where its
+                prices would look like ordinary ones.
+
+                Above the first category card, not below the last: clearance
+                is time-sensitive stock, and a side door worth noticing before
+                someone has already scrolled past it. Its own `mb-space-4`
+                stands in for `ItemSeparatorComponent`, which only renders
+                BETWEEN items in `data` — nothing places a gap between the
+                header and the first card on its own.
+              */}
+              <ClearanceEntryCard />
+            </>
           }
           renderItem={({ item }) => (
             <CategoryCard
@@ -104,38 +155,6 @@ export default function CategoriesScreen() {
               onPress={() => router.push(`/c/${item.slug}`)}
             />
           )}
-          ListFooterComponent={
-            /*
-              The way into clearance. It is a separate catalogue with its own
-              stock, expiry and delivery rule, so it gets an entry point rather
-              than being mixed into the category grid where its prices would
-              look like ordinary ones.
-
-              Moved here from above the categories: the design has nothing
-              between the subtitle and the first card, and clearance is a
-              side door, not the main flow — the footer is where a side door
-              belongs once the primary path (the categories) has priority.
-            */
-            <Pressable
-              onPress={() => router.push("/clearance")}
-              accessibilityRole="button"
-              accessibilityLabel="Clearance deals"
-              className="border-hairline border-border bg-card mt-space-4 gap-space-3 p-space-4 flex-row items-center rounded-lg active:opacity-90"
-            >
-              <View className="bg-primary size-control rounded-pill items-center justify-center">
-                <Icon name="pricetag-outline" size={20} tone="onBrand" />
-              </View>
-              <View className="gap-space-1 flex-1">
-                <Text size="base" weight="semibold">
-                  Clearance deals
-                </Text>
-                <Text size="caption" variant="subtle">
-                  Short-dated stock at a discount
-                </Text>
-              </View>
-              <Icon name="chevron-forward" size={18} tone="subtle" />
-            </Pressable>
-          }
           ListEmptyComponent={
             // Reachable only once the tree has RESOLVED and is genuinely empty.
             // Conflating that with the loading state is what puts "nothing here"

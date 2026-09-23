@@ -28,7 +28,13 @@
  * accident.
  */
 
-import { describeSupportLinkProblem } from "@repo/lib/utils";
+import {
+  describeSupportLinkProblem,
+  CLEARANCE_CARD_TITLE_KEY,
+  CLEARANCE_CARD_DETAIL_KEY,
+  CLEARANCE_CARD_DEFAULT_TITLE,
+  CLEARANCE_CARD_DEFAULT_DETAIL,
+} from "@repo/lib/utils";
 
 export type SettingKind = "integer" | "money" | "text";
 
@@ -204,6 +210,36 @@ export const settingGroups: SettingGroup[] = [
         validate: positiveInteger(1, 50),
         description:
           "Max orders per clearance batch; triggers immediate dispatch when reached",
+      },
+    ],
+  },
+  {
+    id: "clearance_card",
+    title: "Clearance card text",
+    blurb:
+      "The title and detail sentence on the clearance entry card on the app home screen, above the category list. Empty falls back to the defaults shown as placeholders — the card's image lives below, under Clearance card image.",
+    fields: [
+      {
+        key: CLEARANCE_CARD_TITLE_KEY,
+        label: "Title",
+        help: "Shown in bold on the card.",
+        kind: "text",
+        placeholder: CLEARANCE_CARD_DEFAULT_TITLE,
+        fromStored: identity,
+        toStored: (shown) => shown.trim(),
+        description:
+          "Title on the shop home screen's clearance entry card. Empty uses the built-in default.",
+      },
+      {
+        key: CLEARANCE_CARD_DETAIL_KEY,
+        label: "Detail sentence",
+        help: "The line under the title.",
+        kind: "text",
+        placeholder: CLEARANCE_CARD_DEFAULT_DETAIL,
+        fromStored: identity,
+        toStored: (shown) => shown.trim(),
+        description:
+          "Detail sentence on the shop home screen's clearance entry card. Empty uses the built-in default.",
       },
     ],
   },

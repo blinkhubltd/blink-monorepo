@@ -45,3 +45,13 @@ export {
   describeSupportLinkProblem,
   supportLinkForOrder,
 } from "./utils/support-link";
+
+export {
+  CLEARANCE_CARD_IMAGE_KEY,
+  CLEARANCE_CARD_TITLE_KEY,
+  CLEARANCE_CARD_DETAIL_KEY,
+  CLEARANCE_CARD_DEFAULT_TITLE,
+  CLEARANCE_CARD_DEFAULT_DETAIL,
+  clearanceCardTitle,
+  clearanceCardDetail,
+} from "./utils/clearance-card";

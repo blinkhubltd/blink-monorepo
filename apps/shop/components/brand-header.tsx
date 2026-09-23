@@ -1,7 +1,6 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import type { SharedValue } from "react-native-reanimated";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Icon } from "./icon";
@@ -9,7 +8,6 @@ import { CartIconButton } from "./cart-icon-button";
 import { SearchIconButton } from "./search-icon-button";
 import { Logo } from "./logo";
 import { DeliveryBadge } from "./delivery-badge";
-import { BannerCarousel } from "./banner-carousel";
 import { useAddressLabel } from "../lib/use-address-label";
 
 /**
@@ -76,8 +74,6 @@ export function BrandHeader({
   showSearchButton = false,
   showCart = true,
   logoRow = false,
-  banners = false,
-  scrollY,
   right,
   children,
   inlineTitle = false,
@@ -89,7 +85,14 @@ export function BrandHeader({
   /** Baseline-aligned beside the title — an item count, never both with `subtitle`. */
   meta?: string;
   titleSize?: "h1" | "h2" | "h3";
-  /** The rounded bottom sweep — Home only, the signature shape. */
+  /**
+   * The rounded bottom sweep — the signature shape.
+   *
+   * Off on Home, and deliberately: the banner rail sits directly below the
+   * band there and carries the sweep itself, so the two read as one yellow
+   * shape at rest. A rounded corner is transparent, so leaving it here would
+   * cut two notches of page background into that join.
+   */
   sweep?: boolean;
   showBack?: boolean;
   /** The delivery-location pill, in the left slot instead of a back button. Home only. */
@@ -99,20 +102,6 @@ export function BrandHeader({
   showCart?: boolean;
   /** The wordmark + delivery-time badge row, in place of the title block. Home only. */
   logoRow?: boolean;
-  /**
-   * The promo carousel, as the last row inside the yellow band. Home only.
-   *
-   * Inside the band rather than under it because the band is what gives the
-   * artwork a surface to sit on — on the page background the slides would
-   * read as the first row of content rather than as the header's own.
-   */
-  banners?: boolean;
-  /**
-   * The list's scroll offset, when the screen wants the carousel to collapse
-   * as the customer scrolls. Everything above it — the location pill, the
-   * wordmark and the delivery badge — stays put.
-   */
-  scrollY?: SharedValue<number>;
   /**
    * Replaces the default right-hand cluster (search, cart) on a screen whose
    * header control is something else — Profile puts Settings there.
@@ -262,8 +251,6 @@ export function BrandHeader({
 
         {children}
       </View>
-
-      {banners ? <BannerCarousel scrollY={scrollY} /> : null}
     </View>
   );
 }

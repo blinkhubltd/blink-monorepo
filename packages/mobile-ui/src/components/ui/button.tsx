@@ -34,6 +34,15 @@ const buttonVariants = cva(
         lg: "h-control-lg px-space-7",
         /** Pill CTA (48px, 24px gutters) — the checkout "Place order" shape. */
         cta: "h-12 rounded-[999px] px-space-6",
+        /**
+         * Tall pill (52px) — the auth flow's own CTA height.
+         *
+         * The sign-in handoff pins every control on those three screens to 52px
+         * and pill radius, deliberately: it is the one flow in the product
+         * where inputs, SSO buttons and the primary CTA are all the same
+         * capsule. Everywhere else keeps `cta`'s 48px.
+         */
+        ctaLg: "h-control-lg rounded-[999px] px-space-6",
         /** Small pill — "Save number" in the checkout design (8px/16px, 14px). */
         ctaSm: "h-10 rounded-[999px] px-space-5",
         icon: "h-control w-control px-0",
@@ -70,6 +79,7 @@ const buttonTextVariants = cva("font-semibold text-body", {
       sm: "text-body-sm",
       lg: "text-body-lg",
       cta: "text-[15px] font-semibold",
+      ctaLg: "text-[15px] font-semibold",
       ctaSm: "text-[13px]",
       icon: "",
       iconSm: "",

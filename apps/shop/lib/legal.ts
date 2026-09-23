@@ -11,28 +11,37 @@
  *
  * The website is the single copy. This module holds where it is.
  *
- * ── The base URL, and why there is no real fallback ───────────────────────
+ * ── The base URL, and the two different kinds of "no URL" ─────────────────
  *
- * `EXPO_PUBLIC_LEGAL_BASE_URL` overrides it, so staging can point at staging.
- * There used to be a hardcoded fallback of `https://blink.app` for when it was
- * unset — checked once, that domain redirects to `bl.ink`, an unrelated
- * company. A customer tapping "Terms" with no env var configured would have
- * been silently sent to a stranger's website, and `openExternal` would have
- * reported success, because the browser genuinely did open a page.
+ * `DEFAULT_BASE_URL` is the real site. It used to be `https://blink.app`,
+ * which — checked once — redirects to `bl.ink`, an unrelated company: a
+ * customer tapping "Terms" was silently sent to a stranger's website, and
+ * `openExternal` reported success because the browser genuinely did open a
+ * page. For a while after that there was no production site at all, so the
+ * default was a deliberately dead `.invalid` host and every link was gated.
+ * There is one now, so the default is real again.
  *
- * There is no real production site yet, so there is no real fallback to give.
- * `UNCONFIGURED_BASE_URL` is a placeholder built on the `.invalid` TLD — the
- * one reserved by RFC 2606 specifically to never resolve on the real internet
- * — so this constant can never again accidentally point at somebody else's
- * business. `isLegalConfigured` is the actual guard: callers check it BEFORE
- * attempting to open anything, rather than hoping the open fails. Opening a
- * `.invalid` URL still "succeeds" by `openExternal`'s own contract — the
- * browser tab launches — so relying on that path returning false would have
- * repeated the exact silent-wrong-destination bug this replaces.
+ * `EXPO_PUBLIC_LEGAL_BASE_URL` still overrides it, so staging can point at
+ * staging and a custom domain can replace the Vercel one without a release.
  *
- * The paths below must match the website's actual routes, once one exists.
- * They are asserted against nothing — no test can reach a site that does not
- * exist — so they are kept in one place where they can be fixed once.
+ * The two cases are kept apart on purpose:
+ *
+ *   - NOT SET (or blank, which is what an empty EAS variable gives) is the
+ *     ordinary case. It resolves to the real site.
+ *   - SET BUT REJECTED — `http://`, or a bare host — resolves to
+ *     `UNCONFIGURED_BASE_URL`, a `.invalid` host RFC 2606 reserves so it can
+ *     never resolve on the real internet. Someone configured this wrong, and
+ *     quietly serving production instead would hide exactly the
+ *     misconfiguration that needs to be visible.
+ *
+ * `isLegalConfigured` is what callers check BEFORE opening anything, because
+ * opening a `.invalid` URL still "succeeds" by `openExternal`'s contract —
+ * the browser tab launches — so waiting for the open to fail would repeat
+ * the original silent-wrong-destination bug.
+ *
+ * The paths below must match the website's actual routes. They are asserted
+ * against nothing — no test here can reach the site — so they are kept in one
+ * place where they can be fixed once.
  */
 
 export const LEGAL_DOCS = ["terms", "privacy", "eula"] as const;
@@ -51,47 +60,58 @@ interface LegalDocMeta {
 export const LEGAL_DOC_META = {
   terms: {
     title: "Terms of service",
-    path: "/legal/terms-of-service",
+    path: "/terms",
     versionKey: "terms_version",
   },
   privacy: {
     title: "Privacy policy",
-    path: "/legal/privacy-policy",
+    path: "/privacy-policy",
     versionKey: "privacy_version",
   },
   eula: {
-    title: "Licence terms",
-    path: "/legal/eula",
+    title: "EULA",
+    path: "/eula",
     versionKey: "eula_version",
   },
 } as const satisfies Record<LegalDoc, LegalDocMeta>;
 
 /**
- * Placeholder only. See the module comment — this is deliberately not a real
- * website, so a caller that forgets to check `isLegalConfigured` fails
- * obviously (a `.invalid` host in a URL bar) rather than plausibly (a real
- * page that just happens to belong to someone else).
+ * The live site, used when nothing overrides it.
+ *
+ * A Vercel project URL rather than a custom domain, which is what exists
+ * today. `EXPO_PUBLIC_LEGAL_BASE_URL` is how that gets replaced later without
+ * shipping a release.
+ */
+const DEFAULT_BASE_URL = "https://blink-web-rho.vercel.app";
+
+/**
+ * Where a REJECTED override lands — not where an absent one does.
+ *
+ * `.invalid` is the RFC 2606 TLD reserved to never resolve, so a bad
+ * configuration fails obviously (an impossible host in the URL bar, behind a
+ * guard that stops the tab opening at all) rather than plausibly.
  */
 const UNCONFIGURED_BASE_URL = "https://legal.blink.invalid";
 
 /**
  * Resolve the base URL.
  *
- * A trailing slash on the env var would otherwise produce `//legal/...`, which
- * some servers treat as a protocol-relative path and others 404. Trimmed rather
- * than trusted. An env var that is present but blank — which is what an EAS
- * variable defined with no value gives you — falls back rather than producing
- * a relative URL that `openURL` rejects.
+ * A trailing slash on the env var would otherwise produce `//terms`, which
+ * some servers treat as a protocol-relative path and others 404. Trimmed
+ * rather than trusted.
  */
 export function legalBaseUrl(
   override: string | undefined = process.env.EXPO_PUBLIC_LEGAL_BASE_URL,
 ): string {
   const trimmed = (override ?? "").trim().replace(/\/+$/, "");
-  if (!trimmed) return UNCONFIGURED_BASE_URL;
+  // Unset or blank — the ordinary case, including an EAS variable defined
+  // with no value. The real site, not a failure.
+  if (!trimmed) return DEFAULT_BASE_URL;
   if (!/^https:\/\//i.test(trimmed)) {
     // http:// is refused rather than upgraded: a legal document fetched over a
-    // connection anyone can rewrite is not evidence of anything, and silently
-    // upgrading hides a misconfiguration that should be visible.
+    // connection anyone can rewrite is not evidence of anything. It does not
+    // fall through to the default either — someone set this deliberately, and
+    // quietly ignoring them hides the misconfiguration.
     return UNCONFIGURED_BASE_URL;
   }
   return trimmed;

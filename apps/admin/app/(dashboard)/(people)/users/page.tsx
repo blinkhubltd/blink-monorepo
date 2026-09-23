@@ -55,6 +55,12 @@ export default function UsersPage() {
           search: debouncedSearchQuery.trim()
             ? debouncedSearchQuery
             : undefined,
+          // This is the "Customers" page in the nav (`/users`) — Staff has
+          // its own page and its own query (`getAllStaff`), and Riders,
+          // Agents and Vendors likewise. Without this the table showed every
+          // account on the platform, super admins included, under a heading
+          // that said "Customers".
+          role: "Customer",
         }
       : "skip",
   );
@@ -231,9 +237,11 @@ export default function UsersPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">User Management</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
           <p className="text-muted-foreground">
-            Manage users, assign roles, and control access across the platform
+            Customer accounts only. Promoting one to a role — rider, agent,
+            staff — moves it off this list; manage it from that role&apos;s
+            own page afterward.
           </p>
         </div>
         {isAdminUser && (
@@ -307,10 +315,10 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <CardTitle>All Customers</CardTitle>
           <CardDescription>
-            Manage user roles and permissions. Riders and pickers are managed in
-            their respective sections.
+            Change a role here to promote a customer. Riders and pickers are
+            managed in their own sections once promoted.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">

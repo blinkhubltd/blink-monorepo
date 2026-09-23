@@ -62,8 +62,11 @@ export function NoProductsState({
   categoryName: string;
   onChangeLocation: () => void;
 }) {
+  // No `px-screen` here, unlike its neighbours in this file: both callers
+  // render this as a FlashList `ListEmptyComponent`, and that content
+  // container now carries the screen gutter itself.
   return (
-    <View className="gap-space-4 px-screen py-space-10 items-center">
+    <View className="gap-space-4 py-space-10 items-center">
       <Icon name="cube-outline" size={40} tone="subtle" />
       <View className="gap-space-2">
         <Text size="lg" weight="semibold" className="text-center">

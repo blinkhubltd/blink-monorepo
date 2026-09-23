@@ -708,6 +708,20 @@ export const upsertUser = internalMutation({
     email: v.optional(v.string()),
     name: v.optional(v.string()),
     image: v.optional(v.string()),
+    /**
+     * The role an admin invitation asked for — read by the webhook out of
+     * Clerk's `public_metadata` on the new user, never out of anything the
+     * client can set. `public_metadata` is Backend-API-only: a self-signup
+     * cannot put a value there, only `invitations.createInvitation`
+     * (`user/invitations.ts`) can, so a name arriving here really did come
+     * from an admin's own invite.
+     *
+     * Applied ONLY on first creation, a few lines down — never on an update
+     * to an existing account. An update replaying old metadata (a stale
+     * webhook retry, Clerk resending an event) must never silently change a
+     * role someone may since have been demoted from or promoted past.
+     */
+    roleName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     console.log(`🔄 upsertUser webhook called:`, {
@@ -812,11 +826,21 @@ export const upsertUser = internalMutation({
         phone: "",
       });
 
-      // Assign the default role if one exists
-      const defaultRole = await ctx.db
-        .query("roles")
-        .withIndex("by_is_default", (q) => q.eq("is_default", true))
-        .first();
+      // An invited role wins over the default — someone who followed an
+      // admin's invite link is joining AS staff/agent/whatever the invite
+      // said, not as a customer who happens to also hold that role later.
+      // Falls through to the default (normally "Customer") when the name
+      // does not resolve, same as an ordinary self-signup.
+      const invitedRoleId = args.roleName
+        ? await getRoleIdByName(ctx, args.roleName)
+        : null;
+
+      const defaultRole = invitedRoleId
+        ? null
+        : await ctx.db
+            .query("roles")
+            .withIndex("by_is_default", (q) => q.eq("is_default", true))
+            .first();
 
       await ctx.db.insert("users", {
         clerkId: args.clerkId,
@@ -829,7 +853,7 @@ export const upsertUser = internalMutation({
         searchText,
         status: "Inactive",
         address: { address: "", lat: 0, lng: 0 },
-        role_id: defaultRole?._id,
+        role_id: invitedRoleId ?? defaultRole?._id,
         updated_at: Date.now(),
       });
 
@@ -862,21 +886,62 @@ export const getUsers = query({
     cursor: v.optional(v.union(v.string(), v.null())),
     search: v.optional(v.string()),
     status: v.optional(v.union(...recordStatus.map((e) => v.literal(e)))),
+    /**
+     * A role NAME ("Customer", "Rider", …), not a role id — every caller of
+     * this query knows roles by name (it is what the nav links and the page
+     * itself think in), so resolving it here keeps that lookup in one place
+     * rather than every caller doing its own `getRoleIdByName` round trip
+     * first. Case-insensitive, same as `getRoleIdByName` itself.
+     *
+     * Omitted, this returns every user regardless of role — which is what a
+     * platform-wide search still needs. The "Customers" page is the one
+     * caller that always passes `role: "Customer"`; without a role filter it
+     * showed staff and super admins in a table titled "Customers" because
+     * this query had no way to exclude them.
+     */
+    role: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const limit = Math.max(1, Math.min(200, args.limit));
     const search = args.search?.trim();
     const status = args.status;
 
+    const roleId = args.role
+      ? await getRoleIdByName(ctx, args.role)
+      : undefined;
+    // A role name that does not resolve must exclude everything, not fall
+    // back to unfiltered — otherwise the Customers page would start showing
+    // every user in the platform the moment that role was renamed or
+    // deleted, which is a worse failure than an empty table.
+    if (args.role && !roleId) {
+      return {
+        data: [],
+        pagination: {
+          limit,
+          total: 0,
+          totalPages: 1,
+          hasNext: false,
+          cursor: null,
+        },
+      };
+    }
+
     const buildListQuery = () => {
-      const base =
-        search && search.length > 0
-          ? ctx.db
-              .query("users")
-              .withSearchIndex("search_text", (q) =>
-                q.search("searchText", search),
-              )
-          : ctx.db.query("users");
+      if (search && search.length > 0) {
+        return ctx.db
+          .query("users")
+          .withSearchIndex("search_text", (q) => {
+            const sq = q.search("searchText", search);
+            const scoped = roleId ? sq.eq("role_id", roleId) : sq;
+            return status ? scoped.eq("status", status) : scoped;
+          });
+      }
+
+      const base = roleId
+        ? ctx.db
+            .query("users")
+            .withIndex("by_role_id", (q) => q.eq("role_id", roleId))
+        : ctx.db.query("users");
 
       if (status) {
         return base.filter((q) => q.eq(q.field("status"), status));

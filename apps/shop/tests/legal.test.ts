@@ -10,19 +10,16 @@ import {
 } from "../lib/legal";
 
 const UNCONFIGURED = "https://legal.blink.invalid";
+const DEFAULT = "https://blink-web-rho.vercel.app";
 
 describe("legalBaseUrl", () => {
-  it("falls back to the .invalid placeholder when nothing is configured", () => {
-    // Not a real fallback on purpose — https://blink.app used to be here and
-    // silently redirects to an unrelated company (bl.ink). `.invalid` is the
-    // RFC 2606 TLD reserved to never resolve on the real internet, so this
-    // constant can never again accidentally point at somebody else's business.
-    expect(legalBaseUrl(undefined)).toBe(UNCONFIGURED);
+  it("uses the live site when nothing overrides it", () => {
+    expect(legalBaseUrl(undefined)).toBe(DEFAULT);
   });
 
-  it("falls back on a blank value, which is what an empty EAS variable gives", () => {
-    expect(legalBaseUrl("")).toBe(UNCONFIGURED);
-    expect(legalBaseUrl("   ")).toBe(UNCONFIGURED);
+  it("uses it on a blank value too, which is what an empty EAS variable gives", () => {
+    expect(legalBaseUrl("")).toBe(DEFAULT);
+    expect(legalBaseUrl("   ")).toBe(DEFAULT);
   });
 
   it("strips trailing slashes so the joined path never doubles them", () => {
@@ -39,13 +36,21 @@ describe("legalBaseUrl", () => {
     // A bare host is not a URL openURL can use, so it must not be returned.
     expect(legalBaseUrl("blink.app")).toBe(UNCONFIGURED);
   });
+
+  it("does NOT fall through to the live site when an override is rejected", () => {
+    // The two failure modes are different: nothing configured is the ordinary
+    // case and gets production, but a value someone typed wrong must surface
+    // as wrong rather than quietly serving the right thing anyway.
+    expect(legalBaseUrl("http://blink.app")).not.toBe(DEFAULT);
+    expect(legalBaseUrl("blink.app")).not.toBe(DEFAULT);
+  });
 });
 
 describe("isLegalConfigured", () => {
-  it("is false with nothing configured", () => {
-    expect(isLegalConfigured(undefined)).toBe(false);
-    expect(isLegalConfigured("")).toBe(false);
-    expect(isLegalConfigured("   ")).toBe(false);
+  it("is true with nothing configured, because the default is a real site", () => {
+    expect(isLegalConfigured(undefined)).toBe(true);
+    expect(isLegalConfigured("")).toBe(true);
+    expect(isLegalConfigured("   ")).toBe(true);
   });
 
   it("is false for a rejected override — never claims 'configured' for a value legalBaseUrl discarded", () => {
@@ -61,16 +66,22 @@ describe("isLegalConfigured", () => {
 describe("legalUrl", () => {
   it("builds one slash between base and path", () => {
     expect(legalUrl("terms", "https://staging.blink.app/")).toBe(
-      "https://staging.blink.app/legal/terms-of-service",
+      "https://staging.blink.app/terms",
     );
   });
 
-  it("produces an absolute https URL for every document, even unconfigured", () => {
+  it("points each document at the route the website actually serves", () => {
+    expect(legalUrl("terms")).toBe(`${DEFAULT}/terms`);
+    expect(legalUrl("privacy")).toBe(`${DEFAULT}/privacy-policy`);
+    expect(legalUrl("eula")).toBe(`${DEFAULT}/eula`);
+  });
+
+  it("produces an absolute https URL for every document, even when rejected", () => {
     // legalUrl never throws — a caller that forgets to check
     // isLegalConfigured still gets a syntactically valid (if unreachable) URL,
     // rather than a crash mid-render.
     for (const doc of LEGAL_DOCS) {
-      expect(legalUrl(doc)).toMatch(/^https:\/\/[^/]+\/legal\/[a-z-]+$/);
+      expect(legalUrl(doc, "http://nope")).toMatch(/^https:\/\/[^/]+\/[a-z-]+$/);
     }
   });
 

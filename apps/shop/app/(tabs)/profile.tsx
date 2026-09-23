@@ -16,6 +16,7 @@ import { BrandHeader } from "../../components/brand-header";
 import { MenuRow, MenuSection } from "../../components/menu-list";
 import { useCart } from "../../providers/CartProvider";
 import { useAddressLabel } from "../../lib/use-address-label";
+import { initialsOf } from "../../lib/initials";
 import {
   LEGAL_DOC_META,
   isLegalConfigured,
@@ -235,11 +236,11 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <MenuSection title="Your shopping">
+        <MenuSection title="My shopping">
           <MenuRow
             first
             icon="cube-outline"
-            label="Your orders"
+            label="My orders"
             meta={
               orders && orders.length > 0
                 ? "Track and reorder"
@@ -248,8 +249,20 @@ export default function ProfileScreen() {
             onPress={() => router.push("/orders")}
           />
           <MenuRow
+            icon="basket-outline"
+            label="My cart"
+            meta={
+              cart.loading
+                ? undefined
+                : cart.count === 0
+                  ? "Nothing in it yet"
+                  : `${cart.count} ${cart.count === 1 ? "item" : "items"}`
+            }
+            onPress={() => router.push("/cart")}
+          />
+          <MenuRow
             icon="heart-outline"
-            label="Wishlist"
+            label="My wishlist"
             meta={
               savedCount === null
                 ? undefined
@@ -309,15 +322,22 @@ export default function ProfileScreen() {
             external
             icon="document-text-outline"
             label={LEGAL_DOC_META.terms.title}
-            meta="Opens the website"
+            meta="Review our terms of service"
             onPress={() => void openLegal("terms")}
           />
           <MenuRow
             external
             icon="shield-checkmark-outline"
             label={LEGAL_DOC_META.privacy.title}
-            meta="Opens the website"
+            meta="Review our privacy policy"
             onPress={() => void openLegal("privacy")}
+          />
+          <MenuRow
+            external
+            icon="reader-outline"
+            label={LEGAL_DOC_META.eula.title}
+            meta="Review our licence terms"
+            onPress={() => void openLegal("eula")}
           />
         </MenuSection>
 
@@ -351,20 +371,16 @@ export default function ProfileScreen() {
         </Pressable>
 
         {/*
-          The version, and the role when there is one. The design shows only
-          the version; the role line is kept because it is what staff and
-          support read back when an account behaves unexpectedly, and it
-          costs one muted line on a screen nobody scrolls to twice.
+          Just the version, matching the design. The "Signed in as {role}"
+          line this used to carry was an internal/staff detail — a customer's
+          own account role is not something they think of themselves as
+          having, and it read as a stray debug line on a screen otherwise
+          free of any.
         */}
         <View className="gap-space-1">
           <Text size="caption" variant="subtle">
             Blink v{Constants.expoConfig?.version ?? "—"}
           </Text>
-          {access && "roleName" in access && access.roleName ? (
-            <Text size="caption" variant="subtle">
-              Signed in as {access.roleName}
-            </Text>
-          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -395,19 +411,4 @@ function HeaderPill({
       <Icon name={icon} size={18} tone="onBrandPill" />
     </Pressable>
   );
-}
-
-/**
- * Up to two letters, from the name if there is one and the email if not.
- *
- * The email fallback takes the part before the `@`: an initial of "c" for
- * charles@… is at least their initial, where the whole address would not fit
- * and "?" says nothing.
- */
-function initialsOf(name: string, email: string): string {
-  const source = name.trim() || email.split("@")[0]?.trim() || "";
-  const words = source.split(/[\s._-]+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
-  return (words[0]![0]! + words[1]![0]!).toUpperCase();
 }

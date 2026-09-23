@@ -53,7 +53,23 @@ function useHomeBanners() {
 }
 
 /**
- * The home banner carousel, inside the yellow header band.
+ * The home banner carousel: the yellow block at the top of the catalogue.
+ *
+ * ── It scrolls away as content, it is not animated away ───────────────────
+ *
+ * This used to live inside the header band and collapse by animating its own
+ * `height` against the list's scroll offset. That jittered, and the reason is
+ * worth keeping written down: `height` is a LAYOUT property, and the block
+ * sat directly above a `flex-1` FlashList. Every frame of the collapse
+ * resized the list's own frame, which made FlashList re-run its layout and —
+ * with `maintainVisibleContentPosition` armed by default — correct the scroll
+ * offset, which drove the animation again. A closed loop, most visible when a
+ * finger was held still because nothing else was moving to mask it.
+ *
+ * So the block is now the list's `ListHeaderComponent`. It scrolls off the
+ * top because it IS content; the space it leaves closes because the list
+ * moves, not because anything is resized. Nothing here writes a layout
+ * property, which is why the loop cannot come back.
  *
  * ── The loop is seamless, and that is why the slides are cloned ───────────
  *
@@ -68,16 +84,26 @@ function useHomeBanners() {
  * With fewer than two banners there is nothing to loop, so the clones, the
  * timer and the dots are all skipped rather than special-cased downstream.
  */
-export function BannerCarousel({ scrollY }: { scrollY?: SharedValue<number> }) {
+export function BannerCarousel({
+  scrollY,
+  paused = false,
+}: {
+  /** The page's scroll offset, for the fade. Compositor-only; see above. */
+  scrollY?: SharedValue<number>;
+  /**
+   * True while the PAGE is being scrolled vertically.
+   *
+   * The timer's own `onTouchStart` only sees touches on this carousel, so a
+   * vertical drag never reached it: the auto-advance fired mid-scroll, which
+   * is what made holding a finger still the worst case. The page reports its
+   * drag here instead.
+   */
+  paused?: boolean;
+}) {
   const banners = useHomeBanners();
   const scrollRef = useRef<ScrollView>(null);
   const [width, setWidth] = useState(0);
   const [index, setIndex] = useState(0);
-  // The block's natural height, measured once from the content inside the
-  // collapsing container. Measured rather than computed so the dots row and
-  // the spacing above are included without having to keep three numbers in
-  // agreement with the stylesheet.
-  const [blockHeight, setBlockHeight] = useState(0);
 
   const count = banners?.length ?? 0;
   const looping = count > 1;
@@ -124,7 +150,13 @@ export function BannerCarousel({ scrollY }: { scrollY?: SharedValue<number> }) {
   const scheduleNext = useCallback(
     (delay: number = AUTOPLAY_MS) => {
       clearTimer();
-      if (!looping || width === 0 || interacting.current || !focused.current) {
+      if (
+        !looping ||
+        width === 0 ||
+        interacting.current ||
+        !focused.current ||
+        paused
+      ) {
         return;
       }
       timer.current = setTimeout(() => {
@@ -135,8 +167,19 @@ export function BannerCarousel({ scrollY }: { scrollY?: SharedValue<number> }) {
         // and cannot disagree about where the carousel is.
       }, delay);
     },
-    [clearTimer, looping, offsetOf, width],
+    [clearTimer, looping, offsetOf, width, paused],
   );
+
+  // The page started or stopped scrolling. Stopping waits the same idle
+  // period a swipe on the carousel itself does, so the two cannot disagree
+  // about how long "just left alone" is.
+  useEffect(() => {
+    if (paused) {
+      clearTimer();
+      return;
+    }
+    scheduleNext(RESUME_AFTER_TOUCH_MS);
+  }, [paused, clearTimer, scheduleNext]);
 
   // Park on the first real slide once the width is known. Without animation:
   // this is the initial position, not a movement.
@@ -164,43 +207,37 @@ export function BannerCarousel({ scrollY }: { scrollY?: SharedValue<number> }) {
   );
 
   /**
-   * The carousel scrolls away with the page; the wordmark and delivery badge
-   * above it do not.
+   * A fade as the block leaves, so it dissolves rather than being guillotined
+   * at the list's top edge.
    *
-   * Driven straight off the list's scroll offset on the UI thread, so it
-   * tracks the finger exactly rather than chasing it a frame later. Three
-   * things move at once, which is what stops it reading as a box being
-   * clipped:
+   * Opacity and scale ONLY. Both are compositor properties: they are handed
+   * to the UI thread and never touch layout, so unlike the height animation
+   * this replaces they cannot resize the list, cannot make FlashList
+   * re-measure, and therefore cannot feed back into the scroll offset that
+   * drives them.
    *
-   *   - height shrinks 1:1 with the scroll, so the yellow band closes up
-   *     behind it and the list never floats over a gap;
-   *   - the artwork drifts up faster than the band closes (the 0.3 factor),
-   *     the usual parallax that makes a collapse feel like depth rather than
-   *     a crop;
-   *   - it fades and eases down to 96% well before the height reaches zero,
-   *     so the last thing to happen is empty space closing, not content
-   *     disappearing at full opacity.
+   * The range is the artwork's own height, `width / ASPECT`, which is known
+   * from the width measurement below. Deliberately not a measured height of
+   * this whole block: the thing being animated must never be the thing being
+   * measured, which is the mistake the old version made.
    *
-   * Reversed exactly on the way back up — every interpolation is clamped and
-   * stateless, so there is no "expanded/collapsed" flag to get stuck.
+   * There is no parallax translate any more either — the block genuinely
+   * moves with the page now, and a second translation would fight the scroll
+   * rather than embellish it.
    */
-  const collapse = useAnimatedStyle(() => {
-    if (!scrollY || blockHeight === 0) return {};
+  const fade = useAnimatedStyle(() => {
+    if (!scrollY || width === 0) return { opacity: 1 };
     const t = interpolate(
       scrollY.value,
-      [0, blockHeight],
+      [0, width / ASPECT],
       [0, 1],
       Extrapolation.CLAMP,
     );
     return {
-      height: blockHeight * (1 - t),
-      opacity: interpolate(t, [0, 0.7], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        { translateY: -t * blockHeight * 0.3 },
-        { scale: 1 - t * 0.04 },
-      ],
+      opacity: interpolate(t, [0, 0.8], [1, 0], Extrapolation.CLAMP),
+      transform: [{ scale: 1 - t * 0.04 }],
     };
-  }, [blockHeight]);
+  }, [width]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const next = Math.round(event.nativeEvent.layout.width);
@@ -234,14 +271,35 @@ export function BannerCarousel({ scrollY }: { scrollY?: SharedValue<number> }) {
   if (!banners || banners.length === 0) return null;
 
   return (
-    <Animated.View style={[{ overflow: "hidden" }, collapse]}>
-      <View
-        onLayout={(event) => {
-          const next = Math.round(event.nativeEvent.layout.height);
-          if (next > 0 && next !== blockHeight) setBlockHeight(next);
-        }}
-        className="pt-space-5 gap-space-3"
-      >
+    // `Animated.View` carries ONLY `style` here, never `className`: NativeWind
+    // translates `className` through a registration map keyed by component
+    // identity (`interopComponents.get(type) ?? type` in
+    // react-native-css-interop's `wrap-jsx.js`), and nothing in this app or in
+    // Reanimated itself ever registers `Animated.View`. A class on it is not a
+    // partial effect, it is silently nothing — which is what made an earlier
+    // version of this block look inset rather than full-bleed: the
+    // `-mx-screen` meant to cancel the list's gutter was never applied at all,
+    // and neither was the yellow background or the rounding.
+    //
+    // Every other `Animated.View` in this app (`basket-line.tsx`,
+    // `sheet-backdrop.tsx`, `ToastProvider.tsx`) already avoids this by
+    // keeping the animated node bare and putting classes on a nested plain
+    // `View`, which IS registered. This follows the same pattern.
+    <Animated.View style={fade}>
+      {/*
+        The yellow carries on from the header band above, and this block owns
+        the rounded bottom that used to sit on the band itself — so at rest
+        the two read as one shape, and scrolling slides that shape up and
+        away.
+
+        `-mx-screen px-screen` cancels the list content container's 16px
+        gutter and then puts it back on the inside: the BACKGROUND spans the
+        full screen width, as the header band above it does, while the
+        artwork keeps the same 16px inset it had when this lived inside the
+        band. Without the negative margin the yellow would stop 16px short of
+        each edge and the header would read as two separate shapes.
+      */}
+      <View className="bg-brand-surface -mx-screen px-screen rounded-b-2xl pb-[18px] gap-space-3">
         <View onLayout={handleLayout} className="overflow-hidden rounded-lg">
           {width > 0 ? (
             <ScrollView
