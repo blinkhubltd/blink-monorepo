@@ -5,9 +5,20 @@ import { Text } from "./text";
 
 /** Pill radius, per the DS: anything selectable or status-bearing is a pill. */
 const badgeVariants = cva(
-  "flex-row self-start items-center justify-center gap-space-1 rounded-pill px-space-3 py-space-1",
+  "flex-row self-start items-center justify-center gap-space-1 rounded-pill",
   {
     variants: {
+      /**
+       * `sm` is for a badge that annotates something else rather than
+       * standing on its own — "Default" beside an address, "Only 2 left" on a
+       * product card. At the default size those read as loudly as the thing
+       * they are qualifying, which is what made a stock count compete with
+       * the product name for attention.
+       */
+      size: {
+        default: "px-space-3 py-space-1",
+        sm: "px-space-2 py-[1px]",
+      },
       variant: {
         default: "bg-primary",
         inverse: "bg-inverse",
@@ -19,12 +30,19 @@ const badgeVariants = cva(
         outline: "border-hairline border-border bg-transparent",
       },
     },
-    defaultVariants: { variant: "default" },
+    defaultVariants: { variant: "default", size: "default" },
   },
 );
 
-const badgeTextVariants = cva("font-semibold text-caption", {
+const badgeTextVariants = cva("font-semibold", {
   variants: {
+    size: {
+      default: "text-caption",
+      // Below the type scale's smallest step on purpose: the scale starts at
+      // the smallest size meant to be *read*, and this one is meant to be
+      // recognised at a glance beside something already being read.
+      sm: "text-[10px] leading-[13px]",
+    },
     variant: {
       default: "text-primary-foreground",
       inverse: "text-inverse-foreground",
@@ -36,7 +54,7 @@ const badgeTextVariants = cva("font-semibold text-caption", {
       outline: "text-muted-foreground",
     },
   },
-  defaultVariants: { variant: "default" },
+  defaultVariants: { variant: "default", size: "default" },
 });
 
 interface BadgeProps extends ViewProps, VariantProps<typeof badgeVariants> {
@@ -44,11 +62,21 @@ interface BadgeProps extends ViewProps, VariantProps<typeof badgeVariants> {
   icon?: React.ReactNode;
 }
 
-function Badge({ label, icon, variant, className, ...props }: BadgeProps) {
+function Badge({
+  label,
+  icon,
+  variant,
+  size,
+  className,
+  ...props
+}: BadgeProps) {
   return (
-    <View className={cn(badgeVariants({ variant }), className)} {...props}>
+    <View
+      className={cn(badgeVariants({ variant, size }), className)}
+      {...props}
+    >
       {icon}
-      <Text className={cn(badgeTextVariants({ variant }))}>{label}</Text>
+      <Text className={cn(badgeTextVariants({ variant, size }))}>{label}</Text>
     </View>
   );
 }

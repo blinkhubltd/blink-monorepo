@@ -5,6 +5,12 @@ import type { Id } from "@repo/backend/dataModel";
 
 import type { ProductForCard } from "../components/product-card";
 
+/** The tags an admin can put on a product; mirrors `productTags` in the backend. */
+export type ProductTag = "Featured" | "Offer" | "Hot";
+
+/** A tag that is present in the browsed category, and how many carry it. */
+export type TagFacet = { tag: ProductTag; count: number };
+
 /**
  * Accumulating pages from an offset-paginated query.
  *
@@ -67,14 +73,16 @@ function useAccumulator(scopeKey: string) {
 }
 
 /** Shape both coverage listings return; see `data/catalog.ts`. */
-type PageResult = {
-  products: unknown[];
-  hasMore: boolean;
-  nextOffset: number | null;
-  total: number | null;
-  totalIsExact: boolean;
-  coverageEmpty: boolean;
-} | undefined;
+type PageResult =
+  | {
+      products: unknown[];
+      hasMore: boolean;
+      nextOffset: number | null;
+      total: number | null;
+      totalIsExact: boolean;
+      coverageEmpty: boolean;
+    }
+  | undefined;
 
 function useAccumulated(
   result: PageResult,
@@ -135,20 +143,27 @@ function useAccumulated(
 export function usePagedProducts({
   categoryId,
   l3CategoryId,
+  tag,
   point,
   pageSize = 20,
 }: {
   categoryId: Id<"categories"> | null;
   l3CategoryId?: Id<"categories">;
+  /** "Featured" | "Offer" | "Hot", or undefined for no tag filter. */
+  tag?: ProductTag;
   point: { lat: number; lng: number } | null;
   pageSize?: number;
-}): Result {
+}): Result & { availableTags: TagFacet[] } {
   // Rounded to ~11 m. Raw GPS jitter would otherwise change the scope key on
   // almost every reading and reset paging under the customer's thumb.
   const acc = useAccumulator(
     [
       categoryId ?? "-",
       l3CategoryId ?? "-",
+      // A tag narrows the product set, so it is scope like the category is:
+      // leaving it out of the key would keep the unfiltered pages in the
+      // accumulator and show them under the filter.
+      tag ?? "-",
       point ? `${point.lat.toFixed(4)},${point.lng.toFixed(4)}` : "-",
     ].join("|"),
   );
@@ -160,6 +175,7 @@ export function usePagedProducts({
           lat: point.lat,
           lng: point.lng,
           l3CategoryId,
+          tag,
           limit: pageSize,
           offset: acc.offset,
         }
@@ -170,7 +186,15 @@ export function usePagedProducts({
     args as never,
   );
 
-  return useAccumulated(result as PageResult, args === "skip", acc);
+  return {
+    ...useAccumulated(result as PageResult, args === "skip", acc),
+    // Straight from the live result rather than the accumulator: the facets
+    // describe the category, not the pages read so far, so they must not be
+    // stitched together across offsets.
+    availableTags:
+      (result as { availableTags?: TagFacet[] } | undefined)?.availableTags ??
+      [],
+  };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { Icon } from "./icon";
@@ -77,6 +78,7 @@ export function BrandHeader({
   right,
   children,
   inlineTitle = false,
+  fillStatusBar = false,
 }: {
   /** Omit entirely on a screen using `logoRow` instead. */
   title?: string;
@@ -124,17 +126,33 @@ export function BrandHeader({
    * are off.
    */
   inlineTitle?: boolean;
+  /**
+   * Run the yellow up behind the status bar instead of stopping below it.
+   *
+   * Home and Profile only. They are the two screens whose header IS the
+   * screen's top — a white strip of inset above the band cuts the brand
+   * surface off from the edge of the display and reads as a seam. Everywhere
+   * else the band belongs to a pushed screen, where the inset above it is
+   * the page, and filling it would be wrong.
+   *
+   * The screen must stop claiming the top inset itself when this is on
+   * (`edges={["left","right"]}` rather than `["top"]}`), or the inset is
+   * applied twice: once as white padding above, and again here.
+   */
+  fillStatusBar?: boolean;
 }) {
   const { label: locationLabel, state: locationState } = useAddressLabel();
+  const insets = useSafeAreaInsets();
 
   // Only when the left slot is genuinely empty; see the prop's own note.
   const titleInRow = inlineTitle && !!title && !showBack && !showLocation;
 
   return (
     <View
-      className={`bg-brand-surface px-screen pt-[14px] ${
-        sweep ? "rounded-b-2xl pb-[18px]" : "pb-space-4"
-      }`}
+      className={`bg-brand-surface px-screen ${
+        fillStatusBar ? "" : "pt-[14px]"
+      } ${sweep ? "rounded-b-2xl pb-[18px]" : "pb-space-4"}`}
+      style={fillStatusBar ? { paddingTop: insets.top + 14 } : undefined}
     >
       <StatusBar style="dark" />
 

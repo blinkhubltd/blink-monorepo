@@ -124,7 +124,7 @@ export function BasketLineRow({
             hitSlop={8}
             className="active:opacity-60"
           >
-            <Icon name="trash-outline" size={18} tone="subtle" />
+            <Icon name="trash-outline" size={18} tone="destructive" />
           </Pressable>
         </View>
 
@@ -177,7 +177,10 @@ export function BasketLineRow({
                 <Icon
                   name={line.quantity <= 1 ? "trash-outline" : "remove"}
                   size={16}
-                  tone="neutralIcon"
+                  // Red only on the glyph that deletes. The minus sign is a
+                  // quantity change like any other and colouring it would
+                  // make every decrement look destructive.
+                  tone={line.quantity <= 1 ? "destructive" : "neutralIcon"}
                 />
               </Pressable>
               <Text
