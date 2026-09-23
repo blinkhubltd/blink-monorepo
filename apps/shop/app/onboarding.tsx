@@ -33,15 +33,17 @@ import { markOnboardingSeen } from "../lib/onboarding";
  * the photo layer fills the screen, a scrim sits over it, and the logo and
  * the bottom block float on top. Nothing here scrolls.
  *
- * ── The photo for slide three ────────────────────────────────────────────
+ * ── The photography ──────────────────────────────────────────────────────
  *
- * The handoff ships two photographs and marks the third an explicit
- * placeholder: "Onboarding slide 3 is an empty placeholder in the prototype —
- * supply a rider photo." None was supplied, so that slide renders the ink
- * surface the prototype's own placeholder uses. The scrim and the type read
- * correctly against it, so this is presentable rather than broken — but it is
- * a hole with a shape, and the moment a rider photo exists it goes in
- * `assets/images/onboarding/rider.jpg` and gets added to `SLIDES` below.
+ * All three photographs are supplied, including the rider the handoff left as
+ * an explicit placeholder. Each one carries the slide it sits under — produce
+ * for the grocery promise, capsules for the pharmacy one, a rider mid-street
+ * for the delivery one — and each is portrait, so `cover` crops the sides
+ * rather than the subject.
+ *
+ * `Slide` still tolerates a null image. That is not dead code: it is what
+ * keeps a slide added later, before its photograph arrives, rendering the ink
+ * surface instead of a blank white box.
  *
  * ── Motion ───────────────────────────────────────────────────────────────
  *
@@ -60,22 +62,21 @@ const SLIDES = [
   {
     key: "essentials",
     image: require("../assets/images/onboarding/essentials.jpg"),
-    alt: "Shelves of everyday essentials",
+    alt: "Lemons and mint in a string shopping bag",
     title: "Your shopping at the gate in 10 minutes.",
     body: "Groceries, fresh produce and household basics from the hub down the road.",
   },
   {
     key: "pharmacy",
     image: require("../assets/images/onboarding/pharmacy.jpg"),
-    alt: "Pharmacy shelf",
+    alt: "Pharmacy capsules",
     title: "Painkillers before the pain wins.",
     body: "Pharmacy shelf included — the same 10 minutes, no queue at the chemist.",
   },
   {
     key: "rider",
-    // Awaiting the rider photograph; see the note in this file's header.
-    image: null,
-    alt: "A Blink rider on the way",
+    image: require("../assets/images/onboarding/rider.jpg"),
+    alt: "A delivery rider crossing a street with a delivery box",
     title: "A rider is already on the way.",
     body: "Track them street by street, and pay with M-Pesa when they reach you.",
   },
