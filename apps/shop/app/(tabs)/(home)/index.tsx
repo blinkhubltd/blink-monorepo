@@ -133,6 +133,39 @@ export default function CategoriesScreen() {
                   Choose a category to get started
                 </Text>
               </View>
+
+              {/*
+                The way into clearance. It is a separate catalogue with its own
+                stock, expiry and delivery rule, so it gets an entry point
+                rather than being mixed into the category grid where its
+                prices would look like ordinary ones.
+
+                Above the first category card, not below the last: clearance
+                is time-sensitive stock, and a side door worth noticing before
+                someone has already scrolled past it. `mb-space-4` stands in
+                for `ItemSeparatorComponent`, which only renders BETWEEN items
+                in `data` — nothing places a gap between the header and the
+                first card on its own.
+              */}
+              <Pressable
+                onPress={() => router.push("/clearance")}
+                accessibilityRole="button"
+                accessibilityLabel="Clearance deals"
+                className="border-hairline border-border bg-card mb-space-4 gap-space-3 p-space-4 flex-row items-center rounded-lg active:opacity-90"
+              >
+                <View className="bg-primary size-control rounded-pill items-center justify-center">
+                  <Icon name="pricetag-outline" size={20} tone="onBrand" />
+                </View>
+                <View className="gap-space-1 flex-1">
+                  <Text size="base" weight="semibold">
+                    Clearance deals
+                  </Text>
+                  <Text size="caption" variant="subtle">
+                    Short-dated stock at a discount
+                  </Text>
+                </View>
+                <Icon name="chevron-forward" size={18} tone="subtle" />
+              </Pressable>
             </>
           }
           renderItem={({ item }) => (
@@ -141,38 +174,6 @@ export default function CategoriesScreen() {
               onPress={() => router.push(`/c/${item.slug}`)}
             />
           )}
-          ListFooterComponent={
-            /*
-              The way into clearance. It is a separate catalogue with its own
-              stock, expiry and delivery rule, so it gets an entry point rather
-              than being mixed into the category grid where its prices would
-              look like ordinary ones.
-
-              Moved here from above the categories: the design has nothing
-              between the subtitle and the first card, and clearance is a
-              side door, not the main flow — the footer is where a side door
-              belongs once the primary path (the categories) has priority.
-            */
-            <Pressable
-              onPress={() => router.push("/clearance")}
-              accessibilityRole="button"
-              accessibilityLabel="Clearance deals"
-              className="border-hairline border-border bg-card mt-space-4 gap-space-3 p-space-4 flex-row items-center rounded-lg active:opacity-90"
-            >
-              <View className="bg-primary size-control rounded-pill items-center justify-center">
-                <Icon name="pricetag-outline" size={20} tone="onBrand" />
-              </View>
-              <View className="gap-space-1 flex-1">
-                <Text size="base" weight="semibold">
-                  Clearance deals
-                </Text>
-                <Text size="caption" variant="subtle">
-                  Short-dated stock at a discount
-                </Text>
-              </View>
-              <Icon name="chevron-forward" size={18} tone="subtle" />
-            </Pressable>
-          }
           ListEmptyComponent={
             // Reachable only once the tree has RESOLVED and is genuinely empty.
             // Conflating that with the loading state is what puts "nothing here"
