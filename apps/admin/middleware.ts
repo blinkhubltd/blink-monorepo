@@ -24,12 +24,17 @@ import { NextResponse } from "next/server";
  * `convex/user/bootstrap.ts`.
  *
  * `/r/(.*)` is the agent referral shortlink, hit by people who have no account.
+ *
+ * `/accept-invite` is where `user/invitations.ts` points an admin invitation's
+ * `redirect_url` — the person following that link has no account yet either,
+ * which is the entire point of an invitation.
  */
 const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/setup(.*)",
   "/unauthorized",
   "/r/(.*)",
+  "/accept-invite(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

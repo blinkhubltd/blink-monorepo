@@ -79,6 +79,14 @@ type ClerkUserData = {
   first_name?: string | null;
   last_name?: string | null;
   image_url?: string | null;
+  /**
+   * Backend-API-only: never settable by the client that owns the account,
+   * only by a call authenticated with `CLERK_SECRET_KEY` — which is exactly
+   * what `user/invitations.ts` uses to stamp `invited_role` when an admin
+   * sends an invite. Trusting a value read out of here is trusting that it
+   * came from our own backend, not from whoever is signing up.
+   */
+  public_metadata?: Record<string, unknown>;
 };
 
 type ClerkWebhookEvent = {
@@ -103,6 +111,14 @@ function displayName(data: ClerkUserData): string | undefined {
 function primaryEmail(data: ClerkUserData): string | undefined {
   const email = data.email_addresses?.[0]?.email_address;
   return typeof email === "string" && email.length > 0 ? email : undefined;
+}
+
+/** The role name an admin invitation asked for, if this account came from one. */
+function invitedRole(data: ClerkUserData): string | undefined {
+  const role = data.public_metadata?.invited_role;
+  return typeof role === "string" && role.trim().length > 0
+    ? role.trim()
+    : undefined;
 }
 
 export const clerkWebhook = httpAction(async (ctx, request) => {
@@ -141,6 +157,10 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
         email: primaryEmail(event.data),
         name: displayName(event.data),
         image: event.data.image_url ?? undefined,
+        // Only ever takes effect on the CREATE path inside `upsertUser` — an
+        // update replaying this same metadata must never silently move a
+        // role someone has since been promoted or demoted past.
+        roleName: invitedRole(event.data),
       });
       break;
     }

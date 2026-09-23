@@ -708,6 +708,20 @@ export const upsertUser = internalMutation({
     email: v.optional(v.string()),
     name: v.optional(v.string()),
     image: v.optional(v.string()),
+    /**
+     * The role an admin invitation asked for — read by the webhook out of
+     * Clerk's `public_metadata` on the new user, never out of anything the
+     * client can set. `public_metadata` is Backend-API-only: a self-signup
+     * cannot put a value there, only `invitations.createInvitation`
+     * (`user/invitations.ts`) can, so a name arriving here really did come
+     * from an admin's own invite.
+     *
+     * Applied ONLY on first creation, a few lines down — never on an update
+     * to an existing account. An update replaying old metadata (a stale
+     * webhook retry, Clerk resending an event) must never silently change a
+     * role someone may since have been demoted from or promoted past.
+     */
+    roleName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     console.log(`🔄 upsertUser webhook called:`, {
@@ -812,11 +826,21 @@ export const upsertUser = internalMutation({
         phone: "",
       });
 
-      // Assign the default role if one exists
-      const defaultRole = await ctx.db
-        .query("roles")
-        .withIndex("by_is_default", (q) => q.eq("is_default", true))
-        .first();
+      // An invited role wins over the default — someone who followed an
+      // admin's invite link is joining AS staff/agent/whatever the invite
+      // said, not as a customer who happens to also hold that role later.
+      // Falls through to the default (normally "Customer") when the name
+      // does not resolve, same as an ordinary self-signup.
+      const invitedRoleId = args.roleName
+        ? await getRoleIdByName(ctx, args.roleName)
+        : null;
+
+      const defaultRole = invitedRoleId
+        ? null
+        : await ctx.db
+            .query("roles")
+            .withIndex("by_is_default", (q) => q.eq("is_default", true))
+            .first();
 
       await ctx.db.insert("users", {
         clerkId: args.clerkId,
@@ -829,7 +853,7 @@ export const upsertUser = internalMutation({
         searchText,
         status: "Inactive",
         address: { address: "", lat: 0, lng: 0 },
-        role_id: defaultRole?._id,
+        role_id: invitedRoleId ?? defaultRole?._id,
         updated_at: Date.now(),
       });
 
