@@ -738,7 +738,7 @@ export const initiatePaystackTransactionAction = internalAction({
     ),
   },
   handler: async (ctx, args): Promise<InitiatePaystackResult> => {
-    const order = await ctx.runQuery(api.data.orders.getOrderById, {
+    const order = await ctx.runQuery(internal.data.orders.getOrderByIdInternal, {
       orderId: args.orderId,
     });
     if (!order) throw new Error("Order not found");

@@ -27,10 +27,17 @@ import { api } from "@repo/backend";
  * period a page asked for, which is how the old dashboard ended up showing
  * "this month" and "all time" side by side.
  *
+ * ── `getOrders` removed too ───────────────────────────────────────────────
+ *
+ * It fetched every order with its items and products on every page load, and
+ * no consumer of this provider read `orders`. It is now gated on
+ * `orders:READ`, so keeping it here would also have thrown for every role
+ * without that permission on pages that never show an order.
+ *
  * ── Still outstanding ─────────────────────────────────────────────────────
  *
  * The lists below are themselves unscoped and unbounded — `getAllProducts`,
- * `getOrders`, `getAllCustomers` and the rest fetch entire tables for every
+ * `getAllCustomers` and the rest fetch entire tables for every
  * page, and a vendor manager receives every vendor's products. Fixing that is a
  * per-page change (each consumer needs a filtered or paginated query instead of
  * a shared blob), not something this provider can do, so it is tracked
@@ -39,7 +46,6 @@ import { api } from "@repo/backend";
 type DashboardDataContextValue = {
   products: any[];
   categories: any[];
-  orders: any[];
   riders: any[];
   customers: any[];
   vendors: any[];
@@ -61,7 +67,6 @@ export default function DashboardDataProvider({
 }) {
   const products = useQuery(api.data.products.getAllProducts) ?? [];
   const categories = useQuery(api.data.categories.getAllCategories) ?? [];
-  const orders = useQuery(api.data.orders.getOrders) ?? [];
   const riders = useQuery(api.user.users.getAllRiders) ?? [];
   const customers = useQuery(api.user.users.getAllCustomers) ?? [];
   const vendors = useQuery(api.data.vendors.getAllVendors) ?? [];
@@ -74,7 +79,6 @@ export default function DashboardDataProvider({
     return (
       products !== null &&
       categories !== null &&
-      orders !== null &&
       riders !== null &&
       customers !== null &&
       vendors !== null &&
@@ -86,7 +90,6 @@ export default function DashboardDataProvider({
   }, [
     products,
     categories,
-    orders,
     riders,
     customers,
     vendors,
@@ -100,7 +103,6 @@ export default function DashboardDataProvider({
     () => ({
       products,
       categories,
-      orders,
       riders,
       customers,
       vendors,
@@ -113,7 +115,6 @@ export default function DashboardDataProvider({
     [
       products,
       categories,
-      orders,
       riders,
       customers,
       vendors,
