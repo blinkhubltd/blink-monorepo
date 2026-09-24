@@ -1,5 +1,56 @@
 import { mutation, query } from "../_generated/server";
-import { v } from "convex/values";
+import type { MutationCtx } from "../_generated/server";
+import { v, ConvexError } from "convex/values";
+import {
+  findMalformedPermissions,
+  hasPermission as listHasPermission,
+  isSystemRoleName,
+  type Permission,
+} from "@repo/lib/utils";
+import { getAuthUser, type AuthedUser } from "../auth.helpers";
+import { isSuperAdminPermissions } from "../lib/role_presets";
+
+// ── Authorization ──────────────────────────────────────────────────
+//
+// Editing roles is editing everyone's permissions, so this is stricter than
+// `assertPermission`: that helper lets the system roles (Customer, Rider,
+// Picker) through unconditionally — they hold zero permissions and are gated by
+// name elsewhere — which would let any signed-in customer rewrite roles here.
+// No shadow mode either: these mutations were never gated, so there is no
+// existing access to preserve.
+async function assertRoleAdmin(
+  ctx: MutationCtx,
+  permission: Permission,
+): Promise<AuthedUser> {
+  const authed = await getAuthUser(ctx);
+  if (
+    isSystemRoleName(authed.roleName) ||
+    !listHasPermission(authed.permissions, permission)
+  ) {
+    throw new ConvexError(`Forbidden: missing permission "${permission}"`);
+  }
+  return authed;
+}
+
+/** Only a wildcard holder may grant, keep, or remove full access on a role. */
+function assertMayTouchWildcard(
+  caller: AuthedUser,
+  ...permissionLists: (readonly string[] | undefined)[]
+) {
+  if (isSuperAdminPermissions(caller.permissions)) return;
+  if (permissionLists.some((p) => isSuperAdminPermissions(p))) {
+    throw new ConvexError(
+      "Only a super admin can create, change, or delete a full-access role.",
+    );
+  }
+}
+
+function assertWellFormed(permissions: readonly string[] | undefined) {
+  const bad = findMalformedPermissions(permissions ?? []);
+  if (bad.length > 0) {
+    throw new ConvexError(`Unknown permissions: ${bad.join(", ")}`);
+  }
+}
 
 // ── Helpers ────────────────────────────────────────────────────
 // Exported so `bootstrap.ts` seeds roles with the same search text the roles
@@ -109,6 +160,10 @@ export const createRole = mutation({
     manages_vendor: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const caller = await assertRoleAdmin(ctx, "roles:CREATE");
+    assertWellFormed(args.permissions);
+    assertMayTouchWildcard(caller, args.permissions);
+
     // Enforce unique name (case-insensitive)
     const existing = await ctx.db
       .query("roles")
@@ -153,8 +208,14 @@ export const updateRole = mutation({
     manages_vendor: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const caller = await assertRoleAdmin(ctx, "roles:UPDATE");
     const role = await ctx.db.get(args.id);
     if (!role) throw new Error("Role not found.");
+
+    // Covers both directions: adding "*" to a role, and editing a role that
+    // already holds it (which would let a non-super-admin strip it).
+    assertWellFormed(args.permissions);
+    assertMayTouchWildcard(caller, role.permissions, args.permissions);
 
     // Enforce unique name if changing
     if (args.name && args.name !== role.name) {
@@ -200,8 +261,10 @@ export const updateRole = mutation({
 export const deleteRole = mutation({
   args: { id: v.id("roles") },
   handler: async (ctx, args) => {
+    const caller = await assertRoleAdmin(ctx, "roles:DELETE");
     const role = await ctx.db.get(args.id);
     if (!role) throw new Error("Role not found.");
+    assertMayTouchWildcard(caller, role.permissions);
 
     if (role.is_default) {
       throw new Error(
