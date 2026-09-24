@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/dataModel";
@@ -65,20 +66,27 @@ export function useDocumentUpload() {
         if (!asset) return { kind: "error", message: "No photo was returned." };
 
         const uploadUrl = await generateUploadUrl({});
-        const blob = await (await fetch(asset.uri)).blob();
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": asset.mimeType ?? blob.type ?? "image/jpeg" },
-          body: blob,
+        // Native upload straight from the file, not `fetch(uri).blob()` then
+        // a fetch POST of that Blob: on Android that pairing sends an empty
+        // or malformed body and Convex answers 400. `||` rather than `??` for
+        // the type — the picker can report an empty string, and an empty
+        // Content-Type is its own reason for a 400.
+        const response = await FileSystem.uploadAsync(uploadUrl, asset.uri, {
+          httpMethod: "POST",
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          headers: { "Content-Type": asset.mimeType || "image/jpeg" },
         });
-        if (!response.ok) {
+        if (response.status < 200 || response.status >= 300) {
+          console.warn(
+            `[documents] upload rejected (${response.status}): ${response.body}`,
+          );
           return {
             kind: "error",
-            message: `Upload failed (${response.status}). Check your connection and try again.`,
+            message: `Upload failed (${response.status}). Try the photo again.`,
           };
         }
 
-        const { storageId } = (await response.json()) as {
+        const { storageId } = JSON.parse(response.body) as {
           storageId: Id<"_storage">;
         };
         return { kind: "picked", storageId, uri: asset.uri };
