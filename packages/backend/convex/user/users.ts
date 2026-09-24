@@ -722,6 +722,20 @@ export const upsertUser = internalMutation({
      * role someone may since have been demoted from or promoted past.
      */
     roleName: v.optional(v.string()),
+    /**
+     * The vendor an invitation asked for. `validateInvite`
+     * (`user/invitations.ts`) requires this whenever `roleName` resolves to
+     * "rider" or "picker" — those two roles are meaningless unassigned to a
+     * vendor, the same rule `assignRoleToUser` enforces when promoting an
+     * existing user. Ignored for any other role. Same CREATE-only guarantee
+     * as `roleName`.
+     */
+    vendorId: v.optional(v.id("vendors")),
+    /** Rider-only extras, same as `assignRoleToUser`'s `rider_vehicle_*` args. */
+    riderVehicleType: v.optional(
+      v.union(...vehicleTypes.map((e) => v.literal(e))),
+    ),
+    riderVehiclePlate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     console.log(`🔄 upsertUser webhook called:`, {
@@ -842,6 +856,28 @@ export const upsertUser = internalMutation({
             .withIndex("by_is_default", (q) => q.eq("is_default", true))
             .first();
 
+      // Rider and picker are meaningless unassigned to a vendor —
+      // `assignRoleToUser` enforces the same thing for an existing user
+      // being promoted, and `validateInvite` already refused to send the
+      // invitation in the first place if this role required a vendor and
+      // none was given. This just carries that same vendor onto the account
+      // `upsertUser` is about to create.
+      const invitedRoleDoc = invitedRoleId ? await ctx.db.get(invitedRoleId) : null;
+      const invitedRoleLower = invitedRoleDoc?.name.trim().toLowerCase();
+      const riderDetails =
+        invitedRoleLower === "rider" && args.vendorId
+          ? {
+              vendor_id: args.vendorId,
+              vehicle_type: args.riderVehicleType ?? ("Motorbike" as const),
+              vehicle_plate: args.riderVehiclePlate,
+              status: "Inactive" as const,
+            }
+          : undefined;
+      const pickerDetails =
+        invitedRoleLower === "picker" && args.vendorId
+          ? { vendor_id: args.vendorId, status: "Inactive" as const }
+          : undefined;
+
       await ctx.db.insert("users", {
         clerkId: args.clerkId,
         email: args.email,
@@ -854,6 +890,8 @@ export const upsertUser = internalMutation({
         status: "Inactive",
         address: { address: "", lat: 0, lng: 0 },
         role_id: invitedRoleId ?? defaultRole?._id,
+        ...(riderDetails ? { rider_details: riderDetails } : {}),
+        ...(pickerDetails ? { picker_details: pickerDetails } : {}),
         updated_at: Date.now(),
       });
 
@@ -1096,20 +1134,78 @@ export const updateUserRole = internalMutation({
   },
 });
 
+/** A role assignment's vendor-scoped args, shared by every caller below. */
+const vendorScopedRoleArgs = {
+  vendor_id: v.optional(v.id("vendors")),
+  // Array of vendor IDs for manager roles (multi-vendor assignment)
+  vendor_ids: v.optional(v.array(v.id("vendors"))),
+  // Rider-specific extras (only when role name is "rider")
+  rider_vehicle_type: v.optional(
+    v.union(...vehicleTypes.map((e) => v.literal(e))),
+  ),
+  rider_vehicle_plate: v.optional(v.string()),
+};
+
+/**
+ * Rider, picker and manager are the three roles `manages_vendor` covers, and
+ * each stores its vendor in a different place with a different shape — this
+ * is that branch, shared by every place a vendor can be attached to a role
+ * assignment (`assignRoleToUser` for one user, `bulkAssignRole` for many).
+ * Two callers duplicating it is exactly how one of them would end up
+ * skipping the rider/picker case the way `bulkAssignRole` used to.
+ *
+ * Returns {} when the role does not manage a vendor, or when it does but no
+ * vendor was actually given — the same permissiveness `assignRoleToUser`
+ * always had. The caller's own UI is what requires a selection before this
+ * is ever reached; this only decides where a vendor goes once there is one.
+ */
+function vendorScopedUpdates(
+  role: { name: string; manages_vendor: boolean },
+  args: {
+    vendor_id?: Id<"vendors">;
+    vendor_ids?: Id<"vendors">[];
+    rider_vehicle_type?: (typeof vehicleTypes)[number];
+    rider_vehicle_plate?: string;
+  },
+): Record<string, any> {
+  const hasVendor =
+    !!args.vendor_id || (args.vendor_ids !== undefined && args.vendor_ids.length > 0);
+  if (!role.manages_vendor || !hasVendor) return {};
+
+  const roleLower = role.name.trim().toLowerCase();
+  if (roleLower === "rider") {
+    return {
+      rider_details: {
+        vendor_id: args.vendor_id,
+        vehicle_type: args.rider_vehicle_type ?? "Motorbike",
+        vehicle_plate: args.rider_vehicle_plate,
+        status: "Inactive" as const,
+      },
+    };
+  }
+  if (roleLower === "picker") {
+    return {
+      picker_details: { vendor_id: args.vendor_id, status: "Inactive" as const },
+    };
+  }
+  // Any other vendor-managing role → manager_details.
+  // Prefer vendor_ids array; fall back to wrapping single vendor_id.
+  const ids =
+    args.vendor_ids && args.vendor_ids.length > 0
+      ? args.vendor_ids
+      : args.vendor_id
+        ? [args.vendor_id]
+        : [];
+  return { manager_details: { vendor_id: ids, assigned_at: Date.now() } };
+}
+
 /** Assign a dynamic role (from the roles table) to a user. Called from
  * components/users/RoleAssignmentDialog.tsx. */
 export const assignRoleToUser = mutation({
   args: {
     userId: v.id("users"),
     roleId: v.id("roles"),
-    vendor_id: v.optional(v.id("vendors")),
-    // Array of vendor IDs for manager roles (multi-vendor assignment)
-    vendor_ids: v.optional(v.array(v.id("vendors"))),
-    // Rider-specific extras (only when role name is "rider")
-    rider_vehicle_type: v.optional(
-      v.union(...vehicleTypes.map((e) => v.literal(e))),
-    ),
-    rider_vehicle_plate: v.optional(v.string()),
+    ...vendorScopedRoleArgs,
   },
   handler: async (ctx, args) => {
     await assertPermission(ctx, "users:UPDATE");
@@ -1119,44 +1215,11 @@ export const assignRoleToUser = mutation({
     const role = await ctx.db.get(args.roleId);
     if (!role) throw new Error("Role not found");
 
-    const roleLower = role.name.trim().toLowerCase();
     const updates: Record<string, any> = {
       role_id: args.roleId,
       updated_at: Date.now(),
+      ...vendorScopedUpdates(role, args),
     };
-
-    // If the role manages a vendor, store vendor_id in the right place
-    const hasVendor =
-      !!args.vendor_id ||
-      (args.vendor_ids !== undefined && args.vendor_ids.length > 0);
-    if (role.manages_vendor && hasVendor) {
-      if (roleLower === "rider") {
-        updates.rider_details = {
-          vendor_id: args.vendor_id,
-          vehicle_type: args.rider_vehicle_type ?? "Motorbike",
-          vehicle_plate: args.rider_vehicle_plate,
-          status: "Inactive" as const,
-        };
-      } else if (roleLower === "picker") {
-        updates.picker_details = {
-          vendor_id: args.vendor_id,
-          status: "Inactive" as const,
-        };
-      } else {
-        // Any other vendor-managing role → manager_details
-        // Prefer vendor_ids array; fall back to wrapping single vendor_id
-        const ids =
-          args.vendor_ids && args.vendor_ids.length > 0
-            ? args.vendor_ids
-            : args.vendor_id
-              ? [args.vendor_id]
-              : [];
-        updates.manager_details = {
-          vendor_id: ids,
-          assigned_at: Date.now(),
-        };
-      }
-    }
 
     await ctx.db.patch(args.userId, updates);
     return await ctx.db.get(args.userId);
@@ -1615,15 +1678,34 @@ export const getVendorStaff = query({
  * Admin. Gated on `users:UPDATE`, matching the /users page this is called from
  * (components/users/UsersTable.tsx).
  */
+/**
+ * Bulk role assignment, called from the "Customers" table's own bulk-action
+ * bar (`components/users/UsersTable.tsx`) — separate from `assignRoleToUser`
+ * because it patches many users in one call, not because the rule is any
+ * different: rider, picker and manager are exactly as vendor-scoped here as
+ * they are one at a time. Before `vendorScopedUpdates` existed, this mutation
+ * set `role_id` alone and nothing else, so bulk-assigning ten people as
+ * riders left all ten with no `vendor_id` at all — invisible to every
+ * vendor-scoped view until someone opened each one individually to fix it.
+ *
+ * One vendor (or, for a manager, one set of vendors) applies to the WHOLE
+ * batch — there is no per-user vendor in a bulk action, which is the entire
+ * point of it being bulk. A vendor lead splitting ten new hires across two
+ * vendors runs this twice, once per vendor, same as they would with two
+ * separate single-person assignments.
+ */
 export const bulkAssignRole = mutation({
   args: {
     userIds: v.array(v.id("users")),
     roleId: v.id("roles"),
+    ...vendorScopedRoleArgs,
   },
   handler: async (ctx, args) => {
     await assertPermission(ctx, "users:UPDATE");
     const role = await ctx.db.get(args.roleId);
     if (!role) throw new Error("Role not found");
+
+    const vendorUpdates = vendorScopedUpdates(role, args);
 
     let updated = 0;
     for (const userId of args.userIds) {
@@ -1632,6 +1714,7 @@ export const bulkAssignRole = mutation({
       await ctx.db.patch(userId, {
         role_id: args.roleId,
         updated_at: Date.now(),
+        ...vendorUpdates,
       });
       updated++;
     }
