@@ -40,6 +40,10 @@ export type User = {
       lng: number;
     };
     rating?: number;
+    id_image?: Id<"_storage">;
+    license_image?: Id<"_storage">;
+    /** Set when an admin approved the rider. See `user/rider_onboarding.ts`. */
+    approved_at?: number;
   };
   address: {
     address: string;

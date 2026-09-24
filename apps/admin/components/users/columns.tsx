@@ -12,6 +12,7 @@ import { Badge } from "@repo/ui/components/ui/badge";
 import { Checkbox } from "@repo/ui/components/ui/checkbox";
 import { User, STATUS_COLORS } from "./types";
 import ActionCell from "./ActionCell";
+import CrewDetailsCell from "./CrewDetailsCell";
 import type { Id } from "@repo/backend/dataModel";
 
 interface UsersTableColumnsProps {
@@ -21,13 +22,39 @@ interface UsersTableColumnsProps {
   ) => Promise<void>;
   rolesMap: Map<string, string>;
   vendorsMap: Map<string, string>;
+  /**
+   * Adds a "Crew" column — rider/picker status and vehicle. The Staff table
+   * wants it; the Customers table has no riders or pickers to show.
+   */
+  showCrewDetails?: boolean;
 }
 
 export function createUsersTableColumns({
   onUpdateUserStatus,
   rolesMap,
   vendorsMap,
+  showCrewDetails = false,
 }: UsersTableColumnsProps): ColumnDef<User>[] {
+  const crewColumn: ColumnDef<User>[] = showCrewDetails
+    ? [
+        {
+          id: "crew",
+          header: "Crew",
+          cell: ({ row }) => (
+            <CrewDetailsCell
+              user={row.original}
+              roleName={
+                row.original.role_id
+                  ? rolesMap.get(row.original.role_id)
+                  : undefined
+              }
+            />
+          ),
+          enableSorting: false,
+        },
+      ]
+    : [];
+
   return [
     {
       id: "select",
@@ -152,6 +179,7 @@ export function createUsersTableColumns({
         );
       },
     },
+    ...crewColumn,
     {
       accessorKey: "status",
       header: "Status",
@@ -195,7 +223,11 @@ export function createUsersTableColumns({
       cell: ({ row }) => {
         const user = row.original;
         return (
-          <ActionCell user={user} onUpdateUserStatus={onUpdateUserStatus} />
+          <ActionCell
+            user={user}
+            onUpdateUserStatus={onUpdateUserStatus}
+            roleName={user.role_id ? rolesMap.get(user.role_id) : undefined}
+          />
         );
       },
       enableSorting: false,

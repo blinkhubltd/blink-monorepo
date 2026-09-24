@@ -74,6 +74,12 @@ const ALLOWED = new Set<string>([
   "data.user_notifications.markAllMyNotificationsRead",
   "data.vendors.getHubForCrew",
   "user.users.getCurrentUser",
+  // Rider onboarding. Returns a one-time upload URL; the rider's own phone,
+  // photo URLs and missing-document list; and that list again after saving.
+  // Nothing of any vendor's.
+  "data.files.generateUploadUrl",
+  "user.rider_onboarding.getMyRiderOnboarding",
+  "user.rider_onboarding.submitMyRiderDocuments",
 ]);
 
 /** Queries that exist and return too much — named so the failure is obvious. */

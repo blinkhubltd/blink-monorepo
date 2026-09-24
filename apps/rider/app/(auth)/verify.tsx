@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { isClerkAPIResponseError, useSignIn } from "@clerk/clerk-expo";
 import type {
@@ -8,10 +8,9 @@ import type {
   SignInFirstFactor,
 } from "@clerk/types";
 import { clerkErrorMessage } from "@repo/lib/auth";
-import { Button } from "@repo/mobile-ui/components/ui/button";
+import { OtpInput } from "@repo/mobile-ui/components/ui/otp-input";
 import { Text } from "@repo/mobile-ui/components/ui/text";
-import { OtpInput } from "../../components/OtpInput";
-import { Screen } from "../../components/Screen";
+import { AuthHeader, AuthShell } from "../../components/auth/auth-shell";
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
@@ -32,6 +31,7 @@ export default function VerifyRoute() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
   const submittedFor = useRef<string | null>(null);
@@ -125,6 +125,7 @@ export default function VerifyRoute() {
         }
       }
       setSecondsLeft(RESEND_SECONDS);
+      setNotice("We sent another code.");
     } catch {
       setError("Could not resend the code.");
     }
@@ -136,24 +137,17 @@ export default function VerifyRoute() {
     if (value.length === CODE_LENGTH) void submit(value);
   }
 
-  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
-  const ss = String(secondsLeft % 60).padStart(2, "0");
-
+  // The shop's code step, in the same shell as sign-in: no Verify button —
+  // the sixth digit submits (`onChange` above), so a button would only ever
+  // be a redundant tap.
   return (
-    <Screen scroll={false}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1 justify-center gap-space-8 px-space-7 pb-space-8"
-      >
-        <View className="gap-space-3">
-          <Text variant="heading" size="h1">
-            Enter the code
-          </Text>
-          <Text variant="muted">
-            We sent a {CODE_LENGTH}-digit code to {email ?? "your email"}.
-          </Text>
-        </View>
+    <AuthShell onBack={() => router.back()}>
+      <AuthHeader
+        title="Check your email"
+        subtitle={`We sent a ${CODE_LENGTH}-digit code to ${email ?? "your email"}.`}
+      />
 
+      <View className="gap-space-5">
         <OtpInput
           value={code}
           onChange={onChange}
@@ -162,45 +156,40 @@ export default function VerifyRoute() {
           editable={!submitting}
           autoFocus
         />
+
+        {submitting ? (
+          <Text size="sm" variant="muted" className="text-center">
+            Checking the code…
+          </Text>
+        ) : null}
+
         {error ? (
-          <Text variant="destructive" size="sm">
+          <Text size="sm" variant="destructive" className="text-center">
             {error}
           </Text>
         ) : null}
 
-        <View className="gap-space-5">
-          <Button
-            label="Verify"
-            size="lg"
-            full
-            loading={submitting}
-            disabled={code.length !== CODE_LENGTH}
-            onPress={() => void submit(code)}
-          />
-          {secondsLeft > 0 ? (
-            <Text variant="subtle" size="sm" className="text-center">
-              Resend code in{" "}
-              <Text size="sm" weight="semibold" className="text-strong">
-                {mm}:{ss}
-              </Text>
-            </Text>
-          ) : (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void resend()}
-              className="active:opacity-70"
-            >
-              <Text
-                size="sm"
-                weight="semibold"
-                className="text-center text-strong underline"
-              >
-                Resend code
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    </Screen>
+        {notice && !error ? (
+          <Text size="sm" variant="muted" className="text-center">
+            {notice}
+          </Text>
+        ) : null}
+
+        <Pressable
+          onPress={() => void resend()}
+          disabled={secondsLeft > 0 || submitting}
+          accessibilityRole="button"
+          className="items-center active:opacity-70"
+        >
+          <Text
+            size="sm"
+            variant={secondsLeft > 0 ? "subtle" : "default"}
+            weight={secondsLeft > 0 ? "regular" : "semibold"}
+          >
+            {secondsLeft > 0 ? `Resend in ${secondsLeft}s` : "Send a new code"}
+          </Text>
+        </Pressable>
+      </View>
+    </AuthShell>
   );
 }

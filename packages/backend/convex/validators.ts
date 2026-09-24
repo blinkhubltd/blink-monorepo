@@ -509,6 +509,16 @@ export const UsersValidator = v.object({
       rating_count: v.optional(v.number()),
       id_image: v.optional(v.id("_storage")),
       license_image: v.optional(v.id("_storage")),
+      /**
+       * When an admin approved this rider to work, and who did. Separate from
+       * `status` on purpose: `status` is the rider's own online/offline switch
+       * (and "On Delivery" while dispatch has them), so it cannot also mean
+       * "vetted" — using it for both meant going offline looked like being
+       * under review, and a new rider had no way in to upload documents.
+       * Unset = not approved yet. See `user/rider_onboarding.ts`.
+       */
+      approved_at: v.optional(v.number()),
+      approved_by: v.optional(v.id("users")),
       is_overtime: v.optional(v.boolean()),
       is_clearance_rider: v.optional(v.boolean()),
     }),
@@ -591,6 +601,16 @@ export const UsersUpdateValidator = v.object({
       rating: v.optional(v.float64()),
       id_image: v.optional(v.id("_storage")),
       license_image: v.optional(v.id("_storage")),
+      /**
+       * When an admin approved this rider to work, and who did. Separate from
+       * `status` on purpose: `status` is the rider's own online/offline switch
+       * (and "On Delivery" while dispatch has them), so it cannot also mean
+       * "vetted" — using it for both meant going offline looked like being
+       * under review, and a new rider had no way in to upload documents.
+       * Unset = not approved yet. See `user/rider_onboarding.ts`.
+       */
+      approved_at: v.optional(v.number()),
+      approved_by: v.optional(v.id("users")),
       is_overtime: v.optional(v.boolean()),
       is_clearance_rider: v.optional(v.boolean()),
     }),

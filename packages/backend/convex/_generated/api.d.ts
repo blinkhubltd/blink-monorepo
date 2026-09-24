@@ -92,6 +92,7 @@ import type * as user_access from "../user/access.js";
 import type * as user_bootstrap from "../user/bootstrap.js";
 import type * as user_clerk from "../user/clerk.js";
 import type * as user_invitations from "../user/invitations.js";
+import type * as user_rider_onboarding from "../user/rider_onboarding.js";
 import type * as user_roles from "../user/roles.js";
 import type * as user_users from "../user/users.js";
 import type * as validators from "../validators.js";
@@ -190,6 +191,7 @@ declare const fullApi: ApiFromModules<{
   "user/bootstrap": typeof user_bootstrap;
   "user/clerk": typeof user_clerk;
   "user/invitations": typeof user_invitations;
+  "user/rider_onboarding": typeof user_rider_onboarding;
   "user/roles": typeof user_roles;
   "user/users": typeof user_users;
   validators: typeof validators;

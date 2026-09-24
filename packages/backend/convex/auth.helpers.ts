@@ -151,6 +151,29 @@ export async function assertPermission(
   throw new ConvexError(`Forbidden: missing permission "${permission}"`);
 }
 
+/**
+ * `assertPermission`, WITHOUT the system-role bypass.
+ *
+ * `isAllowed` lets any Rider, Picker or Customer through every permission
+ * check (they hold no permissions, and the bypass predates role-scoped
+ * checks). That is wrong for anything only the dashboard may do: with the
+ * bypass, a rider could approve their own documents. Use this for
+ * staff-only actions until the bypass itself is removed.
+ */
+export async function assertStaffPermission(
+  ctx: QueryCtx | MutationCtx,
+  permission: Permission,
+): Promise<AuthedUser> {
+  const authed = await getAuthUser(ctx);
+  if (
+    !isSystemRoleName(authed.roleName) &&
+    isAllowed(authed.roleName, authed.permissions, permission)
+  ) {
+    return authed;
+  }
+  throw new ConvexError(`Forbidden: missing permission "${permission}"`);
+}
+
 /** Non-throwing variant, for conditionally shaping a response. */
 export async function hasPermission(
   ctx: QueryCtx | MutationCtx,
