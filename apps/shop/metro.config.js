@@ -11,6 +11,24 @@ const config = getDefaultConfig(projectRoot);
 
 config.watchFolders = [...(config.watchFolders ?? []), monorepoRoot];
 
+/**
+ * Keep Metro out of `.claude/worktrees/`. Claude Code puts git worktrees for
+ * background tasks inside the repo, each a full checkout with its own
+ * node_modules; with the monorepo root in `watchFolders`, Metro tried to crawl
+ * every one of them, and startup died with "Failed to start watch mode" (then
+ * NativeWind's "Cannot read properties of undefined (reading 'getSha1')").
+ * Appended, not assigned: Expo's defaults already set a blockList.
+ */
+const existingBlockList = config.resolver.blockList;
+config.resolver.blockList = [
+  ...(Array.isArray(existingBlockList)
+    ? existingBlockList
+    : existingBlockList
+      ? [existingBlockList]
+      : []),
+  /[\\/]\.claude[\\/]worktrees[\\/].*/,
+];
+
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(monorepoRoot, "node_modules"),
