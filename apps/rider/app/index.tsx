@@ -34,6 +34,10 @@ export default function SplashRoute() {
       case "not_crew":
         router.replace("/(auth)/access-denied");
         return;
+      case "needs_documents":
+        router.replace("/(auth)/onboarding");
+        return;
+      case "pending_review":
       case "suspended":
         router.replace("/(auth)/access-restricted");
         return;

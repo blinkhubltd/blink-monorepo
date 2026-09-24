@@ -1,4 +1,5 @@
 import { internalMutation } from "./_generated/server";
+import { missingRiderDocuments } from "./user/rider_onboarding";
 
 /**
  * One-off data fixes for rows that were seeded before a bug in
@@ -54,5 +55,48 @@ export const fixRiderPickerManagesVendor = internalMutation({
     }
 
     return { patched, alreadyCorrect, missing };
+  },
+});
+
+/**
+ * Rider approval (`rider_details.approved_at`) is new, and the rider app now
+ * refuses anyone without it. Riders already working would be locked out the
+ * moment it ships, so this marks as approved exactly those who were already
+ * treated as vetted: documents complete AND currently online or on a
+ * delivery. Anyone else — documents missing, or offline with no way to tell
+ * whether they were ever vetted — goes through the new review, where an admin
+ * approves them from the Staff page.
+ *
+ * Run once, after deploying. Idempotent: already-approved riders are skipped.
+ */
+export const backfillRiderApproval = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const roles = await ctx.db.query("roles").collect();
+    const riderRole = roles.find((r) => r.name.trim().toLowerCase() === "rider");
+    if (!riderRole) return { approved: 0, leftForReview: 0 };
+
+    const riders = await ctx.db
+      .query("users")
+      .withIndex("by_role_id", (q) => q.eq("role_id", riderRole._id))
+      .collect();
+
+    let approved = 0;
+    let leftForReview = 0;
+    const now = Date.now();
+    for (const rider of riders) {
+      const details = rider.rider_details;
+      if (!details || details.approved_at) continue;
+      const working = details.status === "Active" || details.status === "On Delivery";
+      if (working && missingRiderDocuments(rider).length === 0) {
+        await ctx.db.patch(rider._id, {
+          rider_details: { ...details, approved_at: now },
+        });
+        approved++;
+      } else {
+        leftForReview++;
+      }
+    }
+    return { approved, leftForReview };
   },
 });

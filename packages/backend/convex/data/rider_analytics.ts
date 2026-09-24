@@ -6,7 +6,7 @@ import {
   QueryCtx,
   MutationCtx,
 } from "../_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import { assertSelfOrPermission } from "../auth.helpers";
 
@@ -188,6 +188,14 @@ export const updateRiderOnlineStatus = mutation({
     const rider = await ctx.db.get(args.riderId);
     if (!rider || !(await isRider(ctx, rider))) {
       throw new Error("Rider not found");
+    }
+
+    // Approval is the gate to working at all (`user/rider_onboarding.ts`);
+    // going offline is always allowed.
+    if (args.isOnline && !rider.rider_details?.approved_at) {
+      throw new ConvexError(
+        "Your account has not been approved yet, so you cannot go online.",
+      );
     }
 
     const newStatus = args.isOnline ? "Active" : "Inactive";

@@ -15,7 +15,11 @@ import type { Crew } from "../lib/data/types";
  *  no_account  — signed in with Clerk but no `users` row yet (the Clerk webhook
  *                creates it, so this is normally transient)
  *  not_crew    — has an account but the role is neither Rider nor Picker
- *  suspended   — crew account exists but is not Active
+ *  needs_documents — a rider not yet approved who still has to submit their
+ *                phone, ID photo and licence photo (the onboarding form)
+ *  pending_review  — a rider whose documents are in, awaiting an admin's
+ *                approval (`user/rider_onboarding.ts`)
+ *  suspended   — a picker set Inactive by their hub
  */
 export type CrewGate =
   | "ok"
@@ -23,6 +27,8 @@ export type CrewGate =
   | "no_session"
   | "no_account"
   | "not_crew"
+  | "needs_documents"
+  | "pending_review"
   | "suspended";
 
 interface CrewContextValue {
@@ -82,12 +88,24 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
     if (doc === undefined) return "loading";
     if (doc === null) return "no_account";
     if (role === null) return "not_crew";
-    const status =
-      role === "rider" ? doc.rider_details?.status : doc.picker_details?.status;
-    // An absent status is treated as usable. The assign-* mutations set it, but
-    // rows predating them have none, and locking those crew members out of the
-    // app is worse than letting them work.
-    if (status && status !== "Active") return "suspended";
+
+    if (role === "rider") {
+      // Approval, not `status`: status is the rider's own online/offline
+      // switch, so reading it here locked out every rider who went offline
+      // and every new rider before they could submit anything.
+      if (doc.rider_details?.approved_at) return "ok";
+      const documentsIn =
+        !!doc.phone &&
+        !!doc.rider_details?.id_image &&
+        !!doc.rider_details?.license_image;
+      return documentsIn ? "pending_review" : "needs_documents";
+    }
+
+    // Pickers: only Inactive locks them out. "On Order" is a picker mid-pick,
+    // and treating it as suspended threw them out of the order they were on.
+    // An absent status is treated as usable — rows predating the assign
+    // mutations have none, and locking those pickers out is worse.
+    if (doc.picker_details?.status === "Inactive") return "suspended";
     return "ok";
   }, [authLoaded, isSignedIn, doc, role]);
 

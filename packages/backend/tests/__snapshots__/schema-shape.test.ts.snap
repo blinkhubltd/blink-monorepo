@@ -5263,6 +5263,19 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         "fieldType": {
           "type": "object",
           "value": {
+            "approved_at": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": true,
+            },
+            "approved_by": {
+              "fieldType": {
+                "tableName": "users",
+                "type": "id",
+              },
+              "optional": true,
+            },
             "coordinates": {
               "fieldType": {
                 "type": "object",
@@ -5591,6 +5604,19 @@ exports[`table shapes > matches the committed snapshot 1`] = `
         "fieldType": {
           "type": "object",
           "value": {
+            "approved_at": {
+              "fieldType": {
+                "type": "number",
+              },
+              "optional": true,
+            },
+            "approved_by": {
+              "fieldType": {
+                "tableName": "users",
+                "type": "id",
+              },
+              "optional": true,
+            },
             "coordinates": {
               "fieldType": {
                 "type": "object",
