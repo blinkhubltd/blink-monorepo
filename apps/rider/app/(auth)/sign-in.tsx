@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
-import { Image } from "expo-image";
-import { Link, useRouter } from "expo-router";
+import { Pressable, View } from "react-native";
+import { useRouter } from "expo-router";
 import { isClerkAPIResponseError, useSignIn } from "@clerk/clerk-expo";
 import type { SignInFirstFactor, SignInSecondFactor } from "@clerk/types";
-import { ArrowRight, Lock, Mail } from "lucide-react-native";
 import { clerkErrorMessage } from "@repo/lib/auth";
 import { Button } from "@repo/mobile-ui/components/ui/button";
-import { Input } from "@repo/mobile-ui/components/ui/input";
 import { Text } from "@repo/mobile-ui/components/ui/text";
-import { Screen } from "../../components/Screen";
+import {
+  AuthFooterLink,
+  AuthHeader,
+  AuthShell,
+} from "../../components/auth/auth-shell";
+import { PillField } from "../../components/auth/pill-field";
 import { normaliseEmail, validate, type FieldErrors } from "../../lib/auth/credentials";
 
 /**
@@ -33,15 +35,23 @@ import { normaliseEmail, validate, type FieldErrors } from "../../lib/auth/crede
  */
 
 /**
- * Both mean "that did not work", not "which one was wrong" — see the header
+ * All mean "that did not work", not "which one was wrong" — see the header
  * above. Kept local rather than imported from `@repo/lib/auth`'s
  * `clerkErrorMessage`, whose ambiguous wording ("That did not match an
  * account...") is written for a screen with a sign-up link next to it. This
  * one has none, so the message says where to actually go instead.
+ *
+ * `strategy_for_user_invalid` is the account that exists but has NO password —
+ * one made under the old phone-OTP sign-in, or created without one. Clerk's
+ * own text for it ("The verification strategy is not valid for this
+ * account") is both meaningless to a rider and a tell that the email is
+ * registered, which is exactly what the other two codes are folded together
+ * to hide. Such a rider sets a password through "Forgot password?".
  */
 const AMBIGUOUS_ERROR_CODES = new Set([
   "form_identifier_not_found",
   "form_password_incorrect",
+  "strategy_for_user_invalid",
 ]);
 
 /** Sends the code for whichever second factor Clerk actually offered. */
@@ -160,105 +170,98 @@ export default function SignInRoute() {
   }
 
   return (
-    <Screen scroll={false}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1 justify-center gap-space-8 px-space-7 pb-space-8"
-      >
-        <View className="items-start gap-space-5">
-          <Image
-            source={require("../../assets/images/logo-blink-ink.png")}
-            style={{ width: 84, height: 22 }}
-            contentFit="contain"
-          />
-          <View className="gap-space-3">
-            <Text variant="heading" size="h1">
-              Sign in to Blink Riders
-            </Text>
-            <Text variant="muted">
-              Use the email and password registered with your hub.
-            </Text>
-          </View>
-        </View>
+    <AuthShell
+      footer={
+        <AuthFooterLink
+          prompt="Not a Blink crew member?"
+          action="Contact your hub lead"
+          onPress={() => router.push("/(auth)/access-denied")}
+        />
+      }
+    >
+      <AuthHeader
+        title="Welcome back."
+        subtitle="Sign in with the email your hub lead invited."
+      />
 
-        <View className="gap-space-5">
-          <Input
-            label="Email"
-            placeholder="you@blink.app"
-            value={email}
-            onChangeText={(t) => {
-              setEmail(t);
-              setFieldErrors((e) => ({ ...e, email: undefined }));
-              setError(null);
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="emailAddress"
-            autoComplete="email"
-            error={fieldErrors.email}
-            icon={<Mail size={18} strokeWidth={2} className="text-subtle" />}
-          />
-          <Input
-            label="Password"
-            placeholder="••••••••"
-            value={password}
-            onChangeText={(t) => {
-              setPassword(t);
-              setFieldErrors((e) => ({ ...e, password: undefined }));
-              setError(null);
-            }}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="password"
-            autoComplete="password"
-            error={fieldErrors.password}
-            icon={<Lock size={18} strokeWidth={2} className="text-subtle" />}
-          />
-          <Link
-            href={{ pathname: "/(auth)/reset-password", params: { email } }}
-            asChild
-          >
-            <Pressable accessibilityRole="button" className="self-end active:opacity-70">
-              <Text size="sm" weight="semibold" className="text-strong">
-                Forgot password?
-              </Text>
-            </Pressable>
-          </Link>
-          {error ? (
-            <Text variant="destructive" size="sm">
-              {error}
-            </Text>
-          ) : null}
-          <Button
-            label="Sign in"
-            size="lg"
-            full
-            loading={submitting}
-            disabled={!canSubmit}
-            onPress={() => void onSubmit()}
-            icon={
-              <ArrowRight
-                size={18}
-                strokeWidth={2}
-                className="text-primary-foreground"
-              />
+      <View className="gap-[16px]">
+        <PillField
+          label="Email"
+          placeholder="Enter your email"
+          value={email}
+          onChangeText={(t) => {
+            setEmail(t);
+            setFieldErrors((e) => ({ ...e, email: undefined }));
+            setError(null);
+          }}
+          error={fieldErrors.email}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          autoComplete="email"
+          textContentType="emailAddress"
+          editable={!submitting}
+          returnKeyType="next"
+        />
+
+        <PillField
+          label="Password"
+          placeholder="Enter your password"
+          value={password}
+          onChangeText={(t) => {
+            setPassword(t);
+            setFieldErrors((e) => ({ ...e, password: undefined }));
+            setError(null);
+          }}
+          error={fieldErrors.password}
+          reveal
+          autoCapitalize="none"
+          autoComplete="current-password"
+          textContentType="password"
+          editable={!submitting}
+          returnKeyType="go"
+          onSubmitEditing={() => void onSubmit()}
+        />
+
+        {/*
+          The shop puts "Remember me" opposite this link. It is left out here
+          rather than drawn: the shop honours it with a cold-start sign-out
+          guard the rider app does not have, and a checkbox that changes
+          nothing is worse than none.
+        */}
+        <View className="-mt-[2px] flex-row items-center justify-end">
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/(auth)/reset-password",
+                params: email ? { email } : {},
+              })
             }
-          />
+            accessibilityRole="link"
+            hitSlop={8}
+            className="active:opacity-70"
+          >
+            <Text size="sm" weight="semibold" className="text-ink-950 underline">
+              Forgot password?
+            </Text>
+          </Pressable>
         </View>
 
-        <View className="items-center gap-space-2">
-          <Text variant="subtle" size="sm">
-            Not a Blink crew member?{" "}
-            <Link href="/(auth)/access-denied" asChild>
-              <Text size="sm" weight="semibold" className="text-strong">
-                Contact your hub lead
-              </Text>
-            </Link>
+        {error ? (
+          <Text size="sm" variant="destructive">
+            {error}
           </Text>
-        </View>
-      </KeyboardAvoidingView>
-    </Screen>
+        ) : null}
+
+        <Button
+          label="Sign in"
+          size="ctaLg"
+          full
+          loading={submitting}
+          disabled={!canSubmit}
+          onPress={() => void onSubmit()}
+        />
+      </View>
+    </AuthShell>
   );
 }

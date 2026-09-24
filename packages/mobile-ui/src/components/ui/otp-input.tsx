@@ -49,8 +49,12 @@ export function OtpInput({
         {digits.map((digit, i) => (
           <View
             key={i}
+            // A real 1px border, not `border-hairline` (~0.33px): the boxes are
+            // white on a white auth screen, so the border is the only thing
+            // that draws them, and a hairline in ink-200 anti-aliased away to
+            // nothing. Same fix, same reason, as `Input`.
             className={cn(
-              "h-[48px] flex-1 items-center justify-center rounded-md border-hairline bg-card",
+              "h-[52px] flex-1 items-center justify-center rounded-md border bg-card",
               digit ? "border-strong" : "border-border",
               invalid && "border-destructive",
               editable && i === activeIndex && !digit && "border-primary",

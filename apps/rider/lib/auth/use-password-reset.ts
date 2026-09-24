@@ -14,18 +14,28 @@ import { isValidEmail, normaliseEmail } from "./credentials";
  *
  * Clerk models this as a sign-in with a different first factor, not as a
  * separate resource: `signIn.create({ strategy: "reset_password_email_code" })`
- * mails a code, and `attemptFirstFactor` with that code AND the new password
- * both verifies the code and sets the password in one call.
+ * mails a code. From there this takes three steps, one thing per screen:
  *
- * Ported from the shop app's hook of the same name — see it for the shape
- * this follows. The one rule that matters most here is `fail`: an email with
- * no account still advances to "check your email" exactly as a real one
- * would. Answering differently would let this screen be used to find out
- * which email addresses belong to riders, which is the same information a
- * sign-in error must not leak either — see `sign-in.tsx`.
+ *   email    — ask for the address and send the code.
+ *   code     — checked the moment the sixth digit lands:
+ *              `attemptFirstFactor` with the code alone moves the attempt to
+ *              `needs_new_password`.
+ *   password — `signIn.resetPassword` sets it and completes the sign-in.
+ *
+ * The shop's version asks for the code and the new password together, which
+ * means a wrong code is only discovered after someone has also chosen a
+ * password — and the number pad the code field opens hides the password
+ * field and the button underneath it. Checking the code on its own step
+ * fixes both.
+ *
+ * The one rule that matters most here is `fail`: an email with no account
+ * still advances to "check your email" exactly as a real one would.
+ * Answering differently would let this screen be used to find out which
+ * addresses belong to riders — the same thing sign-in's error must not leak.
+ * For such an address the code step simply never accepts a code.
  */
 
-export type ResetStep = "email" | "reset";
+export type ResetStep = "email" | "code" | "password";
 
 const RESEND_SECONDS = 30;
 const MIN_PASSWORD = 8;
@@ -43,6 +53,7 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
   const [notice, setNotice] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
 
+  /** Autofill fires the change handler twice; one attempt per code. */
   const submittedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -55,8 +66,7 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
     setBusy(false);
     if (isClerkAPIResponseError(err)) {
       // An unknown email is answered the same way whether or not the account
-      // exists, on purpose: telling an anonymous caller which addresses are
-      // registered turns this screen into an account-enumeration oracle.
+      // exists, on purpose — see this file's header.
       if (isUnknownAccount(err.errors)) {
         setError(null);
         return "sent" as const;
@@ -66,6 +76,14 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
     }
     setError(fallback);
     return "failed" as const;
+  }, []);
+
+  const toCodeStep = useCallback(() => {
+    submittedFor.current = null;
+    setCode("");
+    setStep("code");
+    setBusy(false);
+    setResendIn(RESEND_SECONDS);
   }, []);
 
   const sendCode = useCallback(async () => {
@@ -88,46 +106,70 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
         strategy: "reset_password_email_code",
         identifier: normaliseEmail(email),
       });
-      submittedFor.current = null;
-      setStep("reset");
-      setBusy(false);
-      setResendIn(RESEND_SECONDS);
+      toCodeStep();
     } catch (err) {
-      // See `fail`: an unknown address still advances, so nothing here
-      // distinguishes a registered address from an unregistered one.
+      // An unknown address still advances, so nothing here distinguishes a
+      // registered address from an unregistered one.
       if (fail(err, "Could not send a reset code. Try again.") === "sent") {
-        setStep("reset");
-        setBusy(false);
-        setResendIn(RESEND_SECONDS);
+        toCodeStep();
       }
     }
-  }, [isLoaded, signIn, email, fail]);
+  }, [isLoaded, signIn, email, fail, toCodeStep]);
 
-  const submitReset = useCallback(async () => {
+  /** Runs on the sixth digit — the screen has no "Verify" button. */
+  const submitCode = useCallback(
+    async (raw: string) => {
+      if (!signIn) return;
+      const clean = normaliseCode(raw);
+      if (!isCompleteCode(clean)) return;
+      if (submittedFor.current === clean) return;
+      submittedFor.current = clean;
+
+      setBusy(true);
+      setError(null);
+      setNotice(null);
+      try {
+        const attempt = await signIn.attemptFirstFactor({
+          strategy: "reset_password_email_code",
+          code: clean,
+        });
+
+        if (attempt.status === "needs_new_password") {
+          setBusy(false);
+          setStep("password");
+          return;
+        }
+        if (attempt.status === "complete") {
+          await setActive!({ session: attempt.createdSessionId });
+          setBusy(false);
+          onDone();
+          return;
+        }
+        setBusy(false);
+        setError(
+          `Resetting stopped at "${attempt.status}", which this screen does not handle yet.`,
+        );
+      } catch (err) {
+        submittedFor.current = null;
+        setCode("");
+        fail(err, "That code did not work. Check it and try again.");
+      }
+    },
+    [signIn, setActive, onDone, fail],
+  );
+
+  const submitPassword = useCallback(async () => {
     if (!signIn) return;
-
-    const clean = normaliseCode(code);
-    if (!isCompleteCode(clean)) {
-      setError("Enter the 6-digit code we emailed you.");
-      return;
-    }
     if (password.length < MIN_PASSWORD) {
       setFieldError(`Use at least ${MIN_PASSWORD} characters.`);
       return;
     }
-    if (submittedFor.current === `${clean}:${password}`) return;
-    submittedFor.current = `${clean}:${password}`;
 
     setBusy(true);
     setError(null);
     setFieldError(null);
     try {
-      // One call: the code is checked and the password is set together.
-      const attempt = await signIn.attemptFirstFactor({
-        strategy: "reset_password_email_code",
-        code: clean,
-        password,
-      });
+      const attempt = await signIn.resetPassword({ password });
 
       if (attempt.status === "complete") {
         await setActive!({ session: attempt.createdSessionId });
@@ -141,13 +183,12 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
       // beats a silent stall.
       setBusy(false);
       setError(
-        `Your password was reset, but signing in needs another step ("${attempt.status}"). Sign in from the previous screen.`,
+        "Your password was reset. Sign in with it from the previous screen.",
       );
     } catch (err) {
-      submittedFor.current = null;
-      fail(err, "That code did not work. Check it and try again.");
+      fail(err, "Could not set that password. Try another.");
     }
-  }, [signIn, code, password, setActive, onDone, fail]);
+  }, [signIn, password, setActive, onDone, fail]);
 
   const resend = useCallback(async () => {
     if (resendIn > 0 || !signIn) return;
@@ -158,14 +199,16 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
         strategy: "reset_password_email_code",
         identifier: normaliseEmail(email),
       });
-      submittedFor.current = null;
-      setCode("");
-      setBusy(false);
-      setNotice("We sent another code.");
-      setResendIn(RESEND_SECONDS);
     } catch (err) {
-      fail(err, "Could not send another code just yet.");
+      if (fail(err, "Could not send another code just yet.") === "failed") {
+        return;
+      }
     }
+    submittedFor.current = null;
+    setCode("");
+    setBusy(false);
+    setNotice("We sent another code.");
+    setResendIn(RESEND_SECONDS);
   }, [resendIn, signIn, email, fail]);
 
   return {
@@ -180,6 +223,7 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
     setCode: (next: string) => {
       setCode(next);
       setError(null);
+      if (next.length === 6) void submitCode(next);
     },
     password,
     setPassword: (next: string) => {
@@ -192,7 +236,21 @@ export function usePasswordReset(initialEmail: string, onDone: () => void) {
     notice,
     resendIn,
     sendCode,
-    submitReset,
+    submitPassword,
     resend,
+    /** Back one step: password → code → email. */
+    back: () => {
+      setError(null);
+      setFieldError(null);
+      setNotice(null);
+      if (step === "password") {
+        // The verified code is spent; a fresh one is needed to try again.
+        setStep("code");
+        submittedFor.current = null;
+        setCode("");
+      } else {
+        setStep("email");
+      }
+    },
   };
 }
