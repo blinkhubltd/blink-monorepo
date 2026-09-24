@@ -178,10 +178,10 @@ const expoConfig: ExpoConfig = {
   },
   extra: {
     eas: {
-      projectId: "4e29a2ba-e0ea-4d1f-ba2b-dc803e85569d",
+      projectId: "35fa7738-107c-4775-8253-cd3b5a8a8d7b",
     },
   },
-  owner: "blink-hub",
+  owner: "blink-hub-ltd",
 };
 
 export default expoConfig;

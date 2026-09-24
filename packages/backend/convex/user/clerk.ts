@@ -1,6 +1,8 @@
 import { Webhook } from "svix";
 import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
+import type { vehicleTypes } from "../validators";
 
 /**
  * Clerk user-sync webhook.
@@ -121,6 +123,40 @@ function invitedRole(data: ClerkUserData): string | undefined {
     : undefined;
 }
 
+/**
+ * The vendor (and, for a rider, vehicle details) an invitation carried —
+ * only ever present when `validateInvite` required a vendor for the invited
+ * role, i.e. rider or picker. See `user/invitations.ts` for the write side.
+ *
+ * Cast, not validated: this value only ever came from our own
+ * `inviteUser` action writing to Backend-API-only `public_metadata` (see the
+ * type comment on that field above), never from anything the invited person
+ * could have set themselves. `upsertUser`'s own validator still rejects a
+ * malformed value at the mutation boundary either way.
+ */
+function invitedVendorId(data: ClerkUserData): Id<"vendors"> | undefined {
+  const id = data.public_metadata?.invited_vendor_id;
+  return typeof id === "string" && id.trim().length > 0
+    ? (id.trim() as Id<"vendors">)
+    : undefined;
+}
+
+function invitedRiderVehicleType(
+  data: ClerkUserData,
+): (typeof vehicleTypes)[number] | undefined {
+  const type = data.public_metadata?.invited_rider_vehicle_type;
+  return typeof type === "string" && type.trim().length > 0
+    ? (type.trim() as (typeof vehicleTypes)[number])
+    : undefined;
+}
+
+function invitedRiderVehiclePlate(data: ClerkUserData): string | undefined {
+  const plate = data.public_metadata?.invited_rider_vehicle_plate;
+  return typeof plate === "string" && plate.trim().length > 0
+    ? plate.trim()
+    : undefined;
+}
+
 export const clerkWebhook = httpAction(async (ctx, request) => {
   if (!webhookSecret) {
     // Fail closed. 503 so Clerk retries once the secret exists.
@@ -159,8 +195,13 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
         image: event.data.image_url ?? undefined,
         // Only ever takes effect on the CREATE path inside `upsertUser` — an
         // update replaying this same metadata must never silently move a
-        // role someone has since been promoted or demoted past.
+        // role someone has since been promoted or demoted past. The vendor
+        // and rider extras carry the exact same guarantee, for the exact
+        // same reason.
         roleName: invitedRole(event.data),
+        vendorId: invitedVendorId(event.data),
+        riderVehicleType: invitedRiderVehicleType(event.data),
+        riderVehiclePlate: invitedRiderVehiclePlate(event.data),
       });
       break;
     }

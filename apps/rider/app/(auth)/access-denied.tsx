@@ -11,8 +11,8 @@ export default function AccessDeniedRoute() {
       <EmptyState
         tone="danger"
         icon={<ShieldOff size={32} strokeWidth={2} className="text-destructive" />}
-        title="This number isn’t registered"
-        body="We couldn’t find a rider or picker account for that number. Ask your hub lead to add you."
+        title="You’ll need an invite"
+        body="Rider and picker accounts are set up by a hub lead. Ask yours to invite you before signing in."
       >
         <Button
           variant="secondary"

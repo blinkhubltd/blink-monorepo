@@ -43,6 +43,13 @@ import {
  * The backend enforces the same rule (`validateInvite`); this is so a
  * non-super-admin never sees an option they would be denied, rather than
  * finding out after filling in a name and an email.
+ *
+ * Rider and picker are meaningless unassigned to a vendor, so choosing
+ * either role opens a vendor picker here — the same requirement
+ * `RoleAssignmentDialog.tsx` already enforces when promoting an existing
+ * user to one of these roles, now enforced at invite time too so an account
+ * never exists in the gap between "created" and "someone remembered to set
+ * its vendor".
  */
 export function InviteUserDialog({
   open,
@@ -53,12 +60,16 @@ export function InviteUserDialog({
 }) {
   const { isSuperAdmin } = useCurrentUserPermissions();
   const allRoles = useQuery(api.user.roles.getAllRoles);
+  const vendors = useQuery(api.data.vendors.getAllVendors);
   const inviteUser = useAction(api.user.invitations.inviteUser);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [roleId, setRoleId] = useState<string>("");
+  const [vendorId, setVendorId] = useState<string>("");
+  const [vehicleType, setVehicleType] = useState<string>("Motorbike");
+  const [vehiclePlate, setVehiclePlate] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
   // Reset happens on the CLOSE transition itself, not in an effect watching
@@ -71,6 +82,9 @@ export function InviteUserDialog({
       setLastName("");
       setEmail("");
       setRoleId("");
+      setVendorId("");
+      setVehicleType("Motorbike");
+      setVehiclePlate("");
     }
     onOpenChange(next);
   }
@@ -79,12 +93,19 @@ export function InviteUserDialog({
     (role) => isSuperAdmin || !role.permissions.includes(WILDCARD_PERMISSION),
   );
 
+  const selectedRole = allRoles?.find((r) => r._id === roleId);
+  const roleLower = selectedRole?.name.trim().toLowerCase() ?? "";
+  const isRider = selectedRole?.manages_vendor === true && roleLower === "rider";
+  const isPicker = selectedRole?.manages_vendor === true && roleLower === "picker";
+  const needsVendor = isRider || isPicker;
+
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const canSubmit =
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
     emailValid &&
-    roleId.length > 0;
+    roleId.length > 0 &&
+    (!needsVendor || vendorId.length > 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,6 +118,17 @@ export function InviteUserDialog({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         roleId: roleId as Id<"roles">,
+        ...(needsVendor && vendorId ? { vendorId: vendorId as Id<"vendors"> } : {}),
+        ...(isRider
+          ? {
+              riderVehicleType: vehicleType as
+                | "Motorbike"
+                | "Bicycle"
+                | "Car"
+                | "Van",
+              riderVehiclePlate: vehiclePlate.trim() || undefined,
+            }
+          : {}),
       });
       toast.success(`Invitation sent to ${email.trim()}`);
       handleOpenChange(false);
@@ -161,7 +193,16 @@ export function InviteUserDialog({
 
           <div className="space-y-1.5">
             <Label htmlFor="invite-role">Role</Label>
-            <Select value={roleId} onValueChange={setRoleId} disabled={submitting}>
+            <Select
+              value={roleId}
+              onValueChange={(next) => {
+                setRoleId(next);
+                setVendorId("");
+                setVehicleType("Motorbike");
+                setVehiclePlate("");
+              }}
+              disabled={submitting}
+            >
               <SelectTrigger id="invite-role" className="w-full">
                 <SelectValue placeholder="Choose a role" />
               </SelectTrigger>
@@ -179,6 +220,59 @@ export function InviteUserDialog({
               </p>
             ) : null}
           </div>
+
+          {needsVendor ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="invite-vendor">
+                Vendor {isPicker ? "(picker will be assigned here)" : "(rider will be assigned here)"}
+              </Label>
+              {!vendors ? (
+                <p className="text-muted-foreground text-sm">Loading vendors...</p>
+              ) : (
+                <Select value={vendorId} onValueChange={setVendorId} disabled={submitting}>
+                  <SelectTrigger id="invite-vendor" className="w-full">
+                    <SelectValue placeholder="Select vendor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor._id} value={vendor._id}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          ) : null}
+
+          {isRider ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-vehicle-type">Vehicle type</Label>
+                <Select value={vehicleType} onValueChange={setVehicleType} disabled={submitting}>
+                  <SelectTrigger id="invite-vehicle-type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Motorbike">Motorbike</SelectItem>
+                    <SelectItem value="Bicycle">Bicycle</SelectItem>
+                    <SelectItem value="Car">Car</SelectItem>
+                    <SelectItem value="Van">Van</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-vehicle-plate">Vehicle plate (optional)</Label>
+                <Input
+                  id="invite-vehicle-plate"
+                  value={vehiclePlate}
+                  onChange={(e) => setVehiclePlate(e.target.value)}
+                  placeholder="e.g. KAA 123A"
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+          ) : null}
 
           <DialogFooter>
             <Button

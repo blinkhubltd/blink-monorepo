@@ -2,6 +2,7 @@
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  ArrowDataTransferVerticalIcon as ChevronsUpDown,
   Building02Icon as Building2,
   ChevronDownIcon,
   ChevronFirstIcon,
@@ -72,6 +73,7 @@ import {
 import { Checkbox } from "@repo/ui/components/ui/checkbox";
 import { Badge } from "@repo/ui/components/ui/badge";
 import { Switch } from "@repo/ui/components/ui/switch";
+import { ScrollArea } from "@repo/ui/components/ui/scroll-area";
 import { cn, getConvexErrorMessage } from "@/lib/utils";
 import { UsersTableProps, User, USER_STATUSES } from "./types";
 import { createUsersTableColumns } from "./columns";
@@ -111,6 +113,14 @@ export function UsersTable({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [bulkRoleId, setBulkRoleId] = useState("");
+  // Rider/picker take one vendor for the whole batch; a manager role takes a
+  // set, same split `RoleAssignmentDialog.tsx` draws for a single user.
+  const [bulkVendorId, setBulkVendorId] = useState("");
+  const [bulkVendorIds, setBulkVendorIds] = useState<string[]>([]);
+  const [bulkVendorSearch, setBulkVendorSearch] = useState("");
+  const [bulkVendorPopoverOpen, setBulkVendorPopoverOpen] = useState(false);
+  const [bulkVehicleType, setBulkVehicleType] = useState("Motorbike");
+  const [bulkVehiclePlate, setBulkVehiclePlate] = useState("");
   const [isBulkAssigning, setIsBulkAssigning] = useState(false);
 
   // Filters
@@ -160,6 +170,40 @@ export function UsersTable({
       (r: any) => r.name.trim().toLowerCase() === "customer",
     )?._id;
   }, [allRoles]);
+
+  // Same three-way split as RoleAssignmentDialog.tsx: rider and picker take
+  // one vendor, any other vendor-managing role (a manager) takes a set.
+  const bulkSelectedRole = allRoles?.find((r: any) => r._id === bulkRoleId);
+  const bulkRoleLower = bulkSelectedRole?.name.trim().toLowerCase() ?? "";
+  const bulkNeedsVendor = bulkSelectedRole?.manages_vendor === true;
+  const bulkIsRider = bulkNeedsVendor && bulkRoleLower === "rider";
+  const bulkIsPicker = bulkNeedsVendor && bulkRoleLower === "picker";
+  const bulkIsManager = bulkNeedsVendor && !bulkIsRider && !bulkIsPicker;
+
+  const filteredBulkVendors = useMemo(() => {
+    if (!allVendors) return [];
+    const q = bulkVendorSearch.trim().toLowerCase();
+    return q
+      ? allVendors.filter((v: any) => v.name.toLowerCase().includes(q))
+      : allVendors;
+  }, [allVendors, bulkVendorSearch]);
+
+  const toggleBulkVendor = (id: string) => {
+    setBulkVendorIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  function resetBulkAssignState() {
+    setRowSelection({});
+    setBulkRoleId("");
+    setBulkVendorId("");
+    setBulkVendorIds([]);
+    setBulkVendorSearch("");
+    setBulkVendorPopoverOpen(false);
+    setBulkVehicleType("Motorbike");
+    setBulkVehiclePlate("");
+  }
 
   // ── client-side filtering of the current page data ──
   const filteredUsers = useMemo(() => {
@@ -600,77 +644,238 @@ export function UsersTable({
 
       {/* ─── Bulk Action Bar ─── */}
       {Object.keys(rowSelection).length > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-3">
-          <span className="text-sm font-medium">
-            {Object.keys(rowSelection).length} user(s) selected
-          </span>
-          <div className="flex items-center gap-2 ml-auto">
-            <Select value={bulkRoleId} onValueChange={setBulkRoleId}>
-              <SelectTrigger className="w-[200px] h-9">
-                <SelectValue placeholder="Select role..." />
-              </SelectTrigger>
-              <SelectContent>
-                {allRoles?.map((role: any) => (
-                  <SelectItem key={role._id} value={role._id}>
-                    <span className="flex items-center gap-2">
-                      {role.name}
-                      {role.is_default && (
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] px-1 py-0"
-                        >
-                          default
-                        </Badge>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              disabled={!bulkRoleId || isBulkAssigning}
-              onClick={async () => {
-                const selectedIds = Object.keys(rowSelection) as Id<"users">[];
-                if (!selectedIds.length || !bulkRoleId) return;
-                setIsBulkAssigning(true);
-                try {
-                  const { updated } = await bulkAssignRoleMutation({
-                    userIds: selectedIds,
-                    roleId: bulkRoleId as Id<"roles">,
-                  });
-                  const roleName = rolesMap.get(bulkRoleId) || "selected role";
-                  toast.success(`Assigned "${roleName}" to ${updated} user(s)`);
-                  setRowSelection({});
-                  setBulkRoleId("");
-                } catch (error: any) {
-                  toast.error(
-                    getConvexErrorMessage(error, "Failed to bulk assign role"),
-                  );
-                } finally {
-                  setIsBulkAssigning(false);
+        <div className="flex flex-col gap-3 rounded-lg border bg-muted/50 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium">
+              {Object.keys(rowSelection).length} user(s) selected
+            </span>
+            <div className="flex items-center gap-2 ml-auto">
+              <Select
+                value={bulkRoleId}
+                onValueChange={(next) => {
+                  setBulkRoleId(next);
+                  setBulkVendorId("");
+                  setBulkVendorIds([]);
+                  setBulkVendorSearch("");
+                  setBulkVehicleType("Motorbike");
+                  setBulkVehiclePlate("");
+                }}
+              >
+                <SelectTrigger className="w-[200px] h-9">
+                  <SelectValue placeholder="Select role..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allRoles?.map((role: any) => (
+                    <SelectItem key={role._id} value={role._id}>
+                      <span className="flex items-center gap-2">
+                        {role.name}
+                        {role.is_default && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1 py-0"
+                          >
+                            default
+                          </Badge>
+                        )}
+                        {role.manages_vendor && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1 py-0"
+                          >
+                            vendor
+                          </Badge>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                disabled={
+                  !bulkRoleId ||
+                  isBulkAssigning ||
+                  (bulkIsManager && bulkVendorIds.length === 0) ||
+                  (!bulkIsManager && bulkNeedsVendor && !bulkVendorId)
                 }
-              }}
-            >
-              {isBulkAssigning ? (
-                <HugeiconsIcon icon={Loader2} className="h-4 w-4 animate-spin mr-1" />
-              ) : (
-                <HugeiconsIcon icon={Shield} className="h-4 w-4 mr-1" />
-              )}
-              Assign Role
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setRowSelection({});
-                setBulkRoleId("");
-              }}
-            >
-              <HugeiconsIcon icon={XIcon} className="h-4 w-4 mr-1" />
-              Clear
-            </Button>
+                onClick={async () => {
+                  const selectedIds = Object.keys(rowSelection) as Id<"users">[];
+                  if (!selectedIds.length || !bulkRoleId) return;
+                  if (bulkIsManager && bulkVendorIds.length === 0) {
+                    toast.error("Please select at least one vendor for this role");
+                    return;
+                  }
+                  if (!bulkIsManager && bulkNeedsVendor && !bulkVendorId) {
+                    toast.error("Please select a vendor for this role");
+                    return;
+                  }
+                  setIsBulkAssigning(true);
+                  try {
+                    const { updated } = await bulkAssignRoleMutation({
+                      userIds: selectedIds,
+                      roleId: bulkRoleId as Id<"roles">,
+                      ...(bulkIsManager && bulkVendorIds.length > 0
+                        ? { vendor_ids: bulkVendorIds as Id<"vendors">[] }
+                        : {}),
+                      ...(!bulkIsManager && bulkNeedsVendor && bulkVendorId
+                        ? { vendor_id: bulkVendorId as Id<"vendors"> }
+                        : {}),
+                      ...(bulkIsRider
+                        ? {
+                            rider_vehicle_type: bulkVehicleType as
+                              | "Motorbike"
+                              | "Bicycle"
+                              | "Car"
+                              | "Van",
+                            rider_vehicle_plate: bulkVehiclePlate || undefined,
+                          }
+                        : {}),
+                    });
+                    const roleName = rolesMap.get(bulkRoleId) || "selected role";
+                    toast.success(`Assigned "${roleName}" to ${updated} user(s)`);
+                    resetBulkAssignState();
+                  } catch (error: any) {
+                    toast.error(
+                      getConvexErrorMessage(error, "Failed to bulk assign role"),
+                    );
+                  } finally {
+                    setIsBulkAssigning(false);
+                  }
+                }}
+              >
+                {isBulkAssigning ? (
+                  <HugeiconsIcon icon={Loader2} className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <HugeiconsIcon icon={Shield} className="h-4 w-4 mr-1" />
+                )}
+                Assign Role
+              </Button>
+              <Button size="sm" variant="ghost" onClick={resetBulkAssignState}>
+                <HugeiconsIcon icon={XIcon} className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </div>
           </div>
+
+          {/* Vendor — single for rider/picker, multi for manager. Same split
+              as RoleAssignmentDialog.tsx, applied to the whole selected batch. */}
+          {bulkNeedsVendor && !bulkIsManager && (
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-normal text-muted-foreground shrink-0">
+                Vendor {bulkIsPicker ? "(pickers will be assigned here)" : "(riders will be assigned here)"}
+              </Label>
+              <Select value={bulkVendorId} onValueChange={setBulkVendorId}>
+                <SelectTrigger className="w-[220px] h-9">
+                  <SelectValue placeholder="Select vendor..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allVendors?.map((v: any) => (
+                    <SelectItem key={v._id} value={v._id}>
+                      {v.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {bulkIsRider && (
+                <>
+                  <Select value={bulkVehicleType} onValueChange={setBulkVehicleType}>
+                    <SelectTrigger className="w-[150px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Motorbike">Motorbike</SelectItem>
+                      <SelectItem value="Bicycle">Bicycle</SelectItem>
+                      <SelectItem value="Car">Car</SelectItem>
+                      <SelectItem value="Van">Van</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Vehicle plate (optional)"
+                    value={bulkVehiclePlate}
+                    onChange={(e) => setBulkVehiclePlate(e.target.value)}
+                    className="h-9 w-[180px]"
+                  />
+                </>
+              )}
+            </div>
+          )}
+
+          {bulkIsManager && (
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-normal text-muted-foreground shrink-0">
+                Vendors (managers will be assigned here)
+              </Label>
+              <Popover open={bulkVendorPopoverOpen} onOpenChange={setBulkVendorPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={bulkVendorPopoverOpen}
+                    className="w-[280px] justify-between h-9 font-normal"
+                  >
+                    <span className="truncate">
+                      {bulkVendorIds.length === 0
+                        ? "Select vendors..."
+                        : bulkVendorIds.length === 1
+                          ? allVendors?.find((v: any) => v._id === bulkVendorIds[0])?.name
+                          : `${bulkVendorIds.length} vendors selected`}
+                    </span>
+                    <HugeiconsIcon icon={ChevronsUpDown} className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0" align="start">
+                  <div className="p-2 border-b">
+                    <Input
+                      placeholder="Search vendors..."
+                      value={bulkVendorSearch}
+                      onChange={(e) => setBulkVendorSearch(e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                  <ScrollArea className="max-h-52">
+                    {filteredBulkVendors.length === 0 ? (
+                      <p className="py-4 text-center text-sm text-muted-foreground">
+                        No vendors found.
+                      </p>
+                    ) : (
+                      filteredBulkVendors.map((vendor: any) => (
+                        <div
+                          key={vendor._id}
+                          className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-accent select-none"
+                          onClick={() => toggleBulkVendor(vendor._id)}
+                        >
+                          <Checkbox
+                            checked={bulkVendorIds.includes(vendor._id)}
+                            onCheckedChange={() => toggleBulkVendor(vendor._id)}
+                          />
+                          <span className="text-sm">{vendor.name}</span>
+                        </div>
+                      ))
+                    )}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+              {bulkVendorIds.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {bulkVendorIds.map((id) => {
+                    const vendor = allVendors?.find((v: any) => v._id === id);
+                    return vendor ? (
+                      <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                        {vendor.name}
+                        <button
+                          type="button"
+                          onClick={() => toggleBulkVendor(id)}
+                          className="ml-0.5 rounded-sm opacity-70 hover:opacity-100 hover:bg-muted"
+                        >
+                          <HugeiconsIcon icon={XIcon} className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

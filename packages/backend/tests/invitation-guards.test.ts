@@ -126,3 +126,59 @@ describe("user/users.ts upsertUser applies an invited role only when creating", 
     expect(body).toMatch(/role_id: invitedRoleId \?\? defaultRole\?\._id/);
   });
 });
+
+describe("rider and picker invitations require a vendor", () => {
+  const INVITATIONS_SOURCE = readFileSync(
+    join(__dirname, "..", "convex", "user", "invitations.ts"),
+    "utf8",
+  );
+  const USERS_SOURCE = readFileSync(
+    join(__dirname, "..", "convex", "user", "users.ts"),
+    "utf8",
+  );
+
+  it("validateInvite refuses a rider/picker invite with no vendor, before Clerk is ever touched", () => {
+    const queryMatch = INVITATIONS_SOURCE.match(
+      /export const validateInvite = internalQuery\(\{[\s\S]*?\n\}\);/,
+    );
+    expect(queryMatch).not.toBeNull();
+    const body = queryMatch![0];
+
+    expect(body).toMatch(/roleLower === "rider" \|\| roleLower === "picker"/);
+    expect(body).toMatch(/if \(!args\.vendorId\)/);
+    expect(body).toMatch(/throw new ConvexError\(`Select a vendor/);
+
+    // The action must call this query — and therefore run this check — before
+    // it ever calls `fetch` against Clerk's API. Covered again here because
+    // it is the one property that makes the guard actually load-bearing: a
+    // check that runs after the invite email is already sent is too late.
+    const actionMatch = INVITATIONS_SOURCE.match(
+      /export const inviteUser = action\(\{[\s\S]*?\n\}\);/,
+    );
+    const actionBody = actionMatch![0];
+    const runQueryIndex = actionBody.indexOf("ctx.runQuery");
+    const fetchIndex = actionBody.indexOf("fetch(");
+    expect(runQueryIndex).toBeLessThan(fetchIndex);
+  });
+
+  it("upsertUser carries the invited vendor onto rider_details/picker_details, only on CREATE", () => {
+    const upsertMatch = USERS_SOURCE.match(
+      /export const upsertUser = internalMutation\(\{[\s\S]*?\n\}\);/,
+    );
+    expect(upsertMatch).not.toBeNull();
+    const body = upsertMatch![0];
+
+    const createBranchStart = body.indexOf("// Create new user");
+    const vendorIdIndex = body.indexOf("args.vendorId");
+    expect(createBranchStart).toBeGreaterThan(-1);
+    expect(
+      vendorIdIndex,
+      "args.vendorId is read before the create branch -- it may be reachable from an update",
+    ).toBeGreaterThan(createBranchStart);
+
+    expect(body).toMatch(/invitedRoleLower === "rider" && args\.vendorId/);
+    expect(body).toMatch(/invitedRoleLower === "picker" && args\.vendorId/);
+    expect(body).toMatch(/rider_details: riderDetails/);
+    expect(body).toMatch(/picker_details: pickerDetails/);
+  });
+});

@@ -76,11 +76,20 @@ describe("role presets", () => {
     expect(isSystemRoleName(SUPER_ADMIN_ROLE_NAME)).toBe(false);
   });
 
-  it("has no role managing a vendor by default", () => {
+  it("manages_vendor is on only for Rider and Picker, never Super Admin or Customer", () => {
+    // Rider and Picker each belong to exactly one vendor
+    // (`rider_details`/`picker_details.vendor_id`) — this flag is what makes
+    // the vendor-assignment screens (`RoleAssignmentDialog`,
+    // `InviteUserDialog`, the Customers table's bulk-assign bar) show a
+    // vendor picker for them at all. Super Admin and Customer must stay off:
     // `manages_vendor` plus an assigned vendor is what restricts an insights
-    // caller. A preset switching it on would silently scope the platform owner
-    // to nothing.
-    expect(rolePresets.every((p) => !p.manages_vendor)).toBe(true);
+    // caller, and switching it on for Super Admin would silently scope the
+    // platform owner to nothing.
+    const withVendor = rolePresets
+      .filter((p) => p.manages_vendor)
+      .map((p) => p.name)
+      .sort();
+    expect(withVendor).toEqual(["Picker", "Rider"]);
   });
 });
 

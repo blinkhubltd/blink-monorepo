@@ -2,18 +2,33 @@ import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { isClerkAPIResponseError, useSignIn } from "@clerk/clerk-expo";
+import type {
+  AttemptFirstFactorParams,
+  AttemptSecondFactorParams,
+  SignInFirstFactor,
+} from "@clerk/types";
+import { clerkErrorMessage } from "@repo/lib/auth";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { OtpInput } from "../../components/OtpInput";
 import { Screen } from "../../components/Screen";
-import { maskE164 } from "../../lib/phone";
 
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
+/**
+ * Only "first" or "second" factor codes land here, both always `email_code`
+ * for this deployment (no phone auth), but the strategy string still comes
+ * from the route params — passed through, never hardcoded — because a second
+ * factor is Clerk's own choice, not this screen's.
+ */
 export default function VerifyRoute() {
   const router = useRouter();
-  const { phone } = useLocalSearchParams<{ phone?: string }>();
+  const { email, strategy, factor } = useLocalSearchParams<{
+    email?: string;
+    strategy?: string;
+    factor?: "first" | "second";
+  }>();
   const { signIn, setActive, isLoaded } = useSignIn();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +53,18 @@ export default function VerifyRoute() {
     setSubmitting(true);
     setError(null);
     try {
-      const attempt = await signIn.attemptFirstFactor({
-        strategy: "phone_code",
-        code: value,
-      });
+      const attempt =
+        factor === "second"
+          ? await signIn.attemptSecondFactor({
+              strategy,
+              code: value,
+            } as AttemptSecondFactorParams)
+          : await signIn.attemptFirstFactor({
+              strategy: "email_code",
+              code: value,
+            } as AttemptFirstFactorParams);
       if (attempt.status !== "complete") {
-        // Clerk can require a second factor. There is no UI for it here, so say
+        // Clerk can chain another factor. There is no UI for it here, so say
         // so rather than leaving the rider on a screen that cannot proceed.
         setError(
           "This account needs another verification step. Contact your hub lead.",
@@ -57,12 +78,7 @@ export default function VerifyRoute() {
       router.replace("/");
     } catch (err) {
       if (isClerkAPIResponseError(err)) {
-        const failed = err.errors[0]?.code;
-        setError(
-          failed === "form_code_incorrect" || failed === "verification_failed"
-            ? "That code didn’t match. Try again."
-            : (err.errors[0]?.longMessage ?? "Verification failed."),
-        );
+        setError(clerkErrorMessage(err.errors, "Verification failed."));
       } else {
         setError("Verification failed. Check your connection and try again.");
       }
@@ -79,14 +95,34 @@ export default function VerifyRoute() {
     setCode("");
     submittedFor.current = null;
     try {
-      const factor = signIn.supportedFirstFactors?.find(
-        (f) => f.strategy === "phone_code",
-      );
-      if (factor && "phoneNumberId" in factor) {
-        await signIn.prepareFirstFactor({
-          strategy: "phone_code",
-          phoneNumberId: factor.phoneNumberId,
-        });
+      if (factor === "second") {
+        const found = signIn.supportedSecondFactors?.find(
+          (f) => f.strategy === strategy,
+        );
+        if (found && (found.strategy === "email_code" || found.strategy === "phone_code")) {
+          if (found.strategy === "email_code") {
+            await signIn.prepareSecondFactor({
+              strategy: "email_code",
+              emailAddressId: found.emailAddressId,
+            });
+          } else {
+            await signIn.prepareSecondFactor({
+              strategy: "phone_code",
+              phoneNumberId: found.phoneNumberId,
+            });
+          }
+        }
+      } else {
+        const factors = (signIn.supportedFirstFactors ?? []) as SignInFirstFactor[];
+        const emailFactor = factors.find((f) => f.strategy === "email_code") as
+          | Extract<SignInFirstFactor, { strategy: "email_code" }>
+          | undefined;
+        if (emailFactor) {
+          await signIn.prepareFirstFactor({
+            strategy: "email_code",
+            emailAddressId: emailFactor.emailAddressId,
+          });
+        }
       }
       setSecondsLeft(RESEND_SECONDS);
     } catch {
@@ -114,8 +150,7 @@ export default function VerifyRoute() {
             Enter the code
           </Text>
           <Text variant="muted">
-            We sent a {CODE_LENGTH}-digit code to{" "}
-            {phone ? maskE164(phone) : "your phone"}.
+            We sent a {CODE_LENGTH}-digit code to {email ?? "your email"}.
           </Text>
         </View>
 

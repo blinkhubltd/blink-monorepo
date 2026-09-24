@@ -73,7 +73,16 @@ export const rolePresets: RolePreset[] = [
     description: "Delivers orders. Uses the crew app, not the dashboard.",
     permissions: [],
     is_default: false,
-    manages_vendor: false,
+    // A rider belongs to exactly one vendor (`rider_details.vendor_id`) —
+    // this is what makes `assignRoleToUser`/`bulkAssignRole`
+    // (`user/users.ts`) and `validateInvite` (`user/invitations.ts`) treat
+    // the role as vendor-scoped and show a vendor picker for it at all. Was
+    // `false` here, which meant a fresh deployment's seeded Rider role could
+    // never actually be given a vendor through any of those screens — the
+    // vendor-picker UI checks this exact flag and silently rendered nothing
+    // for it. See the migration in `user/roles.ts` for fixing a deployment
+    // that already seeded the old value.
+    manages_vendor: true,
   },
   {
     name: "Picker",
@@ -81,7 +90,9 @@ export const rolePresets: RolePreset[] = [
       "Picks and packs orders at a hub. Uses the crew app, not the dashboard.",
     permissions: [],
     is_default: false,
-    manages_vendor: false,
+    // Same as Rider above — a picker belongs to exactly one vendor
+    // (`picker_details.vendor_id`).
+    manages_vendor: true,
   },
 ];
 

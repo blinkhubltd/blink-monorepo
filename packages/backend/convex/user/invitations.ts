@@ -3,6 +3,7 @@ import { action, internalQuery } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { assertPermission } from "../auth.helpers";
 import { isSuperAdminPermissions } from "../lib/role_presets";
+import { vehicleTypes } from "../validators";
 
 /**
  * Inviting someone who does not have an account yet, as a chosen role.
@@ -41,11 +42,27 @@ import { isSuperAdminPermissions } from "../lib/role_presets";
  * `isSuperAdminPermissions`) unless the inviter already holds it themselves.
  * Without this, anyone who could invite staff at all could invite themselves
  * a friend with full access.
+ *
+ * ── Riders and pickers are always tied to a vendor ────────────────────────
+ *
+ * `assignRoleToUser` (`user/users.ts`) has always required a vendor for these
+ * two roles when promoting an EXISTING user — `RoleAssignmentDialog.tsx`
+ * refuses to submit without one. Inviting someone straight into one of these
+ * roles skipped that requirement entirely, because the invite predates
+ * vendor-aware roles having a UI here: the account would be created with
+ * `rider_details`/`picker_details.vendor_id` unset, invisible in every
+ * vendor-scoped view until someone happened to notice and fix it by hand.
+ * `validateInvite` now enforces the same rule at the same place
+ * `assignRoleToUser` does — before anything is created — rather than leaving
+ * it to be caught later.
  */
 
 export const validateInvite = internalQuery({
-  args: { roleId: v.id("roles") },
-  handler: async (ctx, args): Promise<{ roleName: string }> => {
+  args: { roleId: v.id("roles"), vendorId: v.optional(v.id("vendors")) },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ roleName: string; managesVendor: boolean }> => {
     const authed = await assertPermission(ctx, "users:CREATE");
 
     const role = await ctx.db.get(args.roleId);
@@ -60,7 +77,20 @@ export const validateInvite = internalQuery({
       );
     }
 
-    return { roleName: role.name };
+    const roleLower = role.name.trim().toLowerCase();
+    // Managers can hold several vendors and there is no invite-time UI for
+    // that yet, so only the two single-vendor roles are enforced here — same
+    // scope `RoleAssignmentDialog.tsx` draws between a single vendor picker
+    // and the manager's multi-select.
+    if (role.manages_vendor && (roleLower === "rider" || roleLower === "picker")) {
+      if (!args.vendorId) {
+        throw new ConvexError(`Select a vendor for the ${role.name} role.`);
+      }
+      const vendor = await ctx.db.get(args.vendorId);
+      if (!vendor) throw new ConvexError("That vendor no longer exists.");
+    }
+
+    return { roleName: role.name, managesVendor: role.manages_vendor };
   },
 });
 
@@ -70,6 +100,13 @@ export const inviteUser = action({
     firstName: v.string(),
     lastName: v.string(),
     roleId: v.id("roles"),
+    // Required by `validateInvite` when the role is rider or picker; unused
+    // (and ignored) for every other role.
+    vendorId: v.optional(v.id("vendors")),
+    riderVehicleType: v.optional(
+      v.union(...vehicleTypes.map((e) => v.literal(e))),
+    ),
+    riderVehiclePlate: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -85,13 +122,13 @@ export const inviteUser = action({
       throw new ConvexError("First and last name are both required.");
     }
 
-    // Permission and role checks happen here, not in this action — actions
-    // have no `ctx.db`, and `assertPermission` needs it. Convex carries the
-    // caller's identity through `ctx.runQuery`, so this checks the SAME
-    // caller the action itself was invoked by.
+    // Permission, role and (for rider/picker) vendor checks happen here, not
+    // in this action — actions have no `ctx.db`, and `assertPermission`
+    // needs it. Convex carries the caller's identity through `ctx.runQuery`,
+    // so this checks the SAME caller the action itself was invoked by.
     const { roleName } = await ctx.runQuery(
       internal.user.invitations.validateInvite,
-      { roleId: args.roleId },
+      { roleId: args.roleId, vendorId: args.vendorId },
     );
 
     const secretKey = process.env.CLERK_SECRET_KEY;
@@ -121,11 +158,20 @@ export const inviteUser = action({
         // Read back on acceptance by `user/clerk.ts`'s webhook handler — see
         // the module comment for the full round trip. `invited_first_name`/
         // `invited_last_name` are informational only, for a sign-up form
-        // that does not itself collect a name.
+        // that does not itself collect a name. `invited_vendor_id` and the
+        // rider extras are only ever present when `validateInvite` required
+        // them; `upsertUser` ignores them for any other role.
         public_metadata: {
           invited_role: roleName,
           invited_first_name: firstName,
           invited_last_name: lastName,
+          ...(args.vendorId ? { invited_vendor_id: args.vendorId } : {}),
+          ...(args.riderVehicleType
+            ? { invited_rider_vehicle_type: args.riderVehicleType }
+            : {}),
+          ...(args.riderVehiclePlate
+            ? { invited_rider_vehicle_plate: args.riderVehiclePlate }
+            : {}),
         },
         redirect_url: `${adminAppUrl.replace(/\/+$/, "")}/accept-invite`,
         notify: true,

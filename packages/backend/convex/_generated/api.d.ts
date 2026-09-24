@@ -86,6 +86,7 @@ import type * as lib_schedule from "../lib/schedule.js";
 import type * as lib_status_mapping from "../lib/status_mapping.js";
 import type * as lib_time_range from "../lib/time_range.js";
 import type * as lib_vendor_split from "../lib/vendor_split.js";
+import type * as migrations from "../migrations.js";
 import type * as seed from "../seed.js";
 import type * as user_access from "../user/access.js";
 import type * as user_bootstrap from "../user/bootstrap.js";
@@ -183,6 +184,7 @@ declare const fullApi: ApiFromModules<{
   "lib/status_mapping": typeof lib_status_mapping;
   "lib/time_range": typeof lib_time_range;
   "lib/vendor_split": typeof lib_vendor_split;
+  migrations: typeof migrations;
   seed: typeof seed;
   "user/access": typeof user_access;
   "user/bootstrap": typeof user_bootstrap;

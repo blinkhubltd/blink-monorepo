@@ -25,10 +25,26 @@ import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { useCurrentUserPermissions } from "@/lib/hooks/useCurrentUserPermissions";
 import { getConvexErrorMessage } from "@/lib/utils";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const DEFAULT_PAGE_SIZE = 10;
 
+/**
+ * Which role this page lists. `/users` is Customers; the sidebar's Riders link
+ * is `/users?role=rider`. Anything unrecognised falls back to Customer rather
+ * than passing an arbitrary string to `getUsers`, so a mistyped URL shows the
+ * customer list, not an empty table or every account.
+ */
+const LISTABLE_ROLES = { rider: "Rider" } as const;
+
 export default function UsersPage() {
+  const searchParams = useSearchParams();
+  const roleParam = (searchParams.get("role") ?? "").toLowerCase();
+  const roleName =
+    roleParam in LISTABLE_ROLES
+      ? LISTABLE_ROLES[roleParam as keyof typeof LISTABLE_ROLES]
+      : "Customer";
+  const isCustomers = roleName === "Customer";
   const {
     can,
     isLoading: permissionsLoading,
@@ -46,6 +62,15 @@ export default function UsersPage() {
 
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
 
+  // Same component instance serves /users and /users?role=rider, so the
+  // cursor and search from one list must not carry into the other.
+  useEffect(() => {
+    setCurrentPage(1);
+    setCursor(null);
+    setCursorHistory([null]);
+    setSearchQuery("");
+  }, [roleName]);
+
   const usersQuery = useQuery(
     api.user.users.getUsers,
     canReadUsers
@@ -60,7 +85,7 @@ export default function UsersPage() {
           // Agents and Vendors likewise. Without this the table showed every
           // account on the platform, super admins included, under a heading
           // that said "Customers".
-          role: "Customer",
+          role: roleName,
         }
       : "skip",
   );
@@ -183,28 +208,35 @@ export default function UsersPage() {
       rolesMap.set(r._id, r.name.trim().toLowerCase()),
     );
 
-    const total = allUsersQuery.length;
-    let staffCount = 0;
-    let customerCount = 0;
-    let assignedCount = 0;
+    // Scoped to the role this page lists — the table is, so the cards above
+    // it must be too, or a Riders page reports platform-wide totals.
+    const wanted = roleName.toLowerCase();
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    let total = 0;
     let activeCount = 0;
+    let withVendorCount = 0;
+    let joinedThisMonth = 0;
 
     for (const user of allUsersQuery as any[]) {
-      const roleName = user.role_id ? rolesMap.get(user.role_id) : undefined;
-      if (roleName === "customer") customerCount++;
-      else staffCount++;
-      if (user.role_id) assignedCount++;
+      const userRole = user.role_id ? rolesMap.get(user.role_id) : undefined;
+      if (userRole !== wanted) continue;
+      total++;
       if ((user.status || "Active") === "Active") activeCount++;
+      if (user.rider_details?.vendor_id) withVendorCount++;
+      if (user._creationTime >= monthStart.getTime()) joinedThisMonth++;
     }
 
     return {
       total,
-      staff: staffCount,
-      customers: customerCount,
-      assigned: assignedCount,
       active: activeCount,
+      inactive: total - activeCount,
+      withVendor: withVendorCount,
+      joinedThisMonth,
     };
-  }, [allUsersQuery, allRoles]);
+  }, [allUsersQuery, allRoles, roleName]);
 
   const pagination: UsersPagination | undefined = usersQuery
     ? {
@@ -237,11 +269,13 @@ export default function UsersPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            {isCustomers ? "Customers" : `${roleName}s`}
+          </h2>
           <p className="text-muted-foreground">
-            Customer accounts only. Promoting one to a role — rider, agent,
-            staff — moves it off this list; manage it from that role&apos;s
-            own page afterward.
+            {isCustomers
+              ? "Customer accounts only. Promoting one to a role — rider, agent, staff — moves it off this list; manage it from that role's own page afterward."
+              : `${roleName} accounts only.`}
           </p>
         </div>
         {isAdminUser && (
@@ -258,32 +292,36 @@ export default function UsersPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total {roleName}s
+              </CardTitle>
               <HugeiconsIcon icon={UsersIcon} className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.total}</div>
               <p className="text-xs text-muted-foreground">
-                Including blink staff
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Blink Staff</CardTitle>
-              <HugeiconsIcon icon={Shield} className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.staff}</div>
-              <p className="text-xs text-muted-foreground">
-                Non-customer users
+                {roleName} accounts on the platform
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Active Users
+                Inactive {roleName}s
+              </CardTitle>
+              <HugeiconsIcon icon={Shield} className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.inactive}</div>
+              <p className="text-xs text-muted-foreground">
+                Deactivated or not yet active
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Active {roleName}s
               </CardTitle>
               <HugeiconsIcon icon={UserCheck} className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -299,14 +337,18 @@ export default function UsersPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Role Assigned
+                {isCustomers ? "Joined this month" : "Assigned to a vendor"}
               </CardTitle>
               <HugeiconsIcon icon={Shield} className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.assigned}</div>
+              <div className="text-2xl font-bold">
+                {isCustomers ? stats.joinedThisMonth : stats.withVendor}
+              </div>
               <p className="text-xs text-muted-foreground">
-                {stats.total - stats.assigned} unassigned
+                {isCustomers
+                  ? "New sign-ups since the 1st"
+                  : `${stats.total - stats.withVendor} with no vendor yet`}
               </p>
             </CardContent>
           </Card>
@@ -315,7 +357,7 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Customers</CardTitle>
+          <CardTitle>{isCustomers ? "All Customers" : `All ${roleName}s`}</CardTitle>
           <CardDescription>
             Change a role here to promote a customer. Riders and pickers are
             managed in their own sections once promoted.
