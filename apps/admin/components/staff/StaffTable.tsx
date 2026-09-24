@@ -64,6 +64,7 @@ export function StaffTable({
   // Filter state
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
 
   // Fetch roles and vendors for the columns
   const allRoles = useQuery(api.user.roles.getAllRoles);
@@ -90,6 +91,7 @@ export function StaffTable({
       onUpdateUserStatus,
       rolesMap,
       vendorsMap,
+      showCrewDetails: true,
     });
   }, [onUpdateUserStatus, rolesMap, vendorsMap]);
 
@@ -105,9 +107,18 @@ export function StaffTable({
         user.phone.includes(globalFilter);
       const matchesStatus =
         statusFilter === "all" || (user.status || "Active") === statusFilter;
-      return matchesGlobal && matchesStatus;
+      const matchesRole = roleFilter === "all" || user.role_id === roleFilter;
+      return matchesGlobal && matchesStatus && matchesRole;
     });
-  }, [allStaff, globalFilter, statusFilter]);
+  }, [allStaff, globalFilter, statusFilter, roleFilter]);
+
+  // Only the roles someone on this list actually holds.
+  const roleOptions = useMemo(() => {
+    const held = new Set(allStaff.map((u) => u.role_id).filter(Boolean));
+    return (allRoles ?? [])
+      .filter((r: any) => held.has(r._id))
+      .map((r: any) => ({ value: r._id as string, label: r.name as string }));
+  }, [allStaff, allRoles]);
 
   const filteredStaffIds = useMemo(
     () => new Set(filteredAllStaff.map((user) => user._id)),
@@ -146,6 +157,13 @@ export function StaffTable({
   }
 
   const filters = [
+    {
+      key: "role",
+      label: "Role",
+      value: roleFilter,
+      options: roleOptions,
+      onChange: setRoleFilter,
+    },
     {
       key: "status",
       label: "Status",

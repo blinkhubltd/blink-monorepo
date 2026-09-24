@@ -8,7 +8,7 @@ import {
   vehicleTypes,
 } from "../validators";
 import { validateRiderActivation } from "../lib/account_completion";
-import { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import {
   getUserRoleName,
   getRoleIdByName,
@@ -16,7 +16,11 @@ import {
   SYSTEM_ROLES,
 } from "../lib/roles";
 import { getAccountCompletion } from "../lib/account_completion";
-import { assertPermission, assertStaffOrPermission } from "../auth.helpers";
+import {
+  assertPermission,
+  assertStaffOrPermission,
+  assertStaffPermission,
+} from "../auth.helpers";
 
 // Exported so bootstrap.ts builds the same search text when it self-provisions
 // a user, rather than inserting a row that role search cannot find.
@@ -1599,42 +1603,182 @@ export const updateUserImage = mutation({
  * for other `isStaff`-shaped gates after fixing
  * `data/prescription_rejection_reasons.ts`; unrelated bug, same file, same pass.
  */
+/**
+ * ── Who counts as staff ───────────────────────────────────────────────────
+ *
+ * Anyone holding a role other than Customer — riders, pickers, managers,
+ * admins — which is the same line the Customers page (`getUsers` with
+ * `role: "Customer"`) draws from the other side, so every account with a role
+ * appears on exactly one of the two pages.
+ *
+ * This used to read the `isStaff` boolean alone, which no write path in this
+ * codebase ever sets (see `data/prescription_rejection_reasons.ts`). So the
+ * Staff page was empty on every deployment, whatever roles people held. A
+ * legacy `isStaff: true` row is still included, so nothing that was listed
+ * before disappears.
+ *
+ * `roleId` narrows to one role (the page's role filter). The cursor is a
+ * plain offset: staff are gathered from one index read per role and merged,
+ * which a Convex cursor cannot page across — and a staff list is small
+ * enough that reading it whole is the honest cost, not a hidden one.
+ */
 export const getAllStaff = query({
   args: {
     limit: v.number(),
     cursor: v.optional(v.union(v.string(), v.null())),
+    roleId: v.optional(v.id("roles")),
   },
   handler: async (ctx, args) => {
     await assertStaffOrPermission(ctx, "staff:READ");
-    const limit = Math.max(1, Math.min(200, args.limit));
+    const limit = Math.max(1, Math.min(1000, args.limit));
 
-    const pageResult = await ctx.db
-      .query("users")
-      .withIndex("by_isStaff", (q) => q.eq("isStaff", true))
-      .paginate({
-        cursor: args.cursor ?? null,
-        numItems: limit,
-      });
+    const roles = await ctx.db.query("roles").collect();
+    const staffRoles = roles.filter(
+      (r) =>
+        r.name.trim().toLowerCase() !== "customer" &&
+        (!args.roleId || r._id === args.roleId),
+    );
 
-    const currentPageStaff = pageResult.page;
-    const total = (
-      await ctx.db
+    const byId = new Map<Id<"users">, Doc<"users">>();
+    for (const role of staffRoles) {
+      const holders = await ctx.db
+        .query("users")
+        .withIndex("by_role_id", (q) => q.eq("role_id", role._id))
+        .collect();
+      for (const user of holders) byId.set(user._id, user);
+    }
+    if (!args.roleId) {
+      const flagged = await ctx.db
         .query("users")
         .withIndex("by_isStaff", (q) => q.eq("isStaff", true))
-        .collect()
-    ).length;
-    const totalPages = Math.max(1, Math.ceil(total / limit));
+        .collect();
+      for (const user of flagged) byId.set(user._id, user);
+    }
+
+    const all = [...byId.values()].sort((a, b) =>
+      (a.name || a.email || "").localeCompare(b.name || b.email || ""),
+    );
+
+    const offset = Math.max(0, Number.parseInt(args.cursor ?? "0", 10) || 0);
+    const page = all.slice(offset, offset + limit);
+    const next = offset + limit;
+    const total = all.length;
 
     return {
-      data: currentPageStaff,
+      data: page,
       pagination: {
         limit,
         total,
-        totalPages,
-        hasNext: !pageResult.isDone,
-        cursor: pageResult.continueCursor ?? null,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+        hasNext: next < total,
+        cursor: next < total ? String(next) : null,
       },
     };
+  },
+});
+
+/**
+ * Edit an existing rider's details from the Staff page.
+ *
+ * MERGES into `rider_details` rather than replacing it — unlike
+ * `assignRiderWithDetails`, which is for making someone a rider and writes a
+ * fresh object. Replacing here would silently drop the rider's rating,
+ * last known location and uploaded ID/licence images every time an admin
+ * changed their vehicle plate.
+ *
+ * No `status` here. `rider_details.status` is the rider's own online/offline
+ * switch (and "On Delivery" while dispatched); whether they may work at all
+ * is approval — `approveRider` in `user/rider_onboarding.ts`.
+ *
+ * `assertStaffPermission`, not `assertPermission`: the latter lets any rider
+ * through (the system-role bypass), which would let a rider rewrite their own
+ * vendor.
+ */
+export const updateRiderDetails = mutation({
+  args: {
+    userId: v.id("users"),
+    vendorId: v.id("vendors"),
+    vehicleType: v.union(...vehicleTypes.map((e) => v.literal(e))),
+    vehiclePlate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await assertStaffPermission(ctx, "users:UPDATE");
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new ConvexError("User not found.");
+    if ((await getUserRoleName(ctx, user))?.trim().toLowerCase() !== "rider") {
+      throw new ConvexError("This user is not a rider.");
+    }
+    if (!(await ctx.db.get(args.vendorId))) {
+      throw new ConvexError("That vendor no longer exists.");
+    }
+
+    const riderDetails = {
+      ...user.rider_details,
+      vendor_id: args.vendorId,
+      vehicle_type: args.vehicleType,
+      vehicle_plate: args.vehiclePlate?.trim() || undefined,
+      // A rider never set up has no status yet; they start offline.
+      status: user.rider_details?.status ?? ("Inactive" as const),
+    };
+
+    await ctx.db.patch(args.userId, {
+      rider_details: riderDetails,
+      updated_at: Date.now(),
+    });
+    return await ctx.db.get(args.userId);
+  },
+});
+
+/**
+ * Edit an existing picker's details from the Staff page. Merges, like
+ * `updateRiderDetails`, and keeps `assignPickerWithDetails`'s rule that a
+ * vendor has at most one Active picker.
+ */
+export const updatePickerDetails = mutation({
+  args: {
+    userId: v.id("users"),
+    vendorId: v.id("vendors"),
+    status: v.union(...pickerStatus.map((e) => v.literal(e))),
+  },
+  handler: async (ctx, args) => {
+    await assertStaffPermission(ctx, "users:UPDATE");
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new ConvexError("User not found.");
+    if ((await getUserRoleName(ctx, user))?.trim().toLowerCase() !== "picker") {
+      throw new ConvexError("This user is not a picker.");
+    }
+    const vendor = await ctx.db.get(args.vendorId);
+    if (!vendor) throw new ConvexError("That vendor no longer exists.");
+
+    if (args.status === "Active") {
+      const otherActive = await ctx.db
+        .query("users")
+        .withIndex("by_role_id_picker_vendor", (q) =>
+          q.eq("role_id", user.role_id).eq("picker_details.vendor_id", args.vendorId),
+        )
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("picker_details.status"), "Active"),
+            q.neq(q.field("_id"), args.userId),
+          ),
+        )
+        .first();
+      if (otherActive) {
+        throw new ConvexError(
+          `${vendor.name} already has an active picker. Deactivate them first.`,
+        );
+      }
+    }
+
+    await ctx.db.patch(args.userId, {
+      picker_details: {
+        ...user.picker_details,
+        vendor_id: args.vendorId,
+        status: args.status,
+      },
+      updated_at: Date.now(),
+    });
+    return await ctx.db.get(args.userId);
   },
 });
 

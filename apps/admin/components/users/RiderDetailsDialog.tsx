@@ -8,7 +8,7 @@ import {
   Loading03Icon as Loader2,
   TruckDeliveryIcon as Truck,
 } from "@hugeicons/core-free-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Doc } from "@repo/backend/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
@@ -41,6 +41,18 @@ interface RiderDetailsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  /**
+   * The rider's current details. Present = edit mode: the form opens
+   * pre-filled and saves through `updateRiderDetails`, which merges into
+   * `rider_details` instead of replacing it (so rating, location and ID
+   * images survive). Absent = make this user a rider.
+   */
+  initial?: {
+    vendorId?: string;
+    vehicleType?: string;
+    vehiclePlate?: string;
+    status?: string;
+  };
 }
 
 const VEHICLE_TYPES = [
@@ -62,12 +74,24 @@ export function RiderDetailsDialog({
   isOpen,
   onClose,
   onSuccess,
+  initial,
 }: RiderDetailsDialogProps) {
+  const isEdit = initial !== undefined;
   const [vehicleType, setVehicleType] = useState<string>("");
   const [vehiclePlate, setVehiclePlate] = useState<string>("");
   const [status, setStatus] = useState<string>("Active");
   const [vendorId, setVendorId] = useState<string>("");
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Load the rider's current values each time the dialog opens in edit mode.
+  useEffect(() => {
+    if (!isOpen || !initial) return;
+    setVehicleType(initial.vehicleType ?? "");
+    setVehiclePlate(initial.vehiclePlate ?? "");
+    setStatus(initial.status ?? "Inactive");
+    setVendorId(initial.vendorId ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open transition only
+  }, [isOpen]);
 
   const vendorsQuery = useQuery(api.data.vendors.getActiveVendors, {});
   const vendors: Doc<"vendors">[] = vendorsQuery?.data || [];
@@ -75,6 +99,16 @@ export function RiderDetailsDialog({
   const assignRiderWithDetailsMutation = useMutation(
     api.user.users.assignRiderWithDetails,
   );
+  const updateRiderDetailsMutation = useMutation(
+    api.user.users.updateRiderDetails,
+  );
+
+  // "On Delivery" is set by the delivery flow, not chosen here — but a rider
+  // who is on one must still show it, or the select would render blank.
+  const statusOptions =
+    initial?.status && !RIDER_STATUSES.some((s) => s.value === initial.status)
+      ? [...RIDER_STATUSES, { value: initial.status, label: initial.status }]
+      : RIDER_STATUSES;
 
   const handleAssign = async () => {
     if (!vendorId) {
@@ -88,15 +122,33 @@ export function RiderDetailsDialog({
 
     setIsAssigning(true);
     try {
-      await assignRiderWithDetailsMutation({
+      const details = {
         userId,
         vehicleType: vehicleType as "Motorbike" | "Bicycle" | "Car" | "Van",
         vehiclePlate: vehiclePlate.trim() || undefined,
-        vendorId: vendorId ? (vendorId as Id<"vendors">) : undefined,
         status: status as "Active" | "On Delivery" | "Inactive",
-      });
+      };
+      if (isEdit) {
+        // No status: in edit mode it is the rider's own online switch, and
+        // whether they may work at all is the approval section below.
+        await updateRiderDetailsMutation({
+          userId: details.userId,
+          vehicleType: details.vehicleType,
+          vehiclePlate: details.vehiclePlate,
+          vendorId: vendorId as Id<"vendors">,
+        });
+      } else {
+        await assignRiderWithDetailsMutation({
+          ...details,
+          vendorId: vendorId ? (vendorId as Id<"vendors">) : undefined,
+        });
+      }
 
-      toast.success(`${userName} has been assigned as rider`);
+      toast.success(
+        isEdit
+          ? `${userName}'s rider details were updated`
+          : `${userName} has been assigned as rider`,
+      );
       resetForm();
       onClose();
       onSuccess?.();
@@ -130,11 +182,12 @@ export function RiderDetailsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HugeiconsIcon icon={Truck} className="h-5 w-5" />
-            Assign Rider Role
+            {isEdit ? "Rider Details" : "Assign Rider Role"}
           </DialogTitle>
           <DialogDescription>
-            Assign {userName} ({userEmail}) as a rider and configure their
-            delivery details.
+            {isEdit
+              ? `Review ${userName}'s (${userEmail}) documents, and update their vendor and vehicle.`
+              : `Assign ${userName} (${userEmail}) as a rider and configure their delivery details.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -207,28 +260,32 @@ export function RiderDetailsDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="status-select">Initial Status</Label>
-            <Select
-              value={status}
-              onValueChange={setStatus}
-              disabled={isAssigning}
-            >
-              <SelectTrigger id="status-select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RIDER_STATUSES.map((statusOption) => (
-                  <SelectItem
-                    key={statusOption.value}
-                    value={statusOption.value}
-                  >
-                    {statusOption.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {isEdit ? (
+            <RiderApprovalSection userId={userId} />
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="status-select">Initial Status</Label>
+              <Select
+                value={status}
+                onValueChange={setStatus}
+                disabled={isAssigning}
+              >
+                <SelectTrigger id="status-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((statusOption) => (
+                    <SelectItem
+                      key={statusOption.value}
+                      value={statusOption.value}
+                    >
+                      {statusOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {selectedVehicleType && (
             <div className="bg-gray-50 p-3 rounded-lg space-y-2">
@@ -278,7 +335,7 @@ export function RiderDetailsDialog({
             disabled={!vehicleType || !vendorId || isAssigning}
           >
             {isAssigning && <HugeiconsIcon icon={Loader2} className="mr-2 h-4 w-4 animate-spin" />}
-            Assign Rider Role
+            {isEdit ? "Save Details" : "Assign Rider Role"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -287,3 +344,129 @@ export function RiderDetailsDialog({
 }
 
 export default RiderDetailsDialog;
+
+/**
+ * The rider's submitted documents and the approve / revoke control.
+ *
+ * Approval is what lets a rider into the app (`user/rider_onboarding.ts`) —
+ * separate from their online/offline status, which is theirs to switch. The
+ * rider submits phone, ID photo and licence photo from the rider app; this
+ * is where an admin looks at them and says yes.
+ */
+function RiderApprovalSection({ userId }: { userId: Id<"users"> }) {
+  const docs = useQuery(api.user.rider_onboarding.getRiderDocuments, { userId });
+  const approve = useMutation(api.user.rider_onboarding.approveRider);
+  const revoke = useMutation(api.user.rider_onboarding.revokeRiderApproval);
+  const [busy, setBusy] = useState(false);
+
+  if (docs === undefined) {
+    return <p className="text-sm text-muted-foreground">Loading documents…</p>;
+  }
+
+  const run = async (action: "approve" | "revoke") => {
+    setBusy(true);
+    try {
+      if (action === "approve") {
+        await approve({ userId });
+        toast.success("Rider approved. They can go online now.");
+      } else {
+        await revoke({ userId });
+        toast.success("Approval withdrawn. The rider is offline and back in review.");
+      }
+    } catch (error) {
+      toast.error(getConvexErrorMessage(error, "Could not update approval"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approved = docs.approvedAt !== null;
+
+  return (
+    <div className="space-y-3 rounded-lg border p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">Documents &amp; approval</span>
+        <span
+          className={
+            approved
+              ? "rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700"
+              : docs.missing.length > 0
+                ? "rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700"
+                : "rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
+          }
+        >
+          {approved
+            ? "Approved"
+            : docs.missing.length > 0
+              ? "Awaiting documents"
+              : "Pending review"}
+        </span>
+      </div>
+
+      <div className="text-sm">
+        <span className="text-muted-foreground">Phone: </span>
+        {docs.phone ?? <span className="text-amber-700">not provided</span>}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <DocumentThumb label="ID photo" url={docs.idImageUrl} />
+        <DocumentThumb label="Licence photo" url={docs.licenseImageUrl} />
+      </div>
+
+      {approved ? (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            Approved {new Date(docs.approvedAt!).toLocaleDateString()}
+            {docs.approvedBy ? ` by ${docs.approvedBy}` : ""}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void run("revoke")}
+          >
+            Revoke approval
+          </Button>
+        </div>
+      ) : docs.missing.length > 0 ? (
+        <p className="text-xs text-amber-700">
+          Waiting on the rider for: {docs.missing.join(", ")}. They add these
+          from the rider app after signing in.
+        </p>
+      ) : (
+        <Button
+          type="button"
+          className="w-full"
+          disabled={busy}
+          onClick={() => void run("approve")}
+        >
+          {busy && <HugeiconsIcon icon={Loader2} className="mr-2 h-4 w-4 animate-spin" />}
+          Approve rider
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function DocumentThumb({ label, url }: { label: string; url: string | null }) {
+  return (
+    <div className="space-y-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer" title="Open full size">
+          {/* eslint-disable-next-line @next/next/no-img-element -- Convex storage URL */}
+          <img
+            src={url}
+            alt={label}
+            className="h-24 w-full rounded-md border object-cover hover:opacity-90"
+          />
+        </a>
+      ) : (
+        <div className="flex h-24 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
+          Not submitted
+        </div>
+      )}
+    </div>
+  );
+}

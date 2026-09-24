@@ -6,7 +6,7 @@ import {
   Loading03Icon as Loader2,
   PackageIcon as Package,
 } from "@hugeicons/core-free-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import type { Doc } from "@repo/backend/dataModel";
 import { api } from "@repo/backend";
@@ -38,6 +38,11 @@ interface PickerDetailsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  /**
+   * The picker's current details. Present = edit mode: pre-filled, saved
+   * through `updatePickerDetails` (merges). Absent = make this user a picker.
+   */
+  initial?: { vendorId?: string; status?: string };
 }
 
 const PICKER_STATUSES = [
@@ -52,10 +57,31 @@ export function PickerDetailsDialog({
   isOpen,
   onClose,
   onSuccess,
+  initial,
 }: PickerDetailsDialogProps) {
+  const isEdit = initial !== undefined;
   const [vendorId, setVendorId] = useState<string>("");
   const [status, setStatus] = useState<string>("Active");
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Load the picker's current values each time the dialog opens in edit mode.
+  useEffect(() => {
+    if (!isOpen || !initial) return;
+    setVendorId(initial.vendorId ?? "");
+    setStatus(initial.status ?? "Inactive");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open transition only
+  }, [isOpen]);
+
+  const updatePickerDetailsMutation = useMutation(
+    api.user.users.updatePickerDetails,
+  );
+
+  // "On Order" is set by the picking flow, not chosen here — but a picker on
+  // one must still show it, or the select would render blank.
+  const statusOptions =
+    initial?.status && !PICKER_STATUSES.some((s) => s.value === initial.status)
+      ? [...PICKER_STATUSES, { value: initial.status, label: initial.status }]
+      : PICKER_STATUSES;
 
   const vendorsQuery = useQuery(api.data.vendors.getActiveVendors, {
     cursor: null,
@@ -75,13 +101,22 @@ export function PickerDetailsDialog({
 
     setIsAssigning(true);
     try {
-      await assignPickerWithDetailsMutation({
+      const details = {
         userId,
         vendorId: vendorId as Id<"vendors">,
         status: status as "Active" | "On Order" | "Inactive",
-      });
+      };
+      if (isEdit) {
+        await updatePickerDetailsMutation(details);
+      } else {
+        await assignPickerWithDetailsMutation(details);
+      }
 
-      toast.success(`${userName} has been assigned as picker`);
+      toast.success(
+        isEdit
+          ? `${userName}'s picker details were updated`
+          : `${userName} has been assigned as picker`,
+      );
       resetForm();
       onClose();
       onSuccess?.();
@@ -112,11 +147,12 @@ export function PickerDetailsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <HugeiconsIcon icon={Package} className="h-5 w-5" />
-            Assign Picker Role
+            {isEdit ? "Picker Details" : "Assign Picker Role"}
           </DialogTitle>
           <DialogDescription>
-            Assign {userName} ({userEmail}) as a picker and configure their
-            vendor assignment and status.
+            {isEdit
+              ? `Update ${userName}'s (${userEmail}) vendor and status.`
+              : `Assign ${userName} (${userEmail}) as a picker and configure their vendor assignment and status.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -155,7 +191,9 @@ export function PickerDetailsDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="status-select">Initial Status</Label>
+            <Label htmlFor="status-select">
+              {isEdit ? "Status" : "Initial Status"}
+            </Label>
             <Select
               value={status}
               onValueChange={setStatus}
@@ -165,7 +203,7 @@ export function PickerDetailsDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PICKER_STATUSES.map((statusOption) => (
+                {statusOptions.map((statusOption) => (
                   <SelectItem
                     key={statusOption.value}
                     value={statusOption.value}
@@ -223,7 +261,7 @@ export function PickerDetailsDialog({
             disabled={!vendorId || vendors.length === 0 || isAssigning}
           >
             {isAssigning && <HugeiconsIcon icon={Loader2} className="mr-2 h-4 w-4 animate-spin" />}
-            Assign Picker Role
+            {isEdit ? "Save Details" : "Assign Picker Role"}
           </Button>
         </DialogFooter>
       </DialogContent>
