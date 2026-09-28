@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { ChevronRight } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { cn } from "@repo/mobile-ui/lib/utils";
 
@@ -12,6 +12,8 @@ interface ListRowProps {
   /** Hairline under the row; omit on the last item in a group. */
   divider?: boolean;
   right?: React.ReactNode;
+  /** A short fact before the chevron — "KMFQ 812P". */
+  value?: string | null;
 }
 
 export function ListRow({
@@ -21,6 +23,7 @@ export function ListRow({
   destructive,
   divider = true,
   right,
+  value,
 }: ListRowProps) {
   const disabled = !onPress;
   return (
@@ -43,9 +46,14 @@ export function ListRow({
       >
         {label}
       </Text>
+      {value ? (
+        <Text size="sm" variant="subtle" numberOfLines={1} className="max-w-[45%]">
+          {value}
+        </Text>
+      ) : null}
       {right ??
         (destructive || disabled ? null : (
-          <ChevronRight size={18} strokeWidth={2} className="text-subtle" />
+          <Icon name="chevron-forward" size={18} tone="subtle" />
         ))}
     </Pressable>
   );

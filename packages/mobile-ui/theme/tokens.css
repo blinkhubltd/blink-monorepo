@@ -1,0 +1,203 @@
+/*
+ * Blink design system -> semantic layer. ONE copy, for every app.
+ *
+ * apps/shop and apps/rider both `@import` this from their own global.css,
+ * which now holds nothing but that import and the three @tailwind directives.
+ * It lived as two files that started byte-identical and drifted: rider's copy
+ * missed the price-gold contrast fix (#f5b800 on white is 1.8:1), the
+ * input-border fix (an Input inside a card had no visible edge), and the
+ * `transit`/`hairline-soft` tokens. A token defined in one file and not the
+ * other resolves to nothing in the second app and renders transparent, and
+ * nothing warns — so the fix is structural: there is no second file to forget.
+ *
+ * `tailwind-preset.js` beside this maps these variables onto the class names
+ * both apps use, and `token-colors.ts` mirrors them into JS for the props a
+ * className cannot reach. A change here that is not matched there shows up as
+ * a className and a colour prop disagreeing about the same role — keep the
+ * three in step.
+ *
+ * Raw values live here and nowhere else; the preset maps them onto
+ * shadcn-style semantic names so packages/mobile-ui stays palette-agnostic.
+ *
+ * Source of truth: Blink Hub design system tokens (colors.css).
+ * The three DS surface modes map as:
+ *   default      -> :root
+ *   .blink-dark  -> .dark
+ *   .blink-brand -> the `brand-*` colors, applied per-component (the yellow
+ *                   header sweep is a component, not a page mode)
+ */
+
+@layer base {
+  :root {
+    /* page + type */
+    --color-background: #f8fafd; /* ink-50  — app page background */
+    --color-foreground: #242a36; /* ink-800 — body text */
+    --color-strong: #0a0e16; /* ink-950 — headings */
+    --color-card: #ffffff;
+    --color-card-foreground: #0a0e16;
+
+    /* brand */
+    --color-primary: #ffc50b; /* blink-400 — the identity */
+    --color-primary-foreground: #0a0e16; /* yellow is light: ink type on yellow, always */
+
+    /*
+     * Ksh figures. blink-800, not the blink-500 this used to be: #f5b800 on
+     * white is 1.8:1, which is not a readable price, and no gold in the ramp
+     * clears 4.5:1 on white (blink-700 is the closest at 3.9:1). This reads as
+     * a deep bronze — still unmistakably in the brand family — at 7.5:1.
+     * Dark mode keeps the bright gold, which is 12.9:1 on the card there.
+     */
+    --color-price: #6e5000; /* blink-800 */
+
+    /*
+     * The yellow header band and the ink pills that sit on it.
+     *
+     * `on-brand-pill` cannot just be `inverse`: that flips to #ffffff in dark,
+     * while this surface deliberately does not flip, so `bg-inverse` would draw
+     * a white circle on yellow (1.2:1) carrying a white glyph (1.0:1). A pill on
+     * a mode-fixed surface needs a mode-fixed colour of its own.
+     *
+     * Contrast, all four pairs mode-independent: ink on yellow 12.0:1, pill on
+     * yellow 12.0:1, white glyph on pill 18.9:1, gold glyph on pill 12.0:1.
+     */
+    --color-brand-surface: #ffc50b;
+    --color-brand-surface-foreground: #0a0e16;
+    --color-on-brand-pill: #0a0e16;
+    --color-on-brand-pill-foreground: #ffffff;
+
+    /* neutrals */
+    --color-secondary: #eff1f5; /* ink-100 — sunken plates */
+    --color-secondary-foreground: #0a0e16;
+    --color-muted: #eff1f5;
+    --color-muted-foreground: #5a6372; /* ink-600 */
+    --color-subtle: #818a99; /* ink-500 */
+    --color-accent: #fffae8; /* blink-50 — soft brand wash */
+    --color-accent-foreground: #0a0e16;
+
+    /* ink pills / inverse surfaces */
+    --color-inverse: #0a0e16;
+    --color-inverse-foreground: #ffffff;
+
+    /* status */
+    --color-destructive: #e23b33;
+    --color-destructive-foreground: #ffffff;
+    --color-destructive-soft: #fde7e5;
+    /* Darkened from #159b62, which was 3.3:1 on the soft tint below — a fail
+     * under the 11px caption Badge renders on it. This is 5.4:1 there, and
+     * white on it is still 5.9:1. Mirrored in apps/rider: Badge is shared. */
+    --color-success: #0f7a4d;
+    --color-success-foreground: #ffffff;
+    --color-success-soft: #e1f5ec;
+    --color-warning: #f5b800;
+    --color-warning-foreground: #0a0e16;
+    --color-warning-soft: #fff2c2;
+    --color-info: #2563eb;
+    --color-info-foreground: #ffffff;
+    --color-info-soft: #e3ebfd;
+
+    /* In transit / out for delivery. The app this replaces carried a distinct
+     * orange for these states and nothing here expressed it, so they collapsed
+     * onto `info` alongside processing and confirmed. */
+    --color-transit: #ea580c;
+    --color-transit-foreground: #ffffff;
+    --color-transit-soft: #ffedd5;
+
+    /* lines */
+    --color-border: #e4e7ec; /* ink-200 — hairlines */
+    /* One step lighter than border, for menu rows and soft dividers — the
+     * gray-100/gray-200 relationship the reference design leans on. NOTE this
+     * relation inverts in dark; see there. */
+    --color-hairline-soft: #eff1f5; /* ink-100 */
+    /*
+     * Deliberately NOT the same value as --color-border. It was, and the bug
+     * was exactly what that sounds like: an Input's own box (bg-card,
+     * border-input) sitting inside a SectionCard (also bg-card, border-border)
+     * had no visible edge at all — same white fill, same near-invisible
+     * hairline, so a bordered card full of "invisible" input boxes read as a
+     * single undifferentiated block with no clue where to tap. ink-300, one
+     * real step darker than the hairline, is what gives every Input a
+     * boundary against a card behind it. Dark mode never had this bug —
+     * --color-input there (ink-700) was already a distinct step from
+     * --color-border (ink-800).
+     */
+    --color-input: #cbd2d9;
+    --color-ring: #0a0e16;
+    --color-overlay: rgba(10, 14, 22, 0.55);
+  }
+
+  .dark {
+    --color-background: #0a0e16; /* ink-950 */
+    --color-foreground: #e4e7ec; /* ink-200 */
+    --color-strong: #ffffff;
+    --color-card: #151a24; /* ink-900 */
+    --color-card-foreground: #ffffff;
+
+    /* brand holds across modes — it is the identity */
+    --color-primary: #ffc50b;
+    --color-primary-foreground: #0a0e16;
+    --color-price: #ffc50b; /* 12.9:1 on the card here — the bright gold works */
+
+    /*
+     * The header stays yellow at night, on purpose. It is a band rather than a
+     * page — roughly one product photo's worth of emission in an app full of
+     * product photos — and every contrast pair above is mode-independent, so
+     * nothing about dark mode degrades it. Darkening it would lose the exact
+     * brand cue and make the pills ink-on-ink, forcing a second dark-only pill
+     * design for one mode.
+     *
+     * If it proves too bright on a real device at night, this is the one line to
+     * change: #e0ac00 is 12% darker with ink still at 9.5:1.
+     */
+    --color-brand-surface: #ffc50b;
+    --color-brand-surface-foreground: #0a0e16;
+    --color-on-brand-pill: #0a0e16;
+    /* Gold rather than white here, and not for contrast — both pass (12.0:1 vs
+     * 18.9:1). The reference design used both treatments on its yellow headers;
+     * this keeps the second one alive and stops the dark header reading as the
+     * light one left unchanged. */
+    --color-on-brand-pill-foreground: #ffc50b;
+
+    --color-secondary: #242a36; /* ink-800 */
+    --color-secondary-foreground: #ffffff;
+    --color-muted: #242a36;
+    --color-muted-foreground: #a8b0bc; /* ink-400 */
+    --color-subtle: #818a99; /* ink-500 */
+    --color-accent: rgba(255, 197, 11, 0.14);
+    --color-accent-foreground: #ffffff;
+
+    --color-inverse: #ffffff;
+    --color-inverse-foreground: #0a0e16;
+
+    --color-destructive: #e23b33;
+    --color-destructive-foreground: #ffffff;
+    --color-destructive-soft: rgba(226, 59, 51, 0.16);
+    --color-success: #159b62; /* stays: the light value was darkened for white
+                               * backgrounds, which would be wrong here */
+    --color-success-foreground: #ffffff;
+    --color-success-soft: rgba(21, 155, 98, 0.18);
+    --color-warning: #f5b800;
+    --color-warning-foreground: #0a0e16;
+    --color-warning-soft: rgba(245, 184, 0, 0.16);
+    /* Was #2563eb, unchanged from light, which is 3.0:1 on this card — a fail,
+     * and lib/order-status.ts routes four of eight statuses through `info`, so
+     * it was most of the order list. Lightened to blue-400: 7.4:1. */
+    --color-info: #60a5fa;
+    --color-info-foreground: #0a0e16;
+    --color-info-soft: rgba(37, 99, 235, 0.18);
+
+    /* orange-400, not the light #ea580c, which is 3.1:1 on this card */
+    --color-transit: #fb923c;
+    --color-transit-foreground: #0a0e16;
+    --color-transit-soft: rgba(234, 88, 12, 0.18);
+
+    --color-border: #242a36; /* ink-800 */
+    /* The light/dark inversion: a soft divider is LIGHTER than border in light
+     * mode, and must be lighter than the CARD in dark mode or it disappears.
+     * This sits between card (#151a24) and border (#242a36). Getting this
+     * backwards is how a ported light-only design loses all visible structure. */
+    --color-hairline-soft: #1c222e;
+    --color-input: #3a4150; /* ink-700 */
+    --color-ring: #ffc50b;
+    --color-overlay: rgba(10, 14, 22, 0.72);
+  }
+}

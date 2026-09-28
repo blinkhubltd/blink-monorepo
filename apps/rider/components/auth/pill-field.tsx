@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, TextInput, View, type TextInputProps } from "react-native";
-import { Eye, EyeOff } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { cn } from "@repo/mobile-ui/lib/utils";
@@ -89,9 +89,9 @@ export function PillField({
               className="-mr-[12px] size-[40px] items-center justify-center rounded-pill active:bg-ink-50"
             >
               {shown ? (
-                <Eye size={18} strokeWidth={2} className="text-subtle" />
+                <Icon name="eye-outline" size={18} tone="subtle" />
               ) : (
-                <EyeOff size={18} strokeWidth={2} className="text-subtle" />
+                <Icon name="eye-off-outline" size={18} tone="subtle" />
               )}
             </Pressable>
           ) : null}

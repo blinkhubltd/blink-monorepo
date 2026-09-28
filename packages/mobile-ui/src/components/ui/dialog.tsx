@@ -1,6 +1,6 @@
 import * as DialogPrimitive from "@rn-primitives/dialog";
 import { View } from "react-native";
-import { X } from "lucide-react-native";
+import { Icon } from "./icon";
 import { cn } from "../../lib/utils";
 import { Text } from "./text";
 
@@ -49,7 +49,9 @@ function DialogContent({
             accessibilityLabel="Close"
             className="absolute right-space-4 top-space-4 h-space-8 w-space-8 items-center justify-center rounded-pill active:opacity-70"
           >
-            <X size={18} strokeWidth={2} color="#5A6372" />
+            {/* `body` is the muted-foreground role — the #5A6372 this hardcoded, which
+                stayed that grey on a dark card. */}
+            <Icon name="close" size={18} tone="body" />
           </DialogPrimitive.Close>
         </DialogPrimitive.Content>
       </DialogOverlay>

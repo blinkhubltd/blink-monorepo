@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
-import { Clock } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -45,7 +45,7 @@ export default function AccessRestrictedRoute() {
 
       <View className="items-center gap-space-7">
         <View className="size-[72px] items-center justify-center rounded-pill bg-blink-100">
-          <Clock size={32} strokeWidth={2} className="text-blink-700" />
+          <Icon name="time-outline" size={32} tone="price" />
         </View>
 
         {!suspended ? <Badge variant="warning" label="Usually under 24h" /> : null}

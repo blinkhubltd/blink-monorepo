@@ -1,5 +1,5 @@
 import * as CheckboxPrimitive from "@rn-primitives/checkbox";
-import { Check } from "lucide-react-native";
+import { Icon } from "./icon";
 import { cn } from "../../lib/utils";
 
 function Checkbox({
@@ -19,8 +19,9 @@ function Checkbox({
       {...props}
     >
       <CheckboxPrimitive.Indicator className="items-center justify-center">
-        {/* Ink on yellow, always. */}
-        <Check size={14} strokeWidth={3} color="#0A0E16" />
+        {/* Ink on yellow, always — `onBrand` is the one role that does not
+            flip in dark mode, because the yellow behind it does not either. */}
+        <Icon name="checkmark-sharp" size={16} tone="onBrand" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );

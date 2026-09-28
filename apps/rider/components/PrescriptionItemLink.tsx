@@ -1,6 +1,6 @@
 import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { ChevronRight } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import type { Id } from "@repo/backend/dataModel";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
@@ -63,7 +63,7 @@ export function PrescriptionItemLink({
         variant="warning"
         label={linked ? "Verify ID" : "Find prescription"}
       />
-      <ChevronRight size={16} strokeWidth={2} className="text-subtle" />
+      <Icon name="chevron-forward" size={16} tone="subtle" />
     </Pressable>
   );
 }

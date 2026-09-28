@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, View } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Camera } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import type { Id } from "@repo/backend/dataModel";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -232,7 +232,7 @@ function PhotoTile({
           </>
         ) : (
           <View className="items-center gap-space-2 px-space-5">
-            <Camera size={24} strokeWidth={2} className="text-subtle" />
+            <Icon name="camera-outline" size={24} tone="subtle" />
             <Text size="sm" weight="semibold" className="text-ink-950">
               Add photo
             </Text>

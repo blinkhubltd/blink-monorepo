@@ -6,7 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { X } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { IconButton } from "./IconButton";
@@ -141,7 +141,7 @@ export function ImageViewer({
               onClose();
             }}
           >
-            <X size={22} strokeWidth={2} className="text-white" />
+            <Icon name="close" size={22} tone="onSolid" />
           </IconButton>
         </View>
 

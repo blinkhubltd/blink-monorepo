@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Tabs } from "expo-router";
-import { House, Bike, ShoppingBasket, TrendingUp, User } from "lucide-react-native";
+import { Icon, type IconName } from "@repo/mobile-ui/components/ui/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { cn } from "@repo/mobile-ui/lib/utils";
 import { useCrewRole } from "../providers/CrewProvider";
@@ -20,8 +20,17 @@ type BottomTabBarProps = Parameters<
 >[0];
 
 /**
- * The DS bottom nav: 72px tall, upward shadow, active item marked by an ink
- * circle behind the glyph.
+ * The bottom nav, per the rider design: a 48×38 rounded pill behind each glyph,
+ * ink when the tab is active, gold glyphs throughout, ink labels.
+ *
+ * ── One deliberate departure, taken from the shop's tab bar ───────────────
+ *
+ * The design leaves inactive glyphs as bare gold on the white bar. That is
+ * about 1.7:1 — well under the 3:1 a non-text control needs — and apps/shop's
+ * tab bar hit the same problem and fixed it by drawing an ink-100 pill behind
+ * every inactive glyph in light mode. This does the same, so the two apps'
+ * navs agree; in dark mode the gold already reads on the bar and the inactive
+ * pill goes away, again matching the shop.
  *
  * Custom rather than the default tab bar because the queue tab's icon and label
  * change with the role — the reference app solved that by shipping two whole
@@ -31,28 +40,43 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const role = useCrewRole();
 
-  const items = [
-    { name: "index", label: "Home", Icon: House },
+  const items: {
+    name: string;
+    label: string;
+    icon: IconName;
+    active: IconName;
+  }[] = [
+    { name: "index", label: "Home", icon: "home-outline", active: "home" },
     {
       name: "deliveries",
       label: queueTabLabel(role),
-      Icon: role === "rider" ? Bike : ShoppingBasket,
+      icon: role === "rider" ? "bicycle-outline" : "basket-outline",
+      active: role === "rider" ? "bicycle" : "basket",
     },
-    { name: "incentives", label: "Incentives", Icon: TrendingUp },
-    { name: "profile", label: "Profile", Icon: User },
-  ] as const;
+    {
+      name: "incentives",
+      label: "Incentives",
+      icon: "trending-up-outline",
+      active: "trending-up",
+    },
+    {
+      name: "profile",
+      label: "Profile",
+      icon: "person-outline",
+      active: "person",
+    },
+  ];
 
   return (
     <View
-      className="flex-row border-t-hairline border-border bg-card shadow-nav"
-      style={{ paddingBottom: insets.bottom, height: 72 + insets.bottom }}
+      className="flex-row border-t border-border bg-card px-space-3 pt-space-3 shadow-nav"
+      style={{ paddingBottom: Math.max(insets.bottom, 14) }}
     >
       {items.map((item) => {
         const index = state.routes.findIndex(
           (r: { name: string }) => r.name === item.name,
         );
         const focused = state.index === index;
-        const { Icon } = item;
         return (
           <Pressable
             key={item.name}
@@ -60,24 +84,26 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
             accessibilityState={{ selected: focused }}
             accessibilityLabel={item.label}
             onPress={() => navigation.navigate(item.name)}
-            className="flex-1 items-center justify-center gap-space-1 pt-space-3"
+            className="flex-1 items-center gap-[5px] py-space-1"
           >
             <View
               className={cn(
-                "h-space-8 w-space-8 items-center justify-center rounded-pill",
-                focused && "bg-inverse",
+                "h-[38px] w-[48px] items-center justify-center rounded-md",
+                focused
+                  ? "bg-on-brand-pill dark:bg-ink-700"
+                  : "bg-secondary dark:bg-transparent",
               )}
             >
               <Icon
-                size={20}
-                strokeWidth={2}
-                className={focused ? "text-inverse-foreground" : "text-subtle"}
+                name={focused ? item.active : item.icon}
+                size={22}
+                tone="brand"
               />
             </View>
             <Text
               size="caption"
-              weight={focused ? "semibold" : "regular"}
-              variant={focused ? "default" : "subtle"}
+              weight={focused ? "bold" : "medium"}
+              className="text-strong"
             >
               {item.label}
             </Text>

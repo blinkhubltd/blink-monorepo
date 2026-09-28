@@ -1,6 +1,6 @@
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
-import { ChevronRight, FileCheck2 } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Card } from "@repo/mobile-ui/components/ui/card";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
@@ -43,7 +43,7 @@ export default function PrescriptionsRoute() {
           <EmptyState
             tone="success"
             icon={
-              <FileCheck2 size={32} strokeWidth={2} className="text-success" />
+              <Icon name="document-text-outline" size={32} tone="success" />
             }
             title="Nothing to verify"
             body="Prescriptions assigned to you for review will appear here."
@@ -78,11 +78,7 @@ export default function PrescriptionsRoute() {
                     </Text>
                   </View>
                   <Badge variant="warning" label="Pending" />
-                  <ChevronRight
-                    size={18}
-                    strokeWidth={2}
-                    className="text-subtle"
-                  />
+                  <Icon name="chevron-forward" size={18} tone="subtle" />
                 </Card>
               </Pressable>
             ))}

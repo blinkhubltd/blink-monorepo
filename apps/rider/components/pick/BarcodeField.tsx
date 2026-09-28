@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { Camera, ScanLine, X } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { cn } from "@repo/mobile-ui/lib/utils";
 import type { ScanOutcome } from "../../lib/data/types";
@@ -70,7 +70,7 @@ export function BarcodeField({
           disabled && "opacity-50",
         )}
       >
-        <ScanLine size={20} strokeWidth={2} className="text-strong" />
+        <Icon name="scan-outline" size={20} tone="strong" />
         <TextInput
           ref={inputRef}
           className="flex-1 font-sans text-body text-foreground"
@@ -101,7 +101,7 @@ export function BarcodeField({
             hitSlop={8}
             className="h-space-8 w-space-8 items-center justify-center rounded-pill active:opacity-70"
           >
-            <X size={16} strokeWidth={2} className="text-subtle" />
+            <Icon name="close" size={16} tone="subtle" />
           </Pressable>
         ) : (
           /*
@@ -117,11 +117,7 @@ export function BarcodeField({
             hitSlop={8}
             className="h-space-9 w-space-9 items-center justify-center rounded-md bg-inverse active:scale-[0.96]"
           >
-            <Camera
-              size={18}
-              strokeWidth={2}
-              className="text-inverse-foreground"
-            />
+            <Icon name="camera-outline" size={18} tone="onInverse" />
           </Pressable>
         )}
       </Pressable>

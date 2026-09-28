@@ -7,6 +7,7 @@ import {
   itemLocation,
   notificationKind,
   orderTone,
+  paymentLabel,
   pickerStatusLabel,
   shipmentTone,
   sortPickerQueue,
@@ -15,6 +16,7 @@ import {
   toDeliveryDetail,
   toPickItem,
   toQueueItem,
+  toRiderJob,
 } from "../lib/data/map";
 
 /** Branded ids are opaque strings at runtime; tests only need the brand. */
@@ -320,6 +322,92 @@ describe("toDeliveryDetail", () => {
       customer: { first_name: "Grace" },
     });
     expect(detail.customerName).toBe("Grace");
+  });
+
+  it("carries the order's money, times and items through", () => {
+    const detail = toDeliveryDetail({
+      _id: "s1",
+      status: "Delivered",
+      assigned_at: 1_000,
+      updated_at: 2_000,
+      hub_name: "  Westlands  ",
+      itemCount: 5,
+      items: [{ name: "Milk", quantity: 2, total: 240 }, { quantity: -1 }],
+      order: {
+        _id: "o1",
+        reference: "BR-4821",
+        total_amount: 1_870,
+        delivery_fee: 150,
+        order_date: 500,
+        rider_rating: 4.5,
+        payment_mode: "pay_now",
+        payment_method: "M-Pesa",
+      },
+    });
+    expect(detail.total).toBe(1_870);
+    expect(detail.fee).toBe(150);
+    expect(detail.orderDate).toBe(500);
+    expect(detail.assignedAt).toBe(1_000);
+    expect(detail.updatedAt).toBe(2_000);
+    expect(detail.hubName).toBe("Westlands");
+    expect(detail.rating).toBe(4.5);
+    expect(detail.paymentLabel).toBe("Paid in the app · M-Pesa");
+    // The count is the order's, not the length of the (possibly capped) list.
+    expect(detail.itemCount).toBe(5);
+    // A nameless line still reads as something; a negative quantity is not.
+    expect(detail.items[1]).toEqual({ name: "Item", quantity: 0, total: 0 });
+  });
+
+  it("leaves unknowns null rather than zero-dated", () => {
+    const detail = toDeliveryDetail({ _id: "s1", status: "Picked Up" });
+    expect(detail.assignedAt).toBeNull();
+    expect(detail.orderDate).toBeNull();
+    expect(detail.rating).toBeNull();
+    expect(detail.hubName).toBeNull();
+    expect(detail.fee).toBe(0);
+  });
+});
+
+describe("paymentLabel", () => {
+  it("says who holds the money", () => {
+    expect(paymentLabel({ payment_mode: "pay_now" })).toBe("Paid in the app");
+    expect(paymentLabel({ payment_mode: "pay_on_delivery" })).toBe(
+      "Collect on delivery",
+    );
+    // An absent mode must not tell a rider the order is already paid.
+    expect(paymentLabel(null)).toBe("Collect on delivery");
+  });
+});
+
+describe("toRiderJob", () => {
+  it("counts a delivery as earned only once delivered", () => {
+    const live = toRiderJob({
+      _id: "s1",
+      status: "Out for Delivery",
+      updated_at: 900,
+      _creationTime: 100,
+      delivery_fee: 150,
+    });
+    expect(live.completedAt).toBeNull();
+    expect(live.live).toBe(true);
+    expect(live.assignedAt).toBe(100);
+
+    const done = toRiderJob({
+      _id: "s2",
+      status: "Delivered",
+      updated_at: 900,
+    });
+    expect(done.completedAt).toBe(900);
+    expect(done.live).toBe(false);
+    // No creation time: fall back to the last update rather than to 0.
+    expect(done.assignedAt).toBe(900);
+  });
+
+  it("treats a missing fee as nothing earned, never NaN", () => {
+    const job = toRiderJob({ _id: "s1", status: "Delivered", updated_at: 1 });
+    expect(job.fee).toBe(0);
+    expect(job.total).toBe(0);
+    expect(job.rating).toBeNull();
   });
 });
 

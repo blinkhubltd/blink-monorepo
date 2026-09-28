@@ -66,8 +66,8 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
     api.data.push_tokens.deregisterMyDevice,
   );
 
-  // A picker belongs to a vendor, which is their hub. A rider has no vendor on
-  // their user document at all, so there is no hub name to resolve for one.
+  // A picker belongs to a vendor, which is their hub; a rider may be attached
+  // to one through rider_details. Either way the name comes from here.
   //
   // getHubForCrew, not getVendorById: the full vendor document carries the hub's
   // commission rate, commission type, service radius and business_details — bank
@@ -75,9 +75,10 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
   // a query result on a handset is readable by whoever holds the handset. This
   // returns a name and a town.
   const vendorId = doc?.picker_details?.vendor_id;
+  const hubId = vendorId ?? doc?.rider_details?.vendor_id;
   const vendor = useQuery(
     api.data.vendors.getHubForCrew,
-    vendorId ? { vendorId } : "skip",
+    hubId ? { vendorId: hubId } : "skip",
   );
 
   const role: CrewRole | null = crewRoleFromRoleName(doc?.roleName);
@@ -115,18 +116,22 @@ export function CrewProvider({ children }: { children: React.ReactNode }) {
       .filter((p) => typeof p === "string" && p.trim().length > 0)
       .join(" ")
       .trim();
+    const rider = role === "rider" ? doc.rider_details : undefined;
+    const plate = rider?.vehicle_plate?.trim();
     return {
       id: doc._id,
       name: name.length > 0 ? name : doc.email,
       role,
-      // Resolved from the picker's vendor. A rider has no vendor link, so there
-      // is genuinely no hub to name for one — "Blink" is the honest answer
-      // rather than a hub they may not belong to.
-      hubName: vendor?.name ?? (vendorId ? "Your hub" : "Blink"),
+      // A crew member with no hub link genuinely has no hub to name — "Blink"
+      // is the honest answer rather than a hub they may not belong to.
+      hubName: vendor?.name ?? (hubId ? "Your hub" : "Blink"),
       avatarUrl: doc.image ?? null,
       onShiftSince: null,
+      vehicle: rider
+        ? [rider.vehicle_type, plate].filter(Boolean).join(" · ")
+        : null,
     };
-  }, [doc, role, vendor?.name, vendorId]);
+  }, [doc, role, vendor?.name, hubId]);
 
   const online =
     role === "rider" ? doc?.rider_details?.status === "Active" : gate === "ok";

@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { Landmark, ShieldCheck } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Card } from "@repo/mobile-ui/components/ui/card";
 import { Separator } from "@repo/mobile-ui/components/ui/separator";
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -40,7 +40,7 @@ export default function PayoutDetailsRoute() {
           <Card className="gap-space-4">
             <View className="flex-row items-center gap-space-4">
               <View className="h-control w-control items-center justify-center rounded-pill bg-secondary">
-                <Landmark size={20} strokeWidth={2} className="text-strong" />
+                <Icon name="business-outline" size={20} tone="strong" />
               </View>
               <View className="flex-1">
                 <Text weight="semibold" className="text-strong">
@@ -53,7 +53,7 @@ export default function PayoutDetailsRoute() {
             </View>
             <Separator />
             <View className="flex-row items-center gap-space-3">
-              <ShieldCheck size={16} strokeWidth={2} className="text-success" />
+              <Icon name="shield-checkmark-outline" size={16} tone="success" />
               <Text variant="muted" size="sm" className="flex-1">
                 Your hub manages this destination. Contact your hub lead to
                 change it.
@@ -66,7 +66,7 @@ export default function PayoutDetailsRoute() {
           </Text>
           {PAYOUTS.length === 0 ? (
             <EmptyState
-              icon={<Landmark size={32} strokeWidth={2} className="text-subtle" />}
+              icon={<Icon name="business-outline" size={32} tone="subtle" />}
               title="No payouts yet"
               body="Your first payout will appear here once your hub processes it."
             />

@@ -7,7 +7,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { Check, Minus, Plus } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { cn } from "@repo/mobile-ui/lib/utils";
 import type { PickItem } from "../../lib/data/types";
@@ -79,7 +79,7 @@ export function PickRow({ item, busy, onPick }: PickRowProps) {
           </Text>
           {item.scanned ? (
             <View className="flex-row items-center gap-space-1">
-              <Check size={10} strokeWidth={3} className="text-success" />
+              <Icon name="checkmark" size={10} tone="success" />
               <Text size="caption" variant="success" weight="semibold">
                 Scanned
               </Text>
@@ -151,7 +151,7 @@ function SingleTap({
       )}
     >
       {complete ? (
-        <Check size={22} strokeWidth={3} className="text-success-foreground" />
+        <Icon name="checkmark" size={22} tone="onSolid" />
       ) : null}
     </Pressable>
   );
@@ -192,7 +192,7 @@ function Stepper({
           atMin ? "opacity-25" : "bg-secondary",
         )}
       >
-        <Minus size={18} strokeWidth={2.5} className="text-strong" />
+        <Icon name="remove" size={18} tone="strong" />
       </Pressable>
 
       <Pressable
@@ -212,14 +212,10 @@ function Stepper({
         )}
       >
         {atMax ? (
-          <Check size={20} strokeWidth={3} className="text-success-foreground" />
+          <Icon name="checkmark" size={20} tone="onSolid" />
         ) : (
           <>
-            <Plus
-              size={16}
-              strokeWidth={3}
-              className="text-primary-foreground"
-            />
+            <Icon name="add" size={16} tone="onBrand" />
             <Text
               size="sm"
               weight="bold"

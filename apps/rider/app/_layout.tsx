@@ -12,14 +12,23 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PortalHost } from "@rn-primitives/portal";
 import { useColorScheme } from "nativewind";
-import {
-  Rubik_400Regular,
-  Rubik_500Medium,
-  Rubik_600SemiBold,
-  Rubik_700Bold,
-  Rubik_700Bold_Italic,
-  Rubik_800ExtraBold,
-} from "@expo-google-fonts/rubik";
+import Ionicons from "@expo/vector-icons/Ionicons";
+/**
+ * Inter, the same five faces as apps/shop — the shared Tailwind preset in
+ * packages/mobile-ui/theme names these families for both apps, so each app has
+ * to load exactly these or its text silently falls back to the system font.
+ *
+ * Per-face subpaths, NOT the package barrel: `@expo-google-fonts/inter`'s index
+ * `require`s all 18 faces, so a barrel import ships ~6.2MB of fonts to use
+ * five. The Rubik barrel this replaces had the same problem, at ~2.9MB.
+ */
+import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
+import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
+import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
+import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
+// The one italic, for the delivery badge's forward lean — a real face rather
+// than a synthesised slant, which shears the glyphs instead of redrawing them.
+import { Inter_700Bold_Italic } from "@expo-google-fonts/inter/700Bold_Italic";
 
 import { ConvexClerkProvider } from "../providers/ConvexClerkProvider";
 import { CrewProvider } from "../providers/CrewProvider";
@@ -33,12 +42,15 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
   const [fontsLoaded, fontError] = useFonts({
-    Rubik_400Regular,
-    Rubik_500Medium,
-    Rubik_600SemiBold,
-    Rubik_700Bold,
-    Rubik_800ExtraBold,
-    Rubik_700Bold_Italic,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_700Bold_Italic,
+    // The glyph font behind every shared `Icon`. @expo/vector-icons loads its
+    // own fonts lazily, which would otherwise leave a window after the splash
+    // hides where every icon in the app is a blank box.
+    ...Ionicons.font,
   });
 
   useEffect(() => {

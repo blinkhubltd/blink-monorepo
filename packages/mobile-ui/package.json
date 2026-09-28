@@ -5,7 +5,8 @@
   "exports": {
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
-    "./lib/*": "./src/lib/*.ts"
+    "./lib/*": "./src/lib/*.ts",
+    "./theme/*": "./src/theme/*.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"
@@ -28,11 +29,11 @@
   },
   "peerDependencies": {
     "expo-image": ">=57",
-    "lucide-react-native": ">=1",
     "nativewind": "^4.2.0",
     "react": ">=19",
     "react-native": ">=0.86",
-    "react-native-svg": ">=15"
+    "react-native-svg": ">=15",
+    "@expo/vector-icons": ">=15"
   },
   "devDependencies": {
     "@repo/typescript": "workspace:*",

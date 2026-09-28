@@ -68,6 +68,9 @@ const ALLOWED = new Set<string>([
   "data.schedules.getUserSchedule",
   "data.shipments.getCrewDeliveryDetail",
   "data.shipments.listRiderDeliveries",
+  // "Start the ride". Takes a shipment id, checks the caller is its assigned
+  // rider, and returns the new status string — nothing of the vendor's.
+  "data.shipments.startMyRide",
   "data.tracking.confirmDelivery",
   "data.user_notifications.getMyNotifications",
   "data.user_notifications.getMyUnreadCount",
