@@ -1,5 +1,9 @@
 import { mutation, query } from "../_generated/server";
-import { assertSelfOrPermission, getAuthUser } from "../auth.helpers";
+import {
+  assertPermission,
+  assertSelfOrPermission,
+  getAuthUser,
+} from "../auth.helpers";
 import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -264,12 +268,20 @@ export const backfillShipmentsSearchText = mutation({
   },
 });
 
+/**
+ * Admin's shipment-status override (`apps/admin`'s ShipmentsTable). Any status
+ * to any status, unlike `startMyRide`, which is why it is staff-only: a rider
+ * calling this could set their own delivery straight to "Delivered" and skip
+ * the door entirely.
+ */
 export const updateStatus = mutation({
   args: {
     shipmentId: v.id("shipments"),
     status: v.union(...shipmentStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "shipments:UPDATE");
+
     const currentShipment = await ctx.db.get(args.shipmentId);
     if (!currentShipment) {
       throw new Error("Shipment not found");

@@ -20,10 +20,10 @@ type BottomTabBarProps = Parameters<
 >[0];
 
 /**
- * The bottom nav, per the rider design: a 48×38 rounded pill behind each glyph,
- * ink when the tab is active, gold glyphs throughout, ink labels.
+ * The bottom nav, per the rider design: a rounded pill behind each glyph, ink
+ * when the tab is active, gold glyphs throughout, ink labels.
  *
- * ── One deliberate departure, taken from the shop's tab bar ───────────────
+ * ── Two deliberate departures, both taken from the shop's tab bar ─────────
  *
  * The design leaves inactive glyphs as bare gold on the white bar. That is
  * about 1.7:1 — well under the 3:1 a non-text control needs — and apps/shop's
@@ -31,6 +31,13 @@ type BottomTabBarProps = Parameters<
  * every inactive glyph in light mode. This does the same, so the two apps'
  * navs agree; in dark mode the gold already reads on the bar and the inactive
  * pill goes away, again matching the shop.
+ *
+ * The design's own mock draws that pill with only a slight corner radius —
+ * `rounded-md`, 12px, on a 48×38 box reads as a rounded rectangle, not the
+ * pill the design calls it. Shop's tab pill is fully rounded (a 42px square at
+ * `borderRadius: 24`, i.e. a circle); `rounded-pill` here is the same idea
+ * carried onto this design's wider box — a stadium, not a square with clipped
+ * corners.
  *
  * Custom rather than the default tab bar because the queue tab's icon and label
  * change with the role — the reference app solved that by shipping two whole
@@ -88,7 +95,7 @@ export function BottomNav({ state, navigation }: BottomTabBarProps) {
           >
             <View
               className={cn(
-                "h-[38px] w-[48px] items-center justify-center rounded-md",
+                "h-[38px] w-[48px] items-center justify-center rounded-pill",
                 focused
                   ? "bg-on-brand-pill dark:bg-ink-700"
                   : "bg-secondary dark:bg-transparent",
