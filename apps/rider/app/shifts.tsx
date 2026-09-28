@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
-import { CalendarOff } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Card } from "@repo/mobile-ui/components/ui/card";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { Switch } from "@repo/mobile-ui/components/ui/switch";
@@ -46,7 +46,7 @@ export default function ShiftsRoute() {
         ) : model.rows.length === 0 ? (
           <EmptyState
             icon={
-              <CalendarOff size={32} strokeWidth={2} className="text-subtle" />
+              <Icon name="calendar-clear-outline" size={32} tone="subtle" />
             }
             title="No shifts scheduled"
             body="Your hub sets your weekly schedule. Contact your hub lead to be added to a rota."

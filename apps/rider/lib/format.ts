@@ -44,3 +44,32 @@ export function greeting(now: Date): string {
   if (h < 17) return "Good afternoon";
   return "Good evening";
 }
+
+/**
+ * "Today · 24 Sep 2026", "Yesterday · 23 Sep 2026", or just the date.
+ *
+ * The relative word is what a rider scanning their history reads first; the
+ * date is kept alongside it because "today" stops being true the moment the
+ * screen is screenshotted for a dispute. `now` is a parameter, as everywhere.
+ */
+export const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+export function formatDay(ms: number, now: number): string {
+  // A fixed table, not toLocaleDateString: ICU builds disagree on the short
+  // month ("Sep" on some, "Sept" on Node's), so the locale API would make the
+  // same timestamp read differently on a phone and in a test.
+  const d = new Date(ms);
+  const date = `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const startOf = (t: number) => {
+    const d = new Date(t);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  const days = Math.round((startOf(now) - startOf(ms)) / (24 * 60 * 60 * 1000));
+  if (days === 0) return `Today \u00B7 ${date}`;
+  if (days === 1) return `Yesterday \u00B7 ${date}`;
+  return date;
+}

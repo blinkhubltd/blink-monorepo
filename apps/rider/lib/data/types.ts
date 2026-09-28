@@ -18,6 +18,8 @@ export interface Crew {
   avatarUrl: string | null;
   /** Set when the crew member is clocked in. */
   onShiftSince: number | null;
+  /** Riders only: "Motorbike · KMGA 123B". Null for pickers or when unset. */
+  vehicle: string | null;
 }
 
 export type QueueTone = "success" | "warning" | "neutral";
@@ -32,19 +34,43 @@ export interface QueueItem {
   tone: QueueTone;
 }
 
+export interface DeliveryItem {
+  name: string;
+  quantity: number;
+  /** The line's total, so a pay-on-delivery rider can check the basket. */
+  total: number;
+}
+
 export interface DeliveryDetail {
   id: string;
   reference: string;
+  /** The shipment status, exactly as the backend declares it. */
+  status: string;
   etaMinutes: number | null;
   addressLine: string;
   coordinates: { latitude: number; longitude: number } | null;
   customerName: string;
   customerPhone: string | null;
   itemCount: number;
+  items: DeliveryItem[];
   total: number;
+  /** What the rider is paid for this drop. */
+  fee: number;
   note: string | null;
   /** True once the customer's code has been verified. */
   verified: boolean;
+  /** Where the rider collects from. Null when the hub is not on record. */
+  hubName: string | null;
+  /** Epoch ms of assignment. */
+  assignedAt: number | null;
+  /** Epoch ms of the last status change — the delivery time once delivered. */
+  updatedAt: number | null;
+  /** When the customer ordered, for the drop-by clock. */
+  orderDate: number | null;
+  /** "Paid in the app · M-Pesa" or "Collect on delivery", in rider terms. */
+  paymentLabel: string;
+  /** The customer's 1–5 rating, once given. */
+  rating: number | null;
 }
 
 export interface PickItem {

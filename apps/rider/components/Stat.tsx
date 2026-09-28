@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { TrendingDown, TrendingUp } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 
 interface StatProps {
@@ -30,13 +30,9 @@ export function Stat({ label, value, unit, deltaPct }: StatProps) {
       {deltaPct !== undefined ? (
         <View className="flex-row items-center gap-space-1">
           {up ? (
-            <TrendingUp size={14} strokeWidth={2} className="text-success" />
+            <Icon name="trending-up" size={14} tone="success" />
           ) : (
-            <TrendingDown
-              size={14}
-              strokeWidth={2}
-              className="text-destructive"
-            />
+            <Icon name="trending-down" size={14} tone="destructive" />
           )}
           <Text
             variant={up ? "success" : "destructive"}

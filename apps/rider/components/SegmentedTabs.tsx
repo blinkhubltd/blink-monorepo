@@ -13,14 +13,20 @@ interface SegmentedTabsProps<T extends string> {
   onChange: (value: T) => void;
 }
 
-/** Pill-in-a-pill segmented control, per the DS. */
+/**
+ * Pill-in-a-pill segmented control, per the rider design: 38px segments on an
+ * ink-100 track, the active one ink with gold type.
+ *
+ * The ink is the mode-fixed pill rather than `inverse`, which flips to white
+ * in dark mode and would leave gold type on white — 1.7:1.
+ */
 export function SegmentedTabs<T extends string>({
   items,
   value,
   onChange,
 }: SegmentedTabsProps<T>) {
   return (
-    <View className="flex-row rounded-pill bg-secondary p-space-1">
+    <View className="flex-row gap-space-3 rounded-pill bg-secondary p-space-1">
       {items.map((item) => {
         const active = item.value === value;
         return (
@@ -30,14 +36,14 @@ export function SegmentedTabs<T extends string>({
             accessibilityState={{ selected: active }}
             onPress={() => onChange(item.value)}
             className={cn(
-              "flex-1 items-center justify-center rounded-pill py-space-2",
-              active && "bg-inverse",
+              "h-[38px] flex-1 items-center justify-center rounded-pill",
+              active && "bg-on-brand-pill",
             )}
           >
             <Text
-              size="label"
+              size="sm"
               weight="semibold"
-              variant={active ? "onInverse" : "muted"}
+              className={active ? "text-primary" : "text-foreground"}
             >
               {item.label}
             </Text>

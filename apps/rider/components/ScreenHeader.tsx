@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { useRouter } from "expo-router";
-import { ArrowLeft } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { IconButton } from "./IconButton";
@@ -32,7 +32,7 @@ export function ScreenHeader({ title, onBack, right }: ScreenHeaderProps) {
         accessibilityLabel="Go back"
         onPress={onBack ?? (() => router.back())}
       >
-        <ArrowLeft size={22} strokeWidth={2} className="text-strong" />
+        <Icon name="arrow-back" size={22} tone="strong" />
       </IconButton>
       <Text variant="heading" size="h3" className="flex-1" numberOfLines={1}>
         {title}

@@ -10,14 +10,7 @@ import Animated, {
   useDerivedValue,
   withSpring,
 } from "react-native-reanimated";
-import {
-  Camera as CameraIcon,
-  CheckCircle2,
-  Flashlight,
-  FlashlightOff,
-  X,
-  XCircle,
-} from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Text } from "@repo/mobile-ui/components/ui/text";
 import { cn } from "@repo/mobile-ui/lib/utils";
@@ -162,7 +155,7 @@ export function BarcodeScanner({
                 hitSlop={8}
                 className="h-control w-control items-center justify-center rounded-pill bg-ink-950/60 active:opacity-70"
               >
-                <X size={22} strokeWidth={2} className="text-white" />
+                <Icon name="close" size={22} tone="onSolid" />
               </Pressable>
 
               <Pressable
@@ -177,17 +170,9 @@ export function BarcodeScanner({
                 )}
               >
                 {torch ? (
-                  <Flashlight
-                    size={20}
-                    strokeWidth={2}
-                    className="text-primary-foreground"
-                  />
+                  <Icon name="flashlight" size={20} tone="onBrand" />
                 ) : (
-                  <FlashlightOff
-                    size={20}
-                    strokeWidth={2}
-                    className="text-white"
-                  />
+                  <Icon name="flashlight-outline" size={20} tone="onSolid" />
                 )}
               </Pressable>
             </View>
@@ -240,17 +225,9 @@ function ScanFeedback({ outcome }: { outcome: ScanOutcome }) {
       )}
     >
       {outcome.ok ? (
-        <CheckCircle2
-          size={22}
-          strokeWidth={2.5}
-          className="text-success-foreground"
-        />
+        <Icon name="checkmark-circle" size={22} tone="onSolid" />
       ) : (
-        <XCircle
-          size={22}
-          strokeWidth={2.5}
-          className="text-destructive-foreground"
-        />
+        <Icon name="close-circle" size={22} tone="onSolid" />
       )}
       <View className="flex-1">
         <Text
@@ -330,7 +307,9 @@ function PermissionGate({
       style={{ paddingTop: insets.top }}
     >
       <View className="h-[72px] w-[72px] items-center justify-center rounded-pill bg-ink-800">
-        <CameraIcon size={32} strokeWidth={2} className="text-ink-300" />
+        {/* A literal, not a tone: this screen is the camera's own always-dark
+            surface, so the muted grey here must not flip with the app theme. */}
+        <Icon name="camera-outline" size={32} color="#CBD1DA" />
       </View>
       <View className="gap-space-3">
         <Text variant="heading" size="h2" className="text-center text-white">

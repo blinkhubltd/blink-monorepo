@@ -1,12 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { View } from "react-native";
-import {
-  BellOff,
-  Bike,
-  CalendarClock,
-  CreditCard,
-  TrendingUp,
-} from "lucide-react-native";
+import { Icon, type IconName } from "@repo/mobile-ui/components/ui/icon";
+import type { TokenColor } from "@repo/mobile-ui/theme/token-colors";
 import { Card } from "@repo/mobile-ui/components/ui/card";
 import { Skeleton } from "@repo/mobile-ui/components/ui/skeleton";
 import { Text } from "@repo/mobile-ui/components/ui/text";
@@ -17,19 +12,26 @@ import { formatClock } from "../lib/format";
 import { useMarkNotificationsRead, useNotifications } from "../lib/data";
 import type { CrewNotification, CrewNotificationKind } from "../lib/data/types";
 
-const KIND_ICON: Record<CrewNotificationKind, typeof Bike> = {
-  assignment: Bike,
-  incentive: TrendingUp,
-  shift: CalendarClock,
-  payout: CreditCard,
+const KIND_ICON: Record<CrewNotificationKind, IconName> = {
+  assignment: "bicycle",
+  incentive: "trending-up",
+  shift: "calendar-outline",
+  payout: "card-outline",
 };
 
-/** Assignments and incentives are brand-tinted; the rest are neutral. */
-const KIND_TINT: Record<CrewNotificationKind, string> = {
-  assignment: "text-blink-600",
-  incentive: "text-blink-600",
-  shift: "text-subtle",
-  payout: "text-subtle",
+/**
+ * Assignments and incentives are gold; the rest are neutral.
+ *
+ * `price`, not the blink-600 this used to be: that gold is 2.3:1 on a white
+ * card, too faint for a glyph that is the only thing distinguishing one row
+ * from the next. `price` is the gold that reads on white (7.5:1) and the
+ * bright gold in dark mode — the same role every Ksh figure uses.
+ */
+const KIND_TONE: Record<CrewNotificationKind, TokenColor> = {
+  assignment: "price",
+  incentive: "price",
+  shift: "subtle",
+  payout: "subtle",
 };
 
 interface Group {
@@ -88,7 +90,7 @@ export default function NotificationsRoute() {
           </View>
         ) : groups.length === 0 ? (
           <EmptyState
-            icon={<BellOff size={32} strokeWidth={2} className="text-subtle" />}
+            icon={<Icon name="notifications-off-outline" size={32} tone="subtle" />}
             title="Nothing new"
             body="Assignments, incentives and payout updates will show up here."
           />
@@ -101,16 +103,15 @@ export default function NotificationsRoute() {
                 </Text>
                 <View className="gap-space-3">
                   {group.items.map((item) => {
-                    const Icon = KIND_ICON[item.kind];
                     return (
                       <Card
                         key={item.id}
                         className="flex-row items-center gap-space-4 py-space-4"
                       >
                         <Icon
+                          name={KIND_ICON[item.kind]}
                           size={18}
-                          strokeWidth={2}
-                          className={KIND_TINT[item.kind]}
+                          tone={KIND_TONE[item.kind]}
                         />
                         <View className="flex-1">
                           <Text

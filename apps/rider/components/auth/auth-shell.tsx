@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronLeft } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 
 import { Text } from "@repo/mobile-ui/components/ui/text";
 
@@ -47,7 +47,7 @@ export function AuthShell({
               hitSlop={8}
               className="-ml-space-2 size-control items-center justify-center rounded-pill active:opacity-70"
             >
-              <ChevronLeft size={24} strokeWidth={2} className="text-strong" />
+              <Icon name="chevron-back" size={24} tone="strong" />
             </Pressable>
           ) : null}
         </View>

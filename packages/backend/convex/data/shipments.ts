@@ -1,5 +1,9 @@
 import { mutation, query } from "../_generated/server";
-import { getAuthUser } from "../auth.helpers";
+import {
+  assertPermission,
+  assertSelfOrPermission,
+  getAuthUser,
+} from "../auth.helpers";
 import { v, ConvexError } from "convex/values";
 import { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -264,12 +268,20 @@ export const backfillShipmentsSearchText = mutation({
   },
 });
 
+/**
+ * Admin's shipment-status override (`apps/admin`'s ShipmentsTable). Any status
+ * to any status, unlike `startMyRide`, which is why it is staff-only: a rider
+ * calling this could set their own delivery straight to "Delivered" and skip
+ * the door entirely.
+ */
 export const updateStatus = mutation({
   args: {
     shipmentId: v.id("shipments"),
     status: v.union(...shipmentStatus.map((e) => v.literal(e))),
   },
   handler: async (ctx, args) => {
+    await assertPermission(ctx, "shipments:UPDATE");
+
     const currentShipment = await ctx.db.get(args.shipmentId);
     if (!currentShipment) {
       throw new Error("Shipment not found");
@@ -465,6 +477,12 @@ export const listRiderDeliveries = query({
     onlyPending: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Self, or someone allowed to read riders. This was ungated: any caller
+    // holding a rider's id could list every delivery that rider had ever made,
+    // with each customer's name and address — and it now carries order totals
+    // and the rider's fee as well, which makes the gap worse, not better.
+    await assertSelfOrPermission(ctx, args.riderId, "riders:READ");
+
     const deliveries = await ctx.db
       .query("shipments")
       .withIndex("by_rider", (q) => q.eq("rider_id", args.riderId))
@@ -494,6 +512,14 @@ export const listRiderDeliveries = query({
           payment_method: order?.payment_method,
           customer_name: customerName,
           is_clearance: order?.is_clearance,
+          // For the rider's own history and earnings. `delivery_fee` is what
+          // the rider is paid for the drop — the same figure
+          // `getRiderDashboard` sums for "today's earnings", so the two can
+          // never disagree about what a delivery was worth.
+          total_amount: order?.total_amount,
+          delivery_fee: order?.delivery_fee,
+          order_date: order?.order_date,
+          rider_rating: order?.rider_rating,
         };
       }),
     );
@@ -651,30 +677,44 @@ export const getCrewDeliveryDetail = query({
 
     const order = await ctx.db.get(shipment.order_id);
     const customer = order ? await ctx.db.get(order.user_id) : null;
+    // The hub the rider collects from. NAME ONLY — the rest of that document
+    // is the hub's commercial and banking terms, and the rider app's
+    // `no-vendor-leak.test.ts` fails the build if this handler ever spreads it
+    // or so much as names one of those fields.
+    const hub = await ctx.db.get(shipment.vendor_id);
 
-    const itemCount = order
-      ? (
-          await ctx.db
-            .query("order_items")
-            .withIndex("by_order", (q) => q.eq("order_id", order._id))
-            .collect()
-        ).length
-      : 0;
+    const orderItems = order
+      ? await ctx.db
+          .query("order_items")
+          .withIndex("by_order", (q) => q.eq("order_id", order._id))
+          .collect()
+      : [];
 
     return {
       _id: shipment._id,
       status: shipment.status,
+      // When dispatch handed the job over. A shipment row is created at
+      // assignment, so its creation time IS the assignment time — there is no
+      // separate column to read.
+      assigned_at: shipment._creationTime,
+      updated_at: shipment.updated_at,
       // The address is the job. Coordinates included; the rest of the vendor and
       // pickup side is not a rider concern beyond where they are going.
       delivery_address: shipment.delivery_address,
+      hub_name: hub?.name ?? null,
       order: order
         ? {
             _id: order._id,
             reference: order.reference,
+            order_date: order.order_date,
             payment_mode: order.payment_mode,
+            payment_method: order.payment_method,
             payment_status: order.payment_status,
             total_amount: order.total_amount,
+            // What the rider is paid for this drop.
+            delivery_fee: order.delivery_fee,
             delivery_code_verified: order.delivery_code_verified,
+            rider_rating: order.rider_rating,
             // The customer's delivery instruction. Named
             // special_instructions on the orders table — there is no `notes`
             // field, so anything reading one silently rendered nothing.
@@ -688,7 +728,69 @@ export const getCrewDeliveryDetail = query({
             phone: customer.phone,
           }
         : null,
-      itemCount,
+      itemCount: orderItems.length,
+      // What is in the bag. Projected: a rider needs the name, how many, and —
+      // for a pay-on-delivery order — what each line costs, and nothing about
+      // the product's supplier, SKU or tax.
+      items: orderItems.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        total: item.total,
+      })),
     };
+  },
+});
+
+/**
+ * The rider sets off with the order: "Start the ride".
+ *
+ * Its own mutation rather than a call to `updateStatus`, which takes any
+ * shipment and any status from any caller with no auth check at all. This one
+ * is scoped three ways: the caller must be the assigned rider, the only status
+ * it can write is "Out for Delivery", and only from a status that comes before
+ * it — so it cannot reopen a delivered order or resurrect a failed one.
+ *
+ * Idempotent: starting a ride that is already under way succeeds without
+ * writing, so a double tap or a retry after a dropped connection is harmless.
+ */
+export const startMyRide = mutation({
+  args: { shipmentId: v.id("shipments") },
+  handler: async (ctx, args) => {
+    const { user } = await getAuthUser(ctx);
+
+    const shipment = await ctx.db.get(args.shipmentId);
+    // One answer for "missing" and "not yours", so this cannot be used to
+    // probe which shipment ids exist.
+    if (!shipment || shipment.rider_id !== user._id) {
+      throw new ConvexError("That delivery is not assigned to you.");
+    }
+
+    if (shipment.status === "Out for Delivery") {
+      return { status: shipment.status };
+    }
+    if (
+      shipment.status !== "Awaiting Pickup" &&
+      shipment.status !== "Picked Up"
+    ) {
+      throw new ConvexError(
+        `This delivery is already ${shipment.status.toLowerCase()}.`,
+      );
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(shipment._id, {
+      status: "Out for Delivery",
+      updated_at: now,
+    });
+
+    const order = await ctx.db.get(shipment.order_id);
+    if (order) {
+      await ctx.db.patch(order._id, {
+        order_status: shipmentStatusToOrderStatus("Out for Delivery"),
+        updated_at: now,
+      });
+    }
+
+    return { status: "Out for Delivery" as const };
   },
 });

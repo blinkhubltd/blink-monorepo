@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { CircleCheck, Flag, ImageOff, Maximize2 } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import type { Id } from "@repo/backend/dataModel";
 import { Badge } from "@repo/mobile-ui/components/ui/badge";
 import { Button } from "@repo/mobile-ui/components/ui/button";
@@ -147,7 +147,7 @@ export default function PrescriptionReviewRoute() {
                   contentFit="cover"
                 />
                 <View className="absolute bottom-space-2 right-space-2 h-space-8 w-space-8 items-center justify-center rounded-pill bg-ink-950/70">
-                  <Maximize2 size={16} strokeWidth={2} className="text-white" />
+                  <Icon name="expand-outline" size={16} tone="onSolid" />
                 </View>
               </Pressable>
               <Text variant="subtle" size="caption">
@@ -156,7 +156,7 @@ export default function PrescriptionReviewRoute() {
             </View>
           ) : (
             <Card className="items-center gap-space-3 py-space-7">
-              <ImageOff size={28} strokeWidth={2} className="text-subtle" />
+              <Icon name="image-outline" size={28} tone="subtle" />
               <Text variant="muted" size="sm" className="text-center">
                 The prescription document could not be loaded.
               </Text>
@@ -178,11 +178,7 @@ export default function PrescriptionReviewRoute() {
               // Approving with nothing to look at is not a check.
               disabled={!hasImage || submitting}
               icon={
-                <CircleCheck
-                  size={18}
-                  strokeWidth={2}
-                  className="text-primary-foreground"
-                />
+                <Icon name="checkmark-circle-outline" size={18} tone="onBrand" />
               }
               onPress={() => void approve()}
             />
@@ -191,7 +187,7 @@ export default function PrescriptionReviewRoute() {
               variant="ghost"
               label={flagging ? "Pick a reason" : "Flag issue"}
               disabled={submitting}
-              icon={<Flag size={18} strokeWidth={2} className="text-strong" />}
+              icon={<Icon name="flag-outline" size={18} tone="strong" />}
               onPress={() => setFlagging((f) => !f)}
             />
           </View>

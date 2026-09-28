@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Animated, { LinearTransition } from "react-native-reanimated";
-import { PackageCheck } from "lucide-react-native";
+import { Icon } from "@repo/mobile-ui/components/ui/icon";
 import type { Id } from "@repo/backend/dataModel";
 import { Button } from "@repo/mobile-ui/components/ui/button";
 import { Card } from "@repo/mobile-ui/components/ui/card";
@@ -243,11 +243,7 @@ export default function PickListRoute() {
           loading={completing}
           disabled={!model.complete}
           icon={
-            <PackageCheck
-              size={18}
-              strokeWidth={2}
-              className="text-primary-foreground"
-            />
+            <Icon name="cube-outline" size={18} tone="onBrand" />
           }
           onPress={() => void onComplete()}
         />

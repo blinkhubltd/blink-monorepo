@@ -7,11 +7,11 @@ import { join } from "node:path";
  *
  * ── Why a test rather than just removing the dependency ───────────────────
  *
- * Removing `lucide-react-native` from apps/shop/package.json does not actually
- * prevent importing it. `.npmrc` sets `node-linker=hoisted`, and Lucide remains
- * a real dependency of apps/rider and a peerDependency of @repo/mobile-ui, so it
- * stays in the monorepo root node_modules — where Metro will happily resolve it
- * from this app. The removal is a statement of intent; this is the enforcement.
+ * Removing `lucide-react-native` from apps/shop/package.json does not by
+ * itself prevent importing it: `.npmrc` sets `node-linker=hoisted`, so any
+ * package another workspace re-adds lands in the root node_modules, where
+ * Metro will happily resolve it from this app. The removal is a statement of
+ * intent; this is the enforcement.
  *
  * There is also no ESLint in apps/shop (only apps/admin has a config), so there
  * is no lint rule available to do this job.
@@ -22,15 +22,9 @@ import { join } from "node:path";
  * pin — both cases being brand or two-colour marks that a single-colour glyph
  * font cannot express.
  *
- * The monorepo still contains Lucide, in three files under packages/mobile-ui
- * (`icon.tsx`, `checkbox.tsx`, `dialog.tsx`) that exist for apps/rider. That is
- * not a violation: this app imports none of those three components, so Lucide is
- * not in its bundle at all. Touching the shared package would move risk onto
- * rider for no benefit here.
- *
- * If this app ever needs mobile-ui's dialog or checkbox, that is the moment to
- * revisit — and this test will not catch it, because it scans only this app's
- * own source. Hence the explicit note rather than silence.
+ * The shared icon (`@repo/mobile-ui/components/ui/icon`) is Ionicons too, and
+ * packages/mobile-ui and apps/rider carry their own copy of this guard, so
+ * nothing this app pulls in from the shared package brings Lucide back.
  */
 
 const APP_ROOT = join(__dirname, "..");

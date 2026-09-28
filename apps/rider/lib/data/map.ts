@@ -6,6 +6,7 @@
  * structural mismatches these functions absorb are called out at each site.
  */
 import type { Id } from "@repo/backend/dataModel";
+import type { RiderJob } from "../earnings";
 import type {
   CrewNotification,
   CrewNotificationKind,
@@ -150,6 +151,8 @@ export function coordinatesOf(
 
 export interface RiderDeliveryDoc {
   _id: string;
+  /** Convex's own creation time — the moment dispatch assigned the job. */
+  _creationTime?: number;
   status: string;
   updated_at: number;
   delivery_address?: AddressDoc;
@@ -157,6 +160,10 @@ export interface RiderDeliveryDoc {
   customer_name?: string;
   payment_method?: string;
   is_clearance?: boolean;
+  total_amount?: number;
+  delivery_fee?: number;
+  order_date?: number;
+  rider_rating?: number;
 }
 
 export function toQueueItem(doc: RiderDeliveryDoc): QueueItem {
@@ -168,6 +175,36 @@ export function toQueueItem(doc: RiderDeliveryDoc): QueueItem {
     subtitle: formatAddress(doc.delivery_address),
     status: doc.status,
     tone: shipmentTone(doc.status),
+  };
+}
+
+/**
+ * One shipment as the rider's Home, Deliveries and Incentives screens use it.
+ *
+ * `completedAt` is `updated_at` for a delivered shipment and null otherwise:
+ * reaching Delivered is the last thing that touches a shipment, so its last
+ * update IS its delivery time — and a live one has no completion to report.
+ */
+export function toRiderJob(doc: RiderDeliveryDoc): RiderJob {
+  const delivered = doc.status === "Delivered";
+  return {
+    id: doc._id,
+    reference: doc.order_ref ?? "—",
+    status: doc.status,
+    live: LIVE_STATUSES.has(doc.status),
+    addressLine: formatAddress(doc.delivery_address),
+    coordinates: coordinatesOf(doc.delivery_address),
+    customerName: doc.customer_name?.trim() || null,
+    assignedAt: doc._creationTime ?? doc.updated_at,
+    updatedAt: doc.updated_at,
+    completedAt: delivered ? doc.updated_at : null,
+    orderDate: doc.order_date ?? null,
+    total: doc.total_amount ?? 0,
+    // A missing fee counts as nothing earned rather than as unknown: the
+    // earnings screens sum it, and one undefined would make every total NaN.
+    fee: doc.delivery_fee ?? 0,
+    rating: doc.rider_rating ?? null,
+    paymentMethod: doc.payment_method ?? null,
   };
 }
 
@@ -240,15 +277,21 @@ export function sortPickerQueue(docs: PickerOrderDoc[]): PickerOrderDoc[] {
 export interface ShipmentDetailDoc {
   _id: string;
   status: string;
+  assigned_at?: number;
+  updated_at?: number;
   delivery_address?: AddressDoc;
+  hub_name?: string | null;
   order?: {
     _id: string;
     reference: string;
+    order_date?: number;
     payment_mode?: string;
     payment_method?: string;
     payment_status?: string;
     total_amount?: number;
+    delivery_fee?: number;
     delivery_code_verified?: boolean;
+    rider_rating?: number;
     special_instructions?: string;
   } | null;
   customer?: {
@@ -257,6 +300,25 @@ export interface ShipmentDetailDoc {
     phone?: string;
   } | null;
   itemCount?: number;
+  items?: { name?: string; quantity?: number; total?: number }[];
+}
+
+/**
+ * How the basket is paid, in the words a rider acts on at the door.
+ *
+ * Pay-now orders are settled already — the rider only hands over. Everything
+ * else is collected on delivery, and saying so is the difference between a
+ * rider asking for money and one forgetting to.
+ */
+export function paymentLabel(
+  order: { payment_mode?: string; payment_method?: string } | null | undefined,
+): string {
+  if (order?.payment_mode === "pay_now") {
+    return order.payment_method
+      ? `Paid in the app · ${order.payment_method}`
+      : "Paid in the app";
+  }
+  return "Collect on delivery";
 }
 
 export function toDeliveryDetail(doc: ShipmentDetailDoc): DeliveryDetail {
@@ -265,9 +327,16 @@ export function toDeliveryDetail(doc: ShipmentDetailDoc): DeliveryDetail {
     .join(" ")
     .trim();
 
+  const items = (doc.items ?? []).map((item) => ({
+    name: item.name?.trim() || "Item",
+    quantity: Math.max(0, item.quantity ?? 0),
+    total: item.total ?? 0,
+  }));
+
   return {
     id: doc._id,
     reference: doc.order?.reference ?? "—",
+    status: doc.status,
     // No backend query returns an ETA. Rendering a fabricated one is worse than
     // rendering none, so this stays null until there is a real source.
     etaMinutes: null,
@@ -275,13 +344,21 @@ export function toDeliveryDetail(doc: ShipmentDetailDoc): DeliveryDetail {
     coordinates: coordinatesOf(doc.delivery_address),
     customerName: customerName.length > 0 ? customerName : "Customer",
     customerPhone: doc.customer?.phone ?? null,
-    itemCount: doc.itemCount ?? 0,
+    itemCount: doc.itemCount ?? items.length,
+    items,
     total: doc.order?.total_amount ?? 0,
+    fee: doc.order?.delivery_fee ?? 0,
     // `orders.notes` does not exist — the field is `special_instructions`, so
     // this read `undefined` and the customer's delivery instruction never
     // appeared on the screen that exists to show it.
     note: doc.order?.special_instructions ?? null,
     verified: doc.order?.delivery_code_verified === true,
+    hubName: doc.hub_name?.trim() || null,
+    assignedAt: doc.assigned_at ?? null,
+    updatedAt: doc.updated_at ?? null,
+    orderDate: doc.order?.order_date ?? null,
+    paymentLabel: paymentLabel(doc.order),
+    rating: doc.order?.rider_rating ?? null,
   };
 }
 

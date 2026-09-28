@@ -28,8 +28,10 @@ import {
   toPickerQueueItem,
   toPickItem,
   toQueueItem,
+  toRiderJob,
   type ConfirmationMode,
 } from "./map";
+import type { RiderJob } from "../earnings";
 import { upcomingShifts, withWeekdayEnabled, type UpcomingShift, type WeeklyScheduleDoc, type WeekdayName } from "./shifts";
 import type {
   ActiveWork,
@@ -87,6 +89,103 @@ export function useCompletedDeliveries(): CompletedDelivery[] | undefined {
   return useMemo(
     () => (docs === undefined ? undefined : completedFromShipments(docs)),
     [docs],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rider jobs — Home, Deliveries and Incentives
+// ---------------------------------------------------------------------------
+
+export interface RiderJobs {
+  /** Live work, the first-assigned first: the job to do now leads. */
+  active: RiderJob[];
+  /** Delivered work, the most recent first. */
+  done: RiderJob[];
+  /** Everything, for the earnings arithmetic. */
+  all: RiderJob[];
+}
+
+/**
+ * The rider's whole delivery list, as jobs.
+ *
+ * One subscription feeds three screens. `listRiderDeliveries` is the only
+ * source of per-delivery fees and times, so the home sparklines, the
+ * Deliveries tabs and the Incentives charts all read the same rows — and
+ * cannot disagree about what happened on a given day.
+ *
+ * Failed deliveries are in neither tab: they are not work to do, and they are
+ * not something the rider completed.
+ */
+export function useRiderJobs(): RiderJobs | undefined {
+  const { crew, userId } = useCrew();
+  const docs = useQuery(
+    api.data.shipments.listRiderDeliveries,
+    crew?.role === "rider" && userId ? { riderId: userId } : "skip",
+  );
+  return useMemo(() => {
+    if (docs === undefined) return undefined;
+    const all = docs.map(toRiderJob);
+    return {
+      active: all
+        .filter((j) => j.live)
+        .sort((a, b) => a.assignedAt - b.assignedAt),
+      done: all
+        .filter((j) => j.completedAt !== null)
+        .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
+      all,
+    };
+  }, [docs]);
+}
+
+export interface RiderStats {
+  earningsToday: number;
+  completedToday: number;
+  /** Lifetime completed deliveries. */
+  completedTotal: number;
+  /** Customer rating out of 5, or null before the first one. */
+  rating: number | null;
+  /**
+   * Delivered as a share of all assigned, 0–100.
+   *
+   * The backend also returns an `onTimeRate`, and it is this same number under
+   * another name: nothing records whether a delivery beat its promise, so
+   * `getRiderDashboard` copies the completion rate into it. The profile shows
+   * it as "completed" rather than repeat a label the data cannot back.
+   */
+  completionRate: number;
+}
+
+export function useRiderStats(): RiderStats | undefined {
+  const { crew, userId } = useCrew();
+  const dashboard = useQuery(
+    api.data.rider_analytics.getRiderDashboard,
+    crew?.role === "rider" && userId ? { riderId: userId } : "skip",
+  );
+  return useMemo(() => {
+    if (dashboard === undefined) return undefined;
+    const rating = dashboard.performanceStats.rating;
+    return {
+      earningsToday: dashboard.dailyStats.todaysEarnings,
+      completedToday: dashboard.dailyStats.completedToday,
+      completedTotal: dashboard.performanceStats.completedDeliveries,
+      rating: rating > 0 ? rating : null,
+      completionRate: dashboard.performanceStats.completionRate,
+    };
+  }, [dashboard]);
+}
+
+/**
+ * "Start the ride": the rider sets off, and the shipment and order both move
+ * to out-for-delivery. Scoped server-side to the assigned rider and to forward
+ * moves only — see `shipments.startMyRide`.
+ */
+export function useStartRide() {
+  const start = useMutation(api.data.shipments.startMyRide);
+  return useCallback(
+    async (shipmentId: Id<"shipments">) => {
+      await start({ shipmentId });
+    },
+    [start],
   );
 }
 
