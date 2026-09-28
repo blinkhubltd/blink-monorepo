@@ -86,7 +86,7 @@ const expoConfig: ExpoConfig = {
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
-      backgroundColor: "#FFC50B",
+      backgroundColor: "#000000",
     },
     // Identity fix: was "com.anonymous.blinkrider". This needs a new Play
     // listing and forces a reinstall — an accepted, decided trade.
@@ -127,8 +127,8 @@ const expoConfig: ExpoConfig = {
         image: "./assets/images/splash-icon.png",
         imageWidth: 180,
         resizeMode: "contain",
-        backgroundColor: "#FFC50B",
-        dark: { backgroundColor: "#0A0E16" },
+        backgroundColor: "#000000",
+        dark: { backgroundColor: "#000000" },
       },
     ],
     [
@@ -168,8 +168,7 @@ const expoConfig: ExpoConfig = {
       {
         photosPermission:
           "Blink needs photo access to attach prescription images to an order.",
-        cameraPermission:
-          "Blink uses the camera to capture proof of delivery.",
+        cameraPermission: "Blink uses the camera to capture proof of delivery.",
       },
     ],
   ],
